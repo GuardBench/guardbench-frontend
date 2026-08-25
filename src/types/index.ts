@@ -47,6 +47,13 @@ export interface TestRun {
   createdAt: string;
 }
 
+export interface ExecutionDetail {
+  action: ActionType;
+  rawResponse: string;
+  filterReason?: string;
+  latencyMs: number;
+}
+
 export interface SnapshotCase {
   id: string;
   title: string;
@@ -57,6 +64,9 @@ export interface SnapshotCase {
   candidate: ActionType;
   assertion: 'PASS' | 'FAIL';
   change: ChangeType;
+  inputPrompt?: string;
+  baselineExecution?: ExecutionDetail;
+  candidateExecution?: ExecutionDetail;
 }
 
 export interface ArchitectureRule {
