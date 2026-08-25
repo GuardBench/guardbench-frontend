@@ -14,7 +14,7 @@ export const ArchitectureView: React.FC = () => {
           </p>
         </div>
         <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-[#cfe6dd] bg-[#f1faf6] text-[#1a7f5a] text-xs font-bold">
-          Python · FastAPI · AWS
+          Java · Spring Boot · AWS
         </span>
       </div>
 
@@ -32,7 +32,7 @@ export const ArchitectureView: React.FC = () => {
             </div>
             <div className="w-[1px] h-3 bg-[#cbd3da] mx-auto" />
             <div className="border border-[#e5e9ee] bg-[#fbfcfc] rounded-xl p-3.5 flex justify-between items-center">
-              <strong className="text-xs text-[#17202a]">FastAPI · Run Orchestrator</strong>
+              <strong className="text-xs text-[#17202a]">Spring Boot · Run Orchestrator</strong>
               <span className="text-[10px] text-[#697586]">Target resolve · Snapshot 고정</span>
             </div>
             <div className="w-[1px] h-3 bg-[#cbd3da] mx-auto" />
@@ -42,12 +42,12 @@ export const ArchitectureView: React.FC = () => {
             </div>
             <div className="w-[1px] h-3 bg-[#cbd3da] mx-auto" />
             <div className="border border-[#e5e9ee] bg-[#fbfcfc] rounded-xl p-3.5 flex justify-between items-center">
-              <strong className="text-xs text-[#17202a]">Bedrock Adapter</strong>
+              <strong className="text-xs text-[#17202a]">Guardrail Adapter</strong>
               <span className="text-[10px] text-[#697586]">ApplyGuardrail · 응답 정규화</span>
             </div>
             <div className="w-[1px] h-3 bg-[#cbd3da] mx-auto" />
             <div className="border border-[#e5e9ee] bg-[#fbfcfc] rounded-xl p-3.5 flex justify-between items-center">
-              <strong className="text-xs text-[#17202a]">Assertion · Change Engine</strong>
+              <strong className="text-xs text-[#17202a]">Evaluation Engine</strong>
               <span className="text-[10px] text-[#697586]">순수 도메인 판정</span>
             </div>
             <div className="w-[1px] h-3 bg-[#cbd3da] mx-auto" />
