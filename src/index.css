@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --ink: #17202a;
+    --muted: #697586;
+    --line: #e5e9ee;
+    --canvas: #f6f7f9;
+    --panel: #ffffff;
+    --nav: #101923;
+    --nav-2: #192532;
+    --green: #1a7f5a;
+    --green-bg: #e9f7f1;
+    --red: #bd3b35;
+    --red-bg: #fff0ef;
+    --amber: #a56512;
+    --amber-bg: #fff7e8;
+    --blue: #246fa8;
+    --blue-bg: #edf6fc;
+    --purple: #7455a6;
+    --purple-bg: #f3effa;
+    --shadow: 0 12px 34px rgba(18, 32, 45, 0.08);
+    --radius: 16px;
+  }
+
+  body {
+    font-family: Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-rise {
+  animation: rise 0.22s ease forwards;
+}

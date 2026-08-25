@@ -1,0 +1,37 @@
+# GuardBench Web Frontend
+
+GuardBench(Amazon Bedrock Guardrail 정책 회귀 테스트 플랫폼)의 공식 웹 프론트엔드 모듈입니다.
+
+## 🚀 주요 기능 및 화면
+
+- **대시보드 (Dashboard)**: 전체 스위트 현황, 최근 7일 Quality Gate 판정 추이 차트, 최근 활동 피드
+- **테스트 스위트 (Test Suites)**: 검증 목적별 테스트 케이스 스위트 카탈로그 및 세부 정보
+- **새 테스트 실행 (New Run)**: Baseline Target(운영 버전) vs Candidate Target(DRAFT -> Materialized Version) 설정 및 실행 요청
+- **실행 이력 (Run History)**: 실행 신뢰성(Execution Status)과 Quality Gate 판정(PASS/FAIL/NOT_EVALUATED) 분리 조회
+- **결과 상세 (Result Detail)**: Quality Gate 판정 히어로 카드, Target Flow, 4대 핵심 메트릭, Snapshot별 회귀 분석 테이블
+- **시스템 아키텍처 (Architecture)**: REST 요청부터 Quality Gate 판정까지의 실행 흐름 및 5대 핵심 도메인 불변식
+
+## 🛠️ 기술 스택
+
+- **Core**: React 19, TypeScript, Vite
+- **Styling**: Tailwind CSS v4, Pretendard Font
+- **Icons**: Lucide React
+- **Architecture**: Single Page Application (SPA)
+- **Deployment**: AWS S3 + CloudFront OAC
+
+## 💻 로컬 개발 환경 실행
+
+```bash
+# 1. 의존성 패키지 설치
+npm install
+
+# 2. 로컬 개발 서버 실행
+npm run dev
+
+# 3. 프로덕션 빌드 검증
+npm run build
+```
+
+## 🌐 배포 아키텍처 (CI/CD)
+
+- GitHub Actions (`.github/workflows/deploy.yml`): `main` 브랜치 push 시 자동 빌드 후 S3 버킷(`guardbench-dev-frontend`) 동기화 및 CloudFront 캐시 무효화 수행.

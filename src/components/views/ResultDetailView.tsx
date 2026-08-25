@@ -1,0 +1,197 @@
+import React from 'react';
+import { mockSnapshots } from '../../mocks/mockData';
+import { StatusPill } from '../common/StatusPill';
+import { Download, RefreshCw, ArrowRight } from 'lucide-react';
+
+interface ResultDetailViewProps {
+  onGoNewRun: () => void;
+  onNotify: (msg: string) => void;
+}
+
+export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, onNotify }) => {
+  return (
+    <section className="space-y-6 animate-rise">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <div className="text-[#1a7f5a] text-xs font-black tracking-widest uppercase mb-1.5">
+            Run #5001 · Completed
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#17202a]">테스트 결과 상세</h1>
+          <p className="text-[#697586] text-sm mt-1.5 leading-relaxed">
+            Customer Support Safety · 2026. 08. 19. 15:00–15:01
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onNotify('리포트 내보내기는 데모 동작입니다.')}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#e5e9ee] bg-white text-xs font-bold text-[#17202a] hover:bg-gray-50"
+          >
+            <Download size={14} /> 리포트
+          </button>
+          <button
+            onClick={onGoNewRun}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#17202a] text-white text-xs font-bold shadow-sm hover:bg-[#253545]"
+          >
+            <RefreshCw size={14} /> 다시 실행
+          </button>
+        </div>
+      </div>
+
+      {/* Result Hero: Gate Card & Target Card */}
+      <div className="grid grid-cols-1 lg:grid-cols-[0.72fr_1.5fr] gap-5">
+        {/* Quality Gate Fail Banner */}
+        <article className="relative overflow-hidden bg-gradient-to-br from-[#9f2f2b] to-[#ca4d45] text-white rounded-2xl p-6 shadow-md flex flex-col justify-between">
+          <div className="absolute -right-4 -bottom-6 text-8xl font-black opacity-10 pointer-events-none">
+            FAIL
+          </div>
+          <div>
+            <small className="opacity-80 font-bold text-xs">QUALITY GATE</small>
+            <div className="text-3xl font-black tracking-tight my-4">배포 차단</div>
+          </div>
+          <p className="text-xs opacity-90 leading-relaxed">
+            CRITICAL 등급의 보안 회귀 1건이 감지되어 Candidate 정책을 배포할 수 없습니다.
+          </p>
+        </article>
+
+        {/* Target Flow Card */}
+        <article className="bg-white border border-[#e5e9ee] rounded-2xl p-6 shadow-[0_3px_15px_rgba(17,31,44,0.025)] flex flex-col justify-between">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-sm font-bold text-[#17202a]">실행 대상</h2>
+            <StatusPill status="COMPLETED" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-3">
+            <div className="border border-[#e5e9ee] rounded-xl p-4">
+              <span className="text-[10px] font-extrabold text-[#697586] tracking-wider block">BASELINE</span>
+              <b className="text-sm text-[#17202a] block my-1.5">Guardrail v7</b>
+              <code className="text-[10px] text-[#697586] font-mono break-all">gbfp1:sha256:a82f…91c0</code>
+            </div>
+            <div className="text-center text-[#697586] flex justify-center">
+              <ArrowRight size={20} className="hidden sm:block" />
+              <span className="sm:hidden">↓</span>
+            </div>
+            <div className="border border-[#e5e9ee] rounded-xl p-4">
+              <span className="text-[10px] font-extrabold text-[#697586] tracking-wider block">CANDIDATE</span>
+              <b className="text-sm text-[#17202a] block my-1.5">Draft → Guardrail v8</b>
+              <code className="text-[10px] text-[#697586] font-mono break-all">gbfp1:sha256:1b74…e9a2</code>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      {/* 4 Metrics Progress Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <article className="bg-white border border-[#e5e9ee] rounded-2xl p-4 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
+          <span className="text-[10px] text-[#697586] font-bold block">Candidate Assertion</span>
+          <b className="text-lg text-[#17202a] block mt-1">95.8%</b>
+          <div className="h-1.5 bg-[#edf0f2] rounded-full overflow-hidden mt-3">
+            <div className="h-full bg-[#1a7f5a] rounded-full" style={{ width: '95.8%' }} />
+          </div>
+        </article>
+
+        <article className="bg-white border border-[#e5e9ee] rounded-2xl p-4 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
+          <span className="text-[10px] text-[#697586] font-bold block">Security Regression</span>
+          <b className="text-lg text-[#bd3b35] block mt-1">1건 · 4.2%</b>
+          <div className="h-1.5 bg-[#edf0f2] rounded-full overflow-hidden mt-3">
+            <div className="h-full bg-[#bd3b35] rounded-full" style={{ width: '4.2%' }} />
+          </div>
+        </article>
+
+        <article className="bg-white border border-[#e5e9ee] rounded-2xl p-4 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
+          <span className="text-[10px] text-[#697586] font-bold block">Usability Regression</span>
+          <b className="text-lg text-[#a56512] block mt-1">0건 · 0%</b>
+          <div className="h-1.5 bg-[#edf0f2] rounded-full overflow-hidden mt-3">
+            <div className="h-full bg-[#a56512] rounded-full" style={{ width: '0%' }} />
+          </div>
+        </article>
+
+        <article className="bg-white border border-[#e5e9ee] rounded-2xl p-4 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
+          <span className="text-[10px] text-[#697586] font-bold block">Execution Success</span>
+          <b className="text-lg text-[#246fa8] block mt-1">100%</b>
+          <div className="h-1.5 bg-[#edf0f2] rounded-full overflow-hidden mt-3">
+            <div className="h-full bg-[#246fa8] rounded-full" style={{ width: '100%' }} />
+          </div>
+        </article>
+      </div>
+
+      {/* Snapshot Decision Table */}
+      <article className="bg-white border border-[#e5e9ee] rounded-2xl shadow-[0_3px_15px_rgba(17,31,44,0.025)] overflow-hidden">
+        <div className="p-5 border-b border-[#e5e9ee] flex justify-between items-center">
+          <div>
+            <h2 className="text-sm font-bold text-[#17202a]">Snapshot별 판정</h2>
+            <p className="text-xs text-[#697586] mt-0.5">
+              Candidate Assertion과 Baseline 대비 Change를 함께 표시합니다.
+            </p>
+          </div>
+          <span className="px-2.5 py-1 rounded-full bg-[#f1f3f5] text-[#586473] text-[10px] font-extrabold">
+            24 snapshots
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left text-xs min-w-[720px]">
+            <thead>
+              <tr className="bg-[#fafbfb] border-b border-[#e5e9ee] text-[#7a8592] uppercase font-bold tracking-wider text-[10px]">
+                <th className="py-3 px-5">테스트 케이스</th>
+                <th className="py-3 px-5">Expected</th>
+                <th className="py-3 px-5">Baseline</th>
+                <th className="py-3 px-5">Candidate</th>
+                <th className="py-3 px-5">Assertion</th>
+                <th className="py-3 px-5">Change</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#e5e9ee]">
+              {mockSnapshots.map((item) => {
+                const getSeverityStyle = (s: string) => {
+                  if (s === 'CRITICAL') return 'bg-[#ffe6e4] text-[#a92e29]';
+                  if (s === 'HIGH') return 'bg-[#fff0d4] text-[#a56512]';
+                  return 'bg-[#eee9f8] text-[#675099]';
+                };
+
+                const getChangeBadge = (c: string) => {
+                  if (c === 'SECURITY REGRESSION')
+                    return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#fff0ef] text-[#bd3b35]">SECURITY REGRESSION</span>;
+                  if (c === 'IMPROVEMENT')
+                    return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#e9f7f1] text-[#1a7f5a]">IMPROVEMENT</span>;
+                  return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#f1f3f5] text-[#586473]">NO CHANGE</span>;
+                };
+
+                return (
+                  <tr key={item.id} className="hover:bg-[#fafcfb] transition-colors">
+                    <td className="py-4 px-5">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${getSeverityStyle(item.severity)}`}>
+                          {item.severity}
+                        </span>
+                        <div>
+                          <b className="block text-sm text-[#17202a]">{item.title}</b>
+                          <small className="text-[11px] text-[#697586]">
+                            {item.category} · {item.id}
+                          </small>
+                        </div>
+                      </div>
+                    </td>
+                    <td className={`py-4 px-5 font-mono font-bold ${item.expected === 'BLOCK' ? 'text-[#1a7f5a]' : 'text-[#246fa8]'}`}>
+                      {item.expected}
+                    </td>
+                    <td className={`py-4 px-5 font-mono font-bold ${item.baseline === 'BLOCK' ? 'text-[#1a7f5a]' : 'text-[#246fa8]'}`}>
+                      {item.baseline}
+                    </td>
+                    <td className={`py-4 px-5 font-mono font-bold ${item.candidate === 'BLOCK' ? 'text-[#1a7f5a]' : item.assertion === 'FAIL' ? 'text-[#bd3b35]' : 'text-[#246fa8]'}`}>
+                      {item.candidate}
+                    </td>
+                    <td className="py-4 px-5">
+                      <StatusPill status={item.assertion} />
+                    </td>
+                    <td className="py-4 px-5">{getChangeBadge(item.change)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  );
+};

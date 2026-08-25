@@ -1,0 +1,186 @@
+import type { ActivityItem, ArchitectureRule, SnapshotCase, StatItem, TestRun, TestSuite } from '../types';
+
+export const mockStats: StatItem[] = [
+  { label: '전체 테스트 스위트', value: 12, note: '+2 이번 달', deltaUp: true, tintBg: '#edf7f3' },
+  { label: '최근 7일 실행', value: 48, note: '완료 46 · 오류 2', tintBg: '#eef4fa' },
+  { label: 'Quality Gate 실패', value: 3, note: '보안 회귀 5건 감지', color: 'var(--red)', tintBg: '#fff0ef' },
+  { label: 'Assertion 통과율', value: '96.2%', note: '↑ 1.8%p 전주 대비', deltaUp: true, tintBg: '#f3effa' },
+];
+
+export const mockChartData = [
+  { date: '8/14', pass: 58, fail: 12 },
+  { date: '8/15', pass: 76, fail: 8 },
+  { date: '8/16', pass: 48, fail: 19 },
+  { date: '8/17', pass: 90, fail: 9 },
+  { date: '8/18', pass: 66, fail: 26 },
+  { date: '8/19', pass: 81, fail: 12 },
+  { date: '오늘', pass: 55, fail: 16 },
+];
+
+export const mockActivities: ActivityItem[] = [
+  { id: '1', icon: '⚠', title: '#5001 보안 회귀 감지', subtitle: 'Customer Support Safety', status: 'FAIL' },
+  { id: '2', icon: '✓', title: '#5000 Gate 통과', subtitle: 'Financial Advisor Basic', status: 'PASS' },
+  { id: '3', icon: '＋', title: '테스트 케이스 4개 추가', subtitle: 'Internal AI Assistant', status: 'INFO', timeText: '32분 전' },
+  { id: '4', icon: '⋯', title: '#4999 실행 중', subtitle: 'PII Protection Suite', status: 'RUNNING' },
+];
+
+export const mockSuites: TestSuite[] = [
+  {
+    id: 'suite-1',
+    name: 'Customer Support Safety',
+    description: '고객센터 챗봇의 개인정보, 공격적 표현, 정책 우회 요청을 검증합니다.',
+    caseCount: 24,
+    passRate: '98.1%',
+    lastRun: '18분 전',
+    status: '활성',
+    icon: '🛡️',
+    tintBg: '#e9f7f1',
+  },
+  {
+    id: 'suite-2',
+    name: 'Financial Advisor Basic',
+    description: '금융 조언의 면책 고지, 과도한 수익 보장, 개인정보 노출을 점검합니다.',
+    caseCount: 18,
+    passRate: '100%',
+    lastRun: '1시간 전',
+    status: '활성',
+    icon: '₩',
+    tintBg: '#edf6fc',
+  },
+  {
+    id: 'suite-3',
+    name: 'Internal AI Assistant',
+    description: '사내 문서 접근, 프롬프트 인젝션, 비밀정보 요청을 검증합니다.',
+    caseCount: 31,
+    passRate: '93.5%',
+    lastRun: '어제',
+    status: '검토 필요',
+    icon: '⌘',
+    tintBg: '#f3effa',
+  },
+  {
+    id: 'suite-4',
+    name: 'PII Protection Suite',
+    description: '주민등록번호, 연락처, 계좌정보 등 PII 정책 동작을 집중 검증합니다.',
+    caseCount: 16,
+    passRate: '96.8%',
+    lastRun: '어제',
+    status: '활성',
+    icon: 'ID',
+    tintBg: '#fff0ef',
+  },
+  {
+    id: 'suite-5',
+    name: 'Multilingual Safety',
+    description: '한국어·영어·일본어 입력에서 안전정책의 일관성을 확인합니다.',
+    caseCount: 9,
+    passRate: '—',
+    lastRun: '미실행',
+    status: '초안',
+    icon: '文',
+    tintBg: '#fff7e8',
+  },
+];
+
+export const mockRuns: TestRun[] = [
+  {
+    id: '#5001',
+    suiteName: 'Customer Support Safety',
+    snapshotsText: '24 snapshots · 48 executions',
+    executionStatus: 'COMPLETED',
+    qualityGateStatus: 'FAIL',
+    versionChange: 'v7 → v8',
+    createdAt: '오늘 15:00',
+  },
+  {
+    id: '#5000',
+    suiteName: 'Financial Advisor Basic',
+    snapshotsText: '18 snapshots · 36 executions',
+    executionStatus: 'COMPLETED',
+    qualityGateStatus: 'PASS',
+    versionChange: 'v3 → v4',
+    createdAt: '오늘 13:42',
+  },
+  {
+    id: '#4999',
+    suiteName: 'PII Protection Suite',
+    snapshotsText: '16 snapshots · 실행 중',
+    executionStatus: 'RUNNING',
+    qualityGateStatus: 'NOT_EVALUATED',
+    versionChange: 'v11 → 준비 중',
+    createdAt: '오늘 12:18',
+  },
+  {
+    id: '#4998',
+    suiteName: 'Internal AI Assistant',
+    snapshotsText: '31 snapshots · 60/62 success',
+    executionStatus: 'INCOMPLETE',
+    qualityGateStatus: 'NOT_EVALUATED',
+    versionChange: 'v2 → v3',
+    createdAt: '어제 17:22',
+  },
+  {
+    id: '#4997',
+    suiteName: 'Customer Support Safety',
+    snapshotsText: '24 snapshots · 48 executions',
+    executionStatus: 'COMPLETED',
+    qualityGateStatus: 'PASS',
+    versionChange: 'v6 → v7',
+    createdAt: '어제 10:05',
+  },
+];
+
+export const mockSnapshots: SnapshotCase[] = [
+  {
+    id: '#9001',
+    title: '개인정보 탈취 요청 차단',
+    category: 'PII',
+    severity: 'CRITICAL',
+    expected: 'BLOCK',
+    baseline: 'BLOCK',
+    candidate: 'ALLOW',
+    assertion: 'FAIL',
+    change: 'SECURITY REGRESSION',
+  },
+  {
+    id: '#9002',
+    title: '시스템 프롬프트 노출',
+    category: 'PROMPT INJECTION',
+    severity: 'HIGH',
+    expected: 'BLOCK',
+    baseline: 'BLOCK',
+    candidate: 'BLOCK',
+    assertion: 'PASS',
+    change: 'NO CHANGE',
+  },
+  {
+    id: '#9003',
+    title: '환불 절차 일반 문의',
+    category: 'NORMAL USE',
+    severity: 'MEDIUM',
+    expected: 'ALLOW',
+    baseline: 'ALLOW',
+    candidate: 'ALLOW',
+    assertion: 'PASS',
+    change: 'NO CHANGE',
+  },
+  {
+    id: '#9004',
+    title: '욕설 포함 정책 우회 요청',
+    category: 'ABUSE',
+    severity: 'HIGH',
+    expected: 'BLOCK',
+    baseline: 'ALLOW',
+    candidate: 'BLOCK',
+    assertion: 'PASS',
+    change: 'IMPROVEMENT',
+  },
+];
+
+export const mockRules: ArchitectureRule[] = [
+  { number: '01', title: 'Expected Result는 사람이 정의', description: 'Guardrail 출력 자체를 정답으로 사용하지 않습니다.' },
+  { number: '02', title: '동일 Snapshot 비교', description: 'Baseline과 Candidate는 같은 불변 테스트 정의를 공유합니다.' },
+  { number: '03', title: '실행과 판정 상태 분리', description: 'Execution Error, Assertion Failure, NOT_COMPARABLE은 서로 다릅니다.' },
+  { number: '04', title: 'Candidate DRAFT 고정', description: 'numbered Version으로 materialize한 뒤 실행합니다.' },
+  { number: '05', title: 'Quality Gate 별도 축', description: '실행 신뢰성이 부족하면 FAIL이 아닌 NOT_EVALUATED입니다.' },
+];
