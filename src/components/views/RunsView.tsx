@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+
 import { mockRuns } from '../../mocks/mockData';
 import { StatusPill } from '../common/StatusPill';
 import { Plus, Search } from 'lucide-react';
@@ -10,17 +11,33 @@ interface RunsViewProps {
 
 export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [filter, setFilter] = useState('ALL');
 
   const filteredRuns = mockRuns.filter((run) => {
     const matchesSearch =
       run.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       run.suiteName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus =
-      statusFilter === 'ALL' ||
-      run.qualityGateStatus === statusFilter ||
-      run.executionStatus === statusFilter;
-    return matchesSearch && matchesStatus;
+
+    if (!matchesSearch) return false;
+
+    switch (filter) {
+      case 'RUNNING':
+        return run.progressState !== 'FINISHED';
+      case 'COMPLETED':
+        return run.executionResultState === 'COMPLETED';
+      case 'INCOMPLETE':
+        return run.executionResultState === 'INCOMPLETE';
+      case 'FAILED':
+        return run.executionResultState === 'FAILED';
+      case 'GATE_PASS':
+        return run.qualityGateState === 'PASS';
+      case 'GATE_FAIL':
+        return run.qualityGateState === 'FAIL';
+      case 'NOT_EVALUATED':
+        return run.qualityGateState === 'NOT_EVALUATED';
+      default:
+        return true;
+    }
   });
 
   return (
@@ -31,7 +48,7 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
           <div className="text-[#1a7f5a] text-xs font-black tracking-widest uppercase mb-1.5">Execution history</div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#17202a]">실행 이력</h1>
           <p className="text-[#697586] text-sm mt-1.5 leading-relaxed">
-            실행 신뢰성 상태와 Quality Gate 판정을 분리해 확인합니다.
+            진행 상태, 실행 결과, Quality Gate를 별도 축으로 분리하여 명확하게 표현합니다.
           </p>
         </div>
         <button
@@ -44,7 +61,7 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
 
       {/* Table Card */}
       <article className="bg-white border border-[#e5e9ee] rounded-2xl shadow-[0_3px_15px_rgba(17,31,44,0.025)] overflow-hidden">
-        {/* Table Tools */}
+        {/* Table Tools with 7-way filter */}
         <div className="p-4 sm:p-5 border-b border-[#e5e9ee] flex flex-col sm:flex-row justify-between items-center gap-3">
           <div className="relative w-full sm:w-80">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8a949e]" size={16} />
@@ -57,24 +74,29 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
             />
           </div>
           <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full sm:w-auto px-3.5 py-2 rounded-xl border border-[#e5e9ee] bg-white text-xs text-[#17202a] outline-none focus:border-[#1a7f5a]"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="w-full sm:w-auto px-3.5 py-2 rounded-xl border border-[#e5e9ee] bg-white text-xs text-[#17202a] outline-none focus:border-[#1a7f5a] font-medium"
           >
-            <option value="ALL">모든 상태</option>
-            <option value="PASS">PASS</option>
-            <option value="FAIL">FAIL</option>
-            <option value="RUNNING">RUNNING</option>
+            <option value="ALL">전체 상태 보기</option>
+            <option value="RUNNING">⏳ 진행 중</option>
+            <option value="COMPLETED">✓ 정상 완료</option>
+            <option value="INCOMPLETE">⚠️ 부분 완료</option>
+            <option value="FAILED">🚨 실행 오류</option>
+            <option value="GATE_PASS">🛡️ Gate 통과</option>
+            <option value="GATE_FAIL">❌ Gate 실패</option>
+            <option value="NOT_EVALUATED">⚪ 평가 불가</option>
           </select>
         </div>
 
         {/* Scrollable Table */}
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-xs min-w-[720px]">
+          <table className="w-full border-collapse text-left text-xs min-w-[760px]">
             <thead>
               <tr className="bg-[#fafbfb] border-b border-[#e5e9ee] text-[#7a8592] uppercase font-bold tracking-wider text-[10px]">
                 <th className="py-3 px-5">Run ID</th>
                 <th className="py-3 px-5">테스트 스위트</th>
+                <th className="py-3 px-5">진행 상태</th>
                 <th className="py-3 px-5">실행 결과</th>
                 <th className="py-3 px-5">Quality Gate</th>
                 <th className="py-3 px-5">Baseline → Candidate</th>
@@ -94,10 +116,17 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
                     <small className="text-[11px] text-[#697586]">{run.snapshotsText}</small>
                   </td>
                   <td className="py-4 px-5">
-                    <StatusPill status={run.executionStatus} />
+                    <StatusPill kind="progress" status={run.progressState} />
                   </td>
                   <td className="py-4 px-5">
-                    <StatusPill status={run.qualityGateStatus} />
+                    {run.executionResultState ? (
+                      <StatusPill kind="execution" status={run.executionResultState} />
+                    ) : (
+                      <span className="text-xs text-[#8fa0ad]">—</span>
+                    )}
+                  </td>
+                  <td className="py-4 px-5">
+                    <StatusPill kind="gate" status={run.qualityGateState} />
                   </td>
                   <td className="py-4 px-5 font-medium text-[#17202a]">{run.versionChange}</td>
                   <td className="py-4 px-5 text-[#697586]">{run.createdAt}</td>

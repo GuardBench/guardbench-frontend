@@ -114,7 +114,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onGoNewRun, onGoRu
                 {act.timeText ? (
                   <span className="text-[11px] text-[#697586]">{act.timeText}</span>
                 ) : (
-                  <StatusPill status={act.status} />
+                  <StatusPill
+                    kind={act.qualityGateState ? 'gate' : 'progress'}
+                    status={act.qualityGateState || act.progressState}
+                  />
                 )}
               </div>
             ))}

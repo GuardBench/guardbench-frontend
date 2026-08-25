@@ -11,6 +11,7 @@ import { ArchitectureView } from './components/views/ArchitectureView';
 
 export function App() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
+  const [selectedRunId, setSelectedRunId] = useState<string>('#5001');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -23,6 +24,13 @@ export function App() {
 
   const handleSelectView = (view: ViewType) => {
     setCurrentView(view);
+    setIsMobileMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSelectRun = (runId: string) => {
+    setSelectedRunId(runId);
+    setCurrentView('result');
     setIsMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -41,6 +49,7 @@ export function App() {
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar
           currentView={currentView}
+          isMobileMenuOpen={isMobileMenuOpen}
           onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           onHelpClick={() => {
             handleSelectView('architecture');
@@ -60,11 +69,12 @@ export function App() {
           {currentView === 'runs' && (
             <RunsView
               onGoNewRun={() => handleSelectView('new-run')}
-              onSelectRun={() => handleSelectView('result')}
+              onSelectRun={handleSelectRun}
             />
           )}
           {currentView === 'result' && (
             <ResultDetailView
+              selectedRunId={selectedRunId}
               onGoNewRun={() => handleSelectView('new-run')}
               onNotify={showToast}
             />
