@@ -1,20 +1,27 @@
 import { useState, useEffect, useRef } from 'react';
-import { getTestRunProgress, type TestRunProgressResponse } from '../services/testRunService';
+import { getTestRunDetail, type TestRunDetailRes } from '../services/testRunService';
 
 interface UseLiveRunProgressOptions {
   runId: string | null;
   pollIntervalMs?: number;
-  onFinished?: (finalProgress: TestRunProgressResponse) => void;
+  onFinished?: (detail: TestRunDetailRes) => void;
   onError?: (error: Error) => void;
 }
 
+/**
+ * TestRun 상세(GET /test-runs/{id})를 주기적으로 polling해서
+ * 진행률과 완료 상태를 추적하는 훅입니다.
+ *
+ * OpenAPI 계약: 어떤 상태에서든 200 OK를 반환합니다.
+ * status === 'FINISHED'이면 polling을 중단합니다.
+ */
 export function useLiveRunProgress({
   runId,
-  pollIntervalMs = 2000,
+  pollIntervalMs = 3000,
   onFinished,
   onError,
 }: UseLiveRunProgressOptions) {
-  const [progress, setProgress] = useState<TestRunProgressResponse | null>(null);
+  const [detail, setDetail] = useState<TestRunDetailRes | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isPolling, setIsPolling] = useState<boolean>(false);
 
@@ -30,25 +37,27 @@ export function useLiveRunProgress({
   useEffect(() => {
     // runId가 없으면 Polling 수행 안 함
     if (!runId) {
-      setProgress(null);
+      setDetail(null);
       setIsPolling(false);
       return;
     }
 
     let isMounted = true;
+    let shouldPoll = true;
     setIsLoading(true);
     setIsPolling(true);
 
-    const fetchProgress = async () => {
+    const fetchDetail = async () => {
       try {
-        const data = await getTestRunProgress(runId);
+        const data = await getTestRunDetail(runId);
         if (!isMounted) return;
 
-        setProgress(data);
+        setDetail(data);
         setIsLoading(false);
 
-        // 실행 종료 조건 (FINISHED 또는 FAILED)
-        if (data.executionStatus === 'FINISHED' || data.executionStatus === 'FAILED') {
+        // 실행 종료 조건: status === 'FINISHED'
+        if (data.status === 'FINISHED') {
+          shouldPoll = false;
           setIsPolling(false);
           if (onFinishedRef.current) {
             onFinishedRef.current(data);
@@ -57,6 +66,7 @@ export function useLiveRunProgress({
       } catch (err) {
         if (!isMounted) return;
         setIsLoading(false);
+        shouldPoll = false;
         setIsPolling(false);
         const error = err instanceof Error ? err : new Error('Progress 조회 오류');
         if (onErrorRef.current) {
@@ -66,24 +76,25 @@ export function useLiveRunProgress({
     };
 
     // 1) 즉시 최초 1회 호출
-    fetchProgress();
+    fetchDetail();
 
     // 2) pollIntervalMs 주기마다 Polling 실행
     const timerId = setInterval(() => {
-      if (isPolling) {
-        fetchProgress();
+      if (shouldPoll) {
+        fetchDetail();
       }
     }, pollIntervalMs);
 
-    // Cleanup: 컴포넌트 언마운트 또는 runId 변경 시 타이머 해제 (메모리 누수 방지!)
+    // Cleanup: 컴포넌트 언마운트 또는 runId 변경 시 타이머 해제 (메모리 누수 방지)
     return () => {
       isMounted = false;
+      shouldPoll = false;
       clearInterval(timerId);
     };
-  }, [runId, pollIntervalMs, isPolling]);
+  }, [runId, pollIntervalMs]);
 
   return {
-    progress,
+    detail,
     isLoading,
     isPolling,
   };

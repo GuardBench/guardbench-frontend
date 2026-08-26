@@ -11,7 +11,7 @@ import { ArchitectureView } from './components/views/ArchitectureView';
 
 export function App() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
-  const [selectedRunId, setSelectedRunId] = useState<string>('#5001');
+  const [selectedRunId, setSelectedRunId] = useState<string>('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play } from 'lucide-react';
 import { createTestRun } from '../../services/testRunService';
+import { getTestSuites } from '../../services/testSuiteService';
 
 interface NewRunViewProps {
   onNotify: (msg: string) => void;
@@ -8,34 +9,85 @@ interface NewRunViewProps {
 }
 
 export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }) => {
-  const [suiteId, setSuiteId] = useState('suite-cs-safety-01');
-  const [suiteOption, setSuiteOption] = useState('Customer Support Safety|24');
-  
-  const [baselineGuardrailId, setBaselineGuardrailId] = useState('5fhc7mmi6k6b');
-  const [baselineGuardrailVersion, setBaselineGuardrailVersion] = useState('1');
-  
-  const [candidateGuardrailId, setCandidateGuardrailId] = useState('x75oniydy7uf');
-  const [candidateGuardrailVersion, setCandidateGuardrailVersion] = useState('5');
-  
+  // TestSuite 선택 — API에서 로드한 목록 사용
+  const [suiteOptions, setSuiteOptions] = useState<Array<{ id: number; name: string; caseCount: number }>>([]);
+  const [selectedSuiteId, setSelectedSuiteId] = useState<number>(0);
+  const [isSuiteLoading, setIsSuiteLoading] = useState(true);
+
+  // Baseline — guardrailId + numbered version
+  const [guardrailId, setGuardrailId] = useState('');
+  const [baselineVersion, setBaselineVersion] = useState('');
+
+  // Candidate — 같은 guardrailId, source는 항상 DRAFT (ADR 0007)
+  // guardrailId는 Baseline과 동일하게 사용
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [suiteName, caseCountStr] = suiteOption.split('|');
-  const caseCount = Number(caseCountStr);
+  // TestSuite 목록 로드
+  useEffect(() => {
+    let isMounted = true;
+    const fetchSuites = async () => {
+      setIsSuiteLoading(true);
+      try {
+        const res = await getTestSuites({ size: 100 });
+        if (isMounted && res.items) {
+          const options = res.items.map((item) => ({
+            id: Number(item.id),
+            name: item.name,
+            caseCount: item.testCaseCount ?? 0,
+          }));
+          setSuiteOptions(options);
+          if (options.length > 0) {
+            setSelectedSuiteId(options[0].id);
+          }
+        }
+      } catch (_err) {
+        if (isMounted) {
+          setSuiteOptions([]);
+        }
+      } finally {
+        if (isMounted) setIsSuiteLoading(false);
+      }
+    };
+    fetchSuites();
+    return () => { isMounted = false; };
+  }, []);
+
+  const selectedSuite = suiteOptions.find((s) => s.id === selectedSuiteId);
+  const caseCount = selectedSuite?.caseCount ?? 0;
 
   const handleRun = async () => {
+    // 입력 검증
+    if (!selectedSuiteId) {
+      onNotify('테스트 스위트를 선택해 주세요.');
+      return;
+    }
+    if (!guardrailId.trim()) {
+      onNotify('Guardrail ID를 입력해 주세요.');
+      return;
+    }
+    if (!baselineVersion.trim() || !/^[0-9]+$/.test(baselineVersion.trim())) {
+      onNotify('Baseline Version은 숫자만 입력할 수 있습니다 (예: 1, 2, 3).');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await createTestRun({
-        suiteId,
-        baselineGuardrailId,
-        baselineGuardrailVersion,
-        candidateGuardrailId,
-        candidateGuardrailVersion,
+        testSuiteId: selectedSuiteId,
+        baseline: {
+          guardrailId: guardrailId.trim(),
+          version: baselineVersion.trim(),
+        },
+        candidate: {
+          guardrailId: guardrailId.trim(),
+          source: 'DRAFT',
+        },
       });
 
-      onNotify(`새 테스트 실행 #${res.runId} 요청이 접수되었습니다.`);
+      onNotify(`새 테스트 실행 #${res.id} 요청이 접수되었습니다. (${res.testCaseCount}개 케이스)`);
       if (onRunCreated) {
-        onRunCreated(res.runId);
+        onRunCreated(String(res.id));
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : '요청 실패';
@@ -60,7 +112,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
       <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.65fr] gap-6 items-start">
         {/* Form Card */}
         <article className="bg-white border border-[#e5e9ee] rounded-2xl p-6 sm:p-8 shadow-[0_3px_15px_rgba(17,31,44,0.025)] space-y-6 divide-y divide-[#e5e9ee]">
-          {/* Section 1 */}
+          {/* Section 1 — TestSuite 선택 */}
           <div>
             <h3 className="text-base font-bold text-[#17202a]">1. 테스트 범위</h3>
             <p className="text-xs text-[#697586] mt-1 mb-4">
@@ -68,24 +120,27 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
             </p>
             <div>
               <label className="block text-xs font-bold text-[#4e5a68] mb-2">테스트 스위트</label>
-              <select
-                value={suiteOption}
-                onChange={(e) => {
-                  setSuiteOption(e.target.value);
-                  if (e.target.value.includes('Customer')) setSuiteId('suite-cs-safety-01');
-                  else if (e.target.value.includes('Financial')) setSuiteId('suite-fin-basic-02');
-                  else setSuiteId('suite-int-assistant-03');
-                }}
-                className="w-full border border-[#dce1e6] rounded-xl px-3.5 py-2.5 bg-white text-sm text-[#17202a] outline-none focus:border-[#1a7f5a] focus:ring-2 focus:ring-[#1a7f5a]/10"
-              >
-                <option value="Customer Support Safety|24">Customer Support Safety · 24 cases</option>
-                <option value="Financial Advisor Basic|18">Financial Advisor Basic · 18 cases</option>
-                <option value="Internal AI Assistant|31">Internal AI Assistant · 31 cases</option>
-              </select>
+              {isSuiteLoading ? (
+                <div className="text-xs text-[#697586]">스위트 목록을 불러오는 중...</div>
+              ) : suiteOptions.length === 0 ? (
+                <div className="text-xs text-[#bd3b35]">등록된 테스트 스위트가 없습니다. 먼저 스위트를 생성해 주세요.</div>
+              ) : (
+                <select
+                  value={selectedSuiteId}
+                  onChange={(e) => setSelectedSuiteId(Number(e.target.value))}
+                  className="w-full border border-[#dce1e6] rounded-xl px-3.5 py-2.5 bg-white text-sm text-[#17202a] outline-none focus:border-[#1a7f5a] focus:ring-2 focus:ring-[#1a7f5a]/10"
+                >
+                  {suiteOptions.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.name} · {opt.caseCount} cases
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
-          {/* Section 2 */}
+          {/* Section 2 — Baseline Target */}
           <div className="pt-6">
             <h3 className="text-base font-bold text-[#17202a]">2. Baseline Target</h3>
             <p className="text-xs text-[#697586] mt-1 mb-4">
@@ -95,43 +150,46 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
               <div>
                 <label className="block text-xs font-bold text-[#4e5a68] mb-2">Guardrail ID</label>
                 <input
-                  value={baselineGuardrailId}
-                  onChange={(e) => setBaselineGuardrailId(e.target.value)}
+                  value={guardrailId}
+                  onChange={(e) => setGuardrailId(e.target.value)}
+                  placeholder="예: 5fhc7mmi6k6b"
                   className="w-full border border-[#dce1e6] rounded-xl px-3.5 py-2.5 bg-white text-sm text-[#17202a] outline-none focus:border-[#1a7f5a] focus:ring-2 focus:ring-[#1a7f5a]/10"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-[#4e5a68] mb-2">Version</label>
+                <label className="block text-xs font-bold text-[#4e5a68] mb-2">Version (숫자)</label>
                 <input
-                  value={baselineGuardrailVersion}
-                  onChange={(e) => setBaselineGuardrailVersion(e.target.value)}
+                  value={baselineVersion}
+                  onChange={(e) => setBaselineVersion(e.target.value)}
+                  placeholder="예: 1"
                   className="w-full border border-[#dce1e6] rounded-xl px-3.5 py-2.5 bg-white text-sm text-[#17202a] outline-none focus:border-[#1a7f5a] focus:ring-2 focus:ring-[#1a7f5a]/10"
                 />
               </div>
             </div>
           </div>
 
-          {/* Section 3 */}
+          {/* Section 3 — Candidate Target */}
           <div className="pt-6">
             <h3 className="text-base font-bold text-[#17202a]">3. Candidate Target</h3>
             <p className="text-xs text-[#697586] mt-1 mb-4">
-              DRAFT는 실행 전 numbered Version으로 발행하고 configuration fingerprint를 검증합니다.
+              Candidate는 위에서 지정한 같은 Guardrail의 DRAFT를 사용합니다.
+              실행 전 DRAFT를 numbered Version으로 materialize합니다.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-xs font-bold text-[#4e5a68] mb-2">Guardrail ID</label>
                 <input
-                  value={candidateGuardrailId}
-                  onChange={(e) => setCandidateGuardrailId(e.target.value)}
-                  className="w-full border border-[#dce1e6] rounded-xl px-3.5 py-2.5 bg-white text-sm text-[#17202a] outline-none focus:border-[#1a7f5a] focus:ring-2 focus:ring-[#1a7f5a]/10"
+                  value={guardrailId || '(Baseline과 동일)'}
+                  disabled
+                  className="w-full border border-[#dce1e6] rounded-xl px-3.5 py-2.5 bg-[#f8f9fa] text-sm text-[#697586] outline-none cursor-not-allowed"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-[#4e5a68] mb-2">Version / DRAFT</label>
+                <label className="block text-xs font-bold text-[#4e5a68] mb-2">Source</label>
                 <input
-                  value={candidateGuardrailVersion}
-                  onChange={(e) => setCandidateGuardrailVersion(e.target.value)}
-                  className="w-full border border-[#dce1e6] rounded-xl px-3.5 py-2.5 bg-white text-sm text-[#17202a] outline-none focus:border-[#1a7f5a] focus:ring-2 focus:ring-[#1a7f5a]/10"
+                  value="DRAFT"
+                  disabled
+                  className="w-full border border-[#dce1e6] rounded-xl px-3.5 py-2.5 bg-[#f8f9fa] text-sm text-[#697586] font-mono outline-none cursor-not-allowed"
                 />
               </div>
             </div>
@@ -147,7 +205,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
           <div className="space-y-3 text-xs divide-y divide-[#e5e9ee]">
             <div className="flex justify-between pt-2">
               <span className="text-[#697586]">TestSuite</span>
-              <b className="text-[#17202a]">{suiteName}</b>
+              <b className="text-[#17202a]">{selectedSuite?.name || '—'}</b>
             </div>
             <div className="flex justify-between pt-3">
               <span className="text-[#697586]">테스트 케이스</span>
@@ -158,12 +216,16 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
               <b className="text-[#17202a]">{caseCount * 2}회</b>
             </div>
             <div className="flex justify-between pt-3">
+              <span className="text-[#697586]">Guardrail ID</span>
+              <b className="text-[#17202a] font-mono text-[11px]">{guardrailId || '—'}</b>
+            </div>
+            <div className="flex justify-between pt-3">
               <span className="text-[#697586]">Baseline</span>
-              <b className="text-[#17202a]">Version {baselineGuardrailVersion}</b>
+              <b className="text-[#17202a]">v{baselineVersion || '?'}</b>
             </div>
             <div className="flex justify-between pt-3">
               <span className="text-[#697586]">Candidate</span>
-              <b className="text-[#17202a]">Version {candidateGuardrailVersion}</b>
+              <b className="text-[#17202a]">DRAFT</b>
             </div>
           </div>
 
@@ -173,7 +235,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
 
           <button
             onClick={handleRun}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !selectedSuiteId || !guardrailId.trim() || !baselineVersion.trim()}
             className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-[#1a7f5a] text-white text-sm font-bold shadow-sm hover:bg-[#146648] transition-all disabled:opacity-50"
           >
             <Play size={16} /> {isSubmitting ? '실행 요청 중...' : '테스트 실행 요청'}

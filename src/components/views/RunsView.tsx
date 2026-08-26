@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import type { TestRun } from '../../types';
-import { mockRuns } from '../../mocks/mockData';
-import { StatusPill } from '../common/StatusPill';
-import { Plus, Search, Loader2 } from 'lucide-react';
+import type { TestRunListItemRes } from '../../services/testRunService';
 import { listTestRuns } from '../../services/testRunService';
+import { StatusPill } from '../common/StatusPill';
+import { Plus, Search, Loader2, AlertCircle } from 'lucide-react';
 
 interface RunsViewProps {
   onGoNewRun: () => void;
@@ -13,21 +12,24 @@ interface RunsViewProps {
 export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('ALL');
-  const [runs, setRuns] = useState<TestRun[]>(mockRuns);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [runs, setRuns] = useState<TestRunListItemRes[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [hasError, setHasError] = useState<boolean>(false);
 
   useEffect(() => {
     let isMounted = true;
     const fetchRuns = async () => {
       setIsLoading(true);
+      setHasError(false);
       try {
         const res = await listTestRuns();
-        if (isMounted && res.items && res.items.length > 0) {
-          setRuns(res.items);
+        if (isMounted) {
+          setRuns(res.items || []);
         }
       } catch (_err) {
         if (isMounted) {
-          setRuns(mockRuns);
+          setHasError(true);
+          setRuns([]);
         }
       } finally {
         if (isMounted) setIsLoading(false);
@@ -41,31 +43,49 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
   }, []);
 
   const filteredRuns = runs.filter((run) => {
+    const idStr = `#${run.id}`;
     const matchesSearch =
-      run.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      run.suiteName.toLowerCase().includes(searchTerm.toLowerCase());
+      idStr.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      String(run.testSuiteId).includes(searchTerm);
 
     if (!matchesSearch) return false;
 
     switch (filter) {
       case 'RUNNING':
-        return run.progressState !== 'FINISHED';
+        return run.status !== 'FINISHED';
       case 'COMPLETED':
-        return run.executionResultState === 'COMPLETED';
+        return run.executionOutcome === 'COMPLETED';
       case 'INCOMPLETE':
-        return run.executionResultState === 'INCOMPLETE';
-      case 'FAILED':
-        return run.executionResultState === 'FAILED';
+        return run.executionOutcome === 'INCOMPLETE';
+      case 'ERROR':
+        return run.executionOutcome === 'ERROR';
       case 'GATE_PASS':
-        return run.qualityGateState === 'PASS';
+        return run.qualityGateStatus === 'PASS';
       case 'GATE_FAIL':
-        return run.qualityGateState === 'FAIL';
+        return run.qualityGateStatus === 'FAIL';
       case 'NOT_EVALUATED':
-        return run.qualityGateState === 'NOT_EVALUATED';
+        return run.qualityGateStatus === 'NOT_EVALUATED';
       default:
         return true;
     }
   });
+
+  /** 진행률 텍스트 생성 */
+  const progressText = (run: TestRunListItemRes): string => {
+    const processed = run.progress?.processedTestCaseCount ?? 0;
+    const total = run.testCaseCount;
+    if (run.status === 'FINISHED') {
+      return `${total} snapshots · ${total * 2} executions`;
+    }
+    return `${total} snapshots · 실행 중 (${processed}/${total})`;
+  };
+
+  /** Quality Gate 상태를 StatusPill에 전달할 수 있는 형태로 변환 */
+  const gateDisplayStatus = (run: TestRunListItemRes) => {
+    if (run.qualityGateStatus) return run.qualityGateStatus;
+    // qualityGateStatus가 null이면 아직 평가 전 (진행 중)
+    return 'NOT_EVALUATED_BEFORE_FINISH';
+  };
 
   return (
     <section className="space-y-6 animate-rise">
@@ -89,6 +109,14 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
         </button>
       </div>
 
+      {/* Error Banner */}
+      {hasError && (
+        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-[#fff0ef] border border-[#fdd] text-[#bd3b35] text-xs font-medium">
+          <AlertCircle size={14} />
+          <span>실행 이력을 불러오지 못했습니다.</span>
+        </div>
+      )}
+
       {/* Table Card */}
       <article className="bg-white border border-[#e5e9ee] rounded-2xl shadow-[0_3px_15px_rgba(17,31,44,0.025)] overflow-hidden">
         {/* Table Tools with 7-way filter */}
@@ -97,7 +125,7 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8a949e]" size={16} />
             <input
               type="text"
-              placeholder="실행 ID 또는 스위트 검색"
+              placeholder="실행 ID 또는 Suite ID 검색"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-3.5 py-2 rounded-xl border border-[#e5e9ee] bg-[#f8f9fa] text-xs text-[#17202a] outline-none focus:border-[#1a7f5a] focus:bg-white"
@@ -112,7 +140,7 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
             <option value="RUNNING">⏳ 진행 중</option>
             <option value="COMPLETED">✓ 정상 완료</option>
             <option value="INCOMPLETE">⚠️ 부분 완료</option>
-            <option value="FAILED">🚨 실행 오류</option>
+            <option value="ERROR">🚨 실행 오류</option>
             <option value="GATE_PASS">🛡️ Gate 통과</option>
             <option value="GATE_FAIL">❌ Gate 실패</option>
             <option value="NOT_EVALUATED">⚪ 평가 불가</option>
@@ -125,43 +153,53 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
             <thead>
               <tr className="bg-[#fafbfb] border-b border-[#e5e9ee] text-[#7a8592] uppercase font-bold tracking-wider text-[10px]">
                 <th className="py-3 px-5">Run ID</th>
-                <th className="py-3 px-5">테스트 스위트</th>
+                <th className="py-3 px-5">Suite ID</th>
                 <th className="py-3 px-5">진행 상태</th>
                 <th className="py-3 px-5">실행 결과</th>
                 <th className="py-3 px-5">Quality Gate</th>
-                <th className="py-3 px-5">Baseline → Candidate</th>
+                <th className="py-3 px-5">Snapshots</th>
                 <th className="py-3 px-5">생성 시각</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e5e9ee]">
-              {filteredRuns.map((run) => (
-                <tr
-                  key={run.id}
-                  onClick={() => onSelectRun(run.id)}
-                  className="hover:bg-[#fafcfb] transition-colors cursor-pointer"
-                >
-                  <td className="py-4 px-5 font-mono text-[#697586] font-semibold">{run.id}</td>
-                  <td className="py-4 px-5">
-                    <b className="block text-sm text-[#17202a]">{run.suiteName}</b>
-                    <small className="text-[11px] text-[#697586]">{run.snapshotsText}</small>
+              {filteredRuns.length > 0 ? (
+                filteredRuns.map((run) => (
+                  <tr
+                    key={run.id}
+                    onClick={() => onSelectRun(String(run.id))}
+                    className="hover:bg-[#fafcfb] transition-colors cursor-pointer"
+                  >
+                    <td className="py-4 px-5 font-mono text-[#697586] font-semibold">#{run.id}</td>
+                    <td className="py-4 px-5">
+                      <b className="block text-sm text-[#17202a]">Suite #{run.testSuiteId}</b>
+                      <small className="text-[11px] text-[#697586]">{progressText(run)}</small>
+                    </td>
+                    <td className="py-4 px-5">
+                      <StatusPill kind="progress" status={run.status} />
+                    </td>
+                    <td className="py-4 px-5">
+                      {run.executionOutcome ? (
+                        <StatusPill kind="execution" status={run.executionOutcome} />
+                      ) : (
+                        <span className="text-xs text-[#8fa0ad]">—</span>
+                      )}
+                    </td>
+                    <td className="py-4 px-5">
+                      <StatusPill kind="gate" status={gateDisplayStatus(run)} />
+                    </td>
+                    <td className="py-4 px-5 font-medium text-[#17202a]">
+                      {run.testCaseCount}개
+                    </td>
+                    <td className="py-4 px-5 text-[#697586]">{run.createdAt}</td>
+                  </tr>
+                ))
+              ) : !isLoading ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-xs text-[#697586]">
+                    실행 이력이 없습니다.
                   </td>
-                  <td className="py-4 px-5">
-                    <StatusPill kind="progress" status={run.progressState} />
-                  </td>
-                  <td className="py-4 px-5">
-                    {run.executionResultState ? (
-                      <StatusPill kind="execution" status={run.executionResultState} />
-                    ) : (
-                      <span className="text-xs text-[#8fa0ad]">—</span>
-                    )}
-                  </td>
-                  <td className="py-4 px-5">
-                    <StatusPill kind="gate" status={run.qualityGateState} />
-                  </td>
-                  <td className="py-4 px-5 font-medium text-[#17202a]">{run.versionChange}</td>
-                  <td className="py-4 px-5 text-[#697586]">{run.createdAt}</td>
                 </tr>
-              ))}
+              ) : null}
             </tbody>
           </table>
         </div>
