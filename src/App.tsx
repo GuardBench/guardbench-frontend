@@ -65,7 +65,14 @@ export function App() {
             />
           )}
           {currentView === 'suites' && <SuitesView onNotify={showToast} />}
-          {currentView === 'new-run' && <NewRunView onNotify={showToast} />}
+          {currentView === 'new-run' && (
+            <NewRunView
+              onNotify={showToast}
+              onRunCreated={(runId) => {
+                handleSelectRun(`#${runId}`);
+              }}
+            />
+          )}
           {currentView === 'runs' && (
             <RunsView
               onGoNewRun={() => handleSelectView('new-run')}
