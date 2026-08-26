@@ -1,23 +1,48 @@
 import React, { useState } from 'react';
 import { Play } from 'lucide-react';
+import { createTestRun } from '../../services/testRunService';
 
 interface NewRunViewProps {
   onNotify: (msg: string) => void;
+  onRunCreated?: (runId: string) => void;
 }
 
-export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify }) => {
+export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }) => {
+  const [suiteId, setSuiteId] = useState('suite-cs-safety-01');
   const [suiteOption, setSuiteOption] = useState('Customer Support Safety|24');
+  
+  const [baselineGuardrailId, setBaselineGuardrailId] = useState('5fhc7mmi6k6b');
+  const [baselineGuardrailVersion, setBaselineGuardrailVersion] = useState('1');
+  
+  const [candidateGuardrailId, setCandidateGuardrailId] = useState('x75oniydy7uf');
+  const [candidateGuardrailVersion, setCandidateGuardrailVersion] = useState('5');
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [suiteName, caseCountStr] = suiteOption.split('|');
   const caseCount = Number(caseCountStr);
 
-  const handleRun = () => {
+  const handleRun = async () => {
     setIsSubmitting(true);
-    setTimeout(() => {
-      onNotify('새 테스트 실행 #5002 요청이 접수되었습니다.');
+    try {
+      const res = await createTestRun({
+        suiteId,
+        baselineGuardrailId,
+        baselineGuardrailVersion,
+        candidateGuardrailId,
+        candidateGuardrailVersion,
+      });
+
+      onNotify(`새 테스트 실행 #${res.runId} 요청이 접수되었습니다.`);
+      if (onRunCreated) {
+        onRunCreated(res.runId);
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : '요청 실패';
+      onNotify(`[실행 실패] ${errorMsg}`);
+    } finally {
       setIsSubmitting(false);
-    }, 600);
+    }
   };
 
   return (
@@ -45,7 +70,12 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify }) => {
               <label className="block text-xs font-bold text-[#4e5a68] mb-2">테스트 스위트</label>
               <select
                 value={suiteOption}
-                onChange={(e) => setSuiteOption(e.target.value)}
+                onChange={(e) => {
+                  setSuiteOption(e.target.value);
+                  if (e.target.value.includes('Customer')) setSuiteId('suite-cs-safety-01');
+                  else if (e.target.value.includes('Financial')) setSuiteId('suite-fin-basic-02');
+                  else setSuiteId('suite-int-assistant-03');
+                }}
                 className="w-full border border-[#dce1e6] rounded-xl px-3.5 py-2.5 bg-white text-sm text-[#17202a] outline-none focus:border-[#1a7f5a] focus:ring-2 focus:ring-[#1a7f5a]/10"
               >
                 <option value="Customer Support Safety|24">Customer Support Safety · 24 cases</option>
@@ -65,14 +95,16 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify }) => {
               <div>
                 <label className="block text-xs font-bold text-[#4e5a68] mb-2">Guardrail ID</label>
                 <input
-                  defaultValue="gr-abc123-prod"
+                  value={baselineGuardrailId}
+                  onChange={(e) => setBaselineGuardrailId(e.target.value)}
                   className="w-full border border-[#dce1e6] rounded-xl px-3.5 py-2.5 bg-white text-sm text-[#17202a] outline-none focus:border-[#1a7f5a] focus:ring-2 focus:ring-[#1a7f5a]/10"
                 />
               </div>
               <div>
                 <label className="block text-xs font-bold text-[#4e5a68] mb-2">Version</label>
                 <input
-                  defaultValue="7"
+                  value={baselineGuardrailVersion}
+                  onChange={(e) => setBaselineGuardrailVersion(e.target.value)}
                   className="w-full border border-[#dce1e6] rounded-xl px-3.5 py-2.5 bg-white text-sm text-[#17202a] outline-none focus:border-[#1a7f5a] focus:ring-2 focus:ring-[#1a7f5a]/10"
                 />
               </div>
@@ -89,16 +121,17 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify }) => {
               <div>
                 <label className="block text-xs font-bold text-[#4e5a68] mb-2">Guardrail ID</label>
                 <input
-                  defaultValue="gr-abc123-prod"
+                  value={candidateGuardrailId}
+                  onChange={(e) => setCandidateGuardrailId(e.target.value)}
                   className="w-full border border-[#dce1e6] rounded-xl px-3.5 py-2.5 bg-white text-sm text-[#17202a] outline-none focus:border-[#1a7f5a] focus:ring-2 focus:ring-[#1a7f5a]/10"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-[#4e5a68] mb-2">Source</label>
+                <label className="block text-xs font-bold text-[#4e5a68] mb-2">Version / DRAFT</label>
                 <input
-                  value="DRAFT"
-                  readOnly
-                  className="w-full border border-[#dce1e6] rounded-xl px-3.5 py-2.5 bg-[#f6f7f8] text-sm text-[#707b87] outline-none"
+                  value={candidateGuardrailVersion}
+                  onChange={(e) => setCandidateGuardrailVersion(e.target.value)}
+                  className="w-full border border-[#dce1e6] rounded-xl px-3.5 py-2.5 bg-white text-sm text-[#17202a] outline-none focus:border-[#1a7f5a] focus:ring-2 focus:ring-[#1a7f5a]/10"
                 />
               </div>
             </div>
@@ -126,11 +159,11 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify }) => {
             </div>
             <div className="flex justify-between pt-3">
               <span className="text-[#697586]">Baseline</span>
-              <b className="text-[#17202a]">Version 7</b>
+              <b className="text-[#17202a]">Version {baselineGuardrailVersion}</b>
             </div>
             <div className="flex justify-between pt-3">
               <span className="text-[#697586]">Candidate</span>
-              <b className="text-[#17202a]">DRAFT → Version</b>
+              <b className="text-[#17202a]">Version {candidateGuardrailVersion}</b>
             </div>
           </div>
 
