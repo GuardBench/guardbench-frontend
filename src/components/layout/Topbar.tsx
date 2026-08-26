@@ -4,6 +4,7 @@ import { Menu } from 'lucide-react';
 
 interface TopbarProps {
   currentView: ViewType;
+  isMobileMenuOpen: boolean;
   onToggleMobileMenu: () => void;
   onHelpClick: () => void;
 }
@@ -17,13 +18,16 @@ const titleMap: Record<ViewType, string> = {
   architecture: '아키텍처',
 };
 
-export const Topbar: React.FC<TopbarProps> = ({ currentView, onToggleMobileMenu, onHelpClick }) => {
+export const Topbar: React.FC<TopbarProps> = ({ currentView, isMobileMenuOpen, onToggleMobileMenu, onHelpClick }) => {
   return (
     <header className="sticky top-0 z-40 h-[72px] px-6 lg:px-8 bg-white/85 backdrop-blur-md border-b border-[#e5e9ee] flex items-center justify-between">
       <div className="flex items-center gap-3">
+        {/* P2. aria-expanded 및 aria-controls 추가 */}
         <button
           onClick={onToggleMobileMenu}
-          className="lg:hidden p-2 rounded-lg border border-[#e5e9ee] hover:bg-gray-100"
+          aria-expanded={isMobileMenuOpen}
+          aria-controls="sidebar-drawer"
+          className="lg:hidden p-2 rounded-lg border border-[#e5e9ee] hover:bg-gray-100 transition-colors"
           aria-label="메뉴 열기"
         >
           <Menu size={18} />

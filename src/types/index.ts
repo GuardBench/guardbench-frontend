@@ -1,11 +1,25 @@
 export type ViewType = 'dashboard' | 'suites' | 'new-run' | 'runs' | 'result' | 'architecture';
 
-export type QualityGateStatus = 'PASS' | 'FAIL' | 'NOT_EVALUATED';
-export type ExecutionStatus = 'COMPLETED' | 'RUNNING' | 'INCOMPLETE' | 'FAILED';
+// P1. 세 축 분리 상태 타입
+export type ProgressState = 'QUEUED' | 'PREPARING' | 'RUNNING' | 'FINISHED';
+export type ExecutionResultState = 'COMPLETED' | 'INCOMPLETE' | 'FAILED' | null;
+export type QualityGateState = 'NOT_EVALUATED_BEFORE_FINISH' | 'PASS' | 'FAIL' | 'NOT_EVALUATED';
+
 export type SuiteStatus = '활성' | '검토 필요' | '초안';
 export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
-export type ActionType = 'BLOCK' | 'ALLOW';
-export type ChangeType = 'SECURITY REGRESSION' | 'IMPROVEMENT' | 'USABILITY REGRESSION' | 'NO CHANGE';
+
+// P1. Snapshot Target 상태 (ALLOW / BLOCK / 실패 / 시간 초과 / 미시작)
+export type TargetStatus = 'ALLOW' | 'BLOCK' | 'FAILED' | 'TIMEOUT' | 'NOT_STARTED';
+
+// P1. Assertion / Change 상태
+export type AssertionStatus = 'PASS' | 'FAIL' | 'NONE'; // NONE = 생성 안 됨
+export type ChangeStatus =
+  | 'SECURITY_REGRESSION'
+  | 'IMPROVEMENT'
+  | 'USABILITY_REGRESSION'
+  | 'NO_CHANGE'
+  | 'NONE' // NONE = 생성 안 됨
+  | 'NOT_COMPARABLE'; // NOT_COMPARABLE = 비교 불가
 
 export interface StatItem {
   label: string;
@@ -21,8 +35,21 @@ export interface ActivityItem {
   icon: string;
   title: string;
   subtitle: string;
-  status: 'PASS' | 'FAIL' | 'RUNNING' | 'INFO';
+  progressState: ProgressState;
+  executionResultState?: ExecutionResultState;
+  qualityGateState?: QualityGateState;
   timeText?: string;
+}
+
+export interface TestCase {
+  id: string;
+  name: string;
+  input: string;
+  expectedAction: 'ALLOW' | 'BLOCK';
+  severity: Severity;
+  category: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface TestSuite {
@@ -35,23 +62,35 @@ export interface TestSuite {
   status: SuiteStatus;
   icon: string;
   tintBg: string;
+  testCases?: TestCase[];
+}
+
+export interface RunProgress {
+  totalSnapshots: number;
+  executedSnapshots: number;
+  percentage: number;
+  currentTestCaseName?: string;
 }
 
 export interface TestRun {
   id: string;
   suiteName: string;
   snapshotsText: string;
-  executionStatus: ExecutionStatus;
-  qualityGateStatus: QualityGateStatus;
+  progressState: ProgressState;
+  executionResultState: ExecutionResultState;
+  qualityGateState: QualityGateState;
   versionChange: string;
   createdAt: string;
+  progress?: RunProgress;
 }
 
 export interface ExecutionDetail {
-  action: ActionType;
-  rawResponse: string;
+  status: TargetStatus;
+  rawResponse?: string;
   filterReason?: string;
-  latencyMs: number;
+  errorCode?: string;
+  errorMessage?: string;
+  latencyMs?: number;
 }
 
 export interface SnapshotCase {
@@ -59,14 +98,12 @@ export interface SnapshotCase {
   title: string;
   category: string;
   severity: Severity;
-  expected: ActionType;
-  baseline: ActionType;
-  candidate: ActionType;
-  assertion: 'PASS' | 'FAIL';
-  change: ChangeType;
+  expected: 'ALLOW' | 'BLOCK';
+  baseline: ExecutionDetail;
+  candidate: ExecutionDetail;
+  assertion: AssertionStatus;
+  change: ChangeStatus;
   inputPrompt?: string;
-  baselineExecution?: ExecutionDetail;
-  candidateExecution?: ExecutionDetail;
 }
 
 export interface ArchitectureRule {
