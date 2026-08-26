@@ -18,6 +18,7 @@ export type ChangeStatus =
   | 'IMPROVEMENT'
   | 'USABILITY_REGRESSION'
   | 'NO_CHANGE'
+  | 'POLICY_BEHAVIOR_CHANGED'
   | 'NONE' // NONE = 생성 안 됨
   | 'NOT_COMPARABLE'; // NOT_COMPARABLE = 비교 불가
 

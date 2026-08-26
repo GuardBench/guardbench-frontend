@@ -21,14 +21,21 @@ export interface ApiErrorData {
  * 예) TEST_RUN_NOT_FINISHED, TEST_SUITE_NOT_FOUND, VALIDATION_ERROR 등
  */
 export class ApiError extends Error {
+  public readonly httpStatus: number;
+  public readonly code: string;
+  public readonly fieldErrors?: Array<{ field: string; message: string }>;
+
   constructor(
     message: string,
-    public readonly httpStatus: number,
-    public readonly code: string,
-    public readonly fieldErrors?: Array<{ field: string; message: string }>,
+    httpStatus: number,
+    code: string,
+    fieldErrors?: Array<{ field: string; message: string }>,
   ) {
     super(message);
     this.name = 'ApiError';
+    this.httpStatus = httpStatus;
+    this.code = code;
+    this.fieldErrors = fieldErrors;
   }
 }
 
