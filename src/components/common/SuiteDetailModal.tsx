@@ -97,11 +97,12 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     try {
       const cleanCaseId = id.replace('tc-', '');
       await deleteTestCase(cleanCaseId);
+      // 삭제 성공 시에만 UI 상태 업데이트
+      setCases(cases.filter((c) => c.id !== id));
+      onNotify(`테스트 케이스 '${name}'가 삭제되었습니다.`);
     } catch (_err) {
-      // Fallback UI 처리
+      onNotify(`[삭제 실패] '${name}' 삭제에 실패했습니다. 다시 시도해 주세요.`);
     }
-    setCases(cases.filter((c) => c.id !== id));
-    onNotify(`테스트 케이스 '${name}'가 삭제되었습니다 (DELETE /test-cases).`);
   };
 
   return (
