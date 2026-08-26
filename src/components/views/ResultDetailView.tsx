@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
+import type { SnapshotCase } from '../../types';
 import { mockSnapshots } from '../../mocks/mockData';
 import { StatusPill } from '../common/StatusPill';
-import { Download, RefreshCw, ArrowRight } from 'lucide-react';
+import { SnapshotDiffModal } from '../common/SnapshotDiffModal';
+import { Download, RefreshCw, ArrowRight, Eye } from 'lucide-react';
 
 interface ResultDetailViewProps {
   onGoNewRun: () => void;
@@ -9,6 +11,8 @@ interface ResultDetailViewProps {
 }
 
 export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, onNotify }) => {
+  const [selectedSnapshot, setSelectedSnapshot] = useState<SnapshotCase | null>(null);
+
   return (
     <section className="space-y-6 animate-rise">
       {/* Header */}
@@ -119,7 +123,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, 
       <article className="bg-white border border-[#e5e9ee] rounded-2xl shadow-[0_3px_15px_rgba(17,31,44,0.025)] overflow-hidden">
         <div className="p-5 border-b border-[#e5e9ee] flex justify-between items-center">
           <div>
-            <h2 className="text-sm font-bold text-[#17202a]">Snapshot별 판정</h2>
+            <h2 className="text-sm font-bold text-[#17202a]">Snapshot별 판정 (행을 클릭하여 상세 Diff 비교)</h2>
             <p className="text-xs text-[#697586] mt-0.5">
               Candidate Assertion과 Baseline 대비 Change를 함께 표시합니다.
             </p>
@@ -139,6 +143,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, 
                 <th className="py-3 px-5">Candidate</th>
                 <th className="py-3 px-5">Assertion</th>
                 <th className="py-3 px-5">Change</th>
+                <th className="py-3 px-5 text-right">상세</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e5e9ee]">
@@ -158,14 +163,18 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, 
                 };
 
                 return (
-                  <tr key={item.id} className="hover:bg-[#fafcfb] transition-colors">
+                  <tr
+                    key={item.id}
+                    onClick={() => setSelectedSnapshot(item)}
+                    className="hover:bg-[#f1faf6] transition-colors cursor-pointer group"
+                  >
                     <td className="py-4 px-5">
                       <div className="flex items-center gap-2">
                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${getSeverityStyle(item.severity)}`}>
                           {item.severity}
                         </span>
                         <div>
-                          <b className="block text-sm text-[#17202a]">{item.title}</b>
+                          <b className="block text-sm text-[#17202a] group-hover:text-[#1a7f5a]">{item.title}</b>
                           <small className="text-[11px] text-[#697586]">
                             {item.category} · {item.id}
                           </small>
@@ -185,6 +194,11 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, 
                       <StatusPill status={item.assertion} />
                     </td>
                     <td className="py-4 px-5">{getChangeBadge(item.change)}</td>
+                    <td className="py-4 px-5 text-right">
+                      <button className="p-1.5 rounded-lg text-[#697586] hover:bg-white hover:text-[#1a7f5a]">
+                        <Eye size={16} />
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -192,6 +206,12 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, 
           </table>
         </div>
       </article>
+
+      {/* Snapshot Diff Modal */}
+      <SnapshotDiffModal
+        snapshot={selectedSnapshot}
+        onClose={() => setSelectedSnapshot(null)}
+      />
     </section>
   );
 };
