@@ -41,6 +41,7 @@ export function App() {
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar
           currentView={currentView}
+          isMobileMenuOpen={isMobileMenuOpen}
           onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           onHelpClick={() => {
             handleSelectView('architecture');

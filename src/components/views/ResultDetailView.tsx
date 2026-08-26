@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
+import type { SnapshotCase, TargetStatus } from '../../types';
 import { mockSnapshots } from '../../mocks/mockData';
 import { StatusPill } from '../common/StatusPill';
-import { Download, RefreshCw, ArrowRight } from 'lucide-react';
+import { SnapshotDiffModal } from '../common/SnapshotDiffModal';
+import { Download, RefreshCw, ArrowRight, Eye, Info } from 'lucide-react';
 
 interface ResultDetailViewProps {
   onGoNewRun: () => void;
@@ -9,6 +11,24 @@ interface ResultDetailViewProps {
 }
 
 export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, onNotify }) => {
+  const [selectedSnapshot, setSelectedSnapshot] = useState<SnapshotCase | null>(null);
+
+  const renderTargetText = (target: { status: TargetStatus; errorCode?: string }) => {
+    switch (target.status) {
+      case 'BLOCK':
+        return <span className="text-[#1a7f5a] font-bold font-mono">BLOCK</span>;
+      case 'ALLOW':
+        return <span className="text-[#246fa8] font-bold font-mono">ALLOW</span>;
+      case 'FAILED':
+        return <span className="text-[#bd3b35] font-bold">실패</span>;
+      case 'TIMEOUT':
+        return <span className="text-[#a56512] font-bold">시간 초과</span>;
+      case 'NOT_STARTED':
+      default:
+        return <span className="text-[#697586] font-bold">미시작</span>;
+    }
+  };
+
   return (
     <section className="space-y-6 animate-rise">
       {/* Header */}
@@ -40,7 +60,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, 
 
       {/* Result Hero: Gate Card & Target Card */}
       <div className="grid grid-cols-1 lg:grid-cols-[0.72fr_1.5fr] gap-5">
-        {/* Quality Gate Fail Banner */}
+        {/* P1. Quality Gate Fail Banner (정정된 문구) */}
         <article className="relative overflow-hidden bg-gradient-to-br from-[#9f2f2b] to-[#ca4d45] text-white rounded-2xl p-6 shadow-md flex flex-col justify-between">
           <div className="absolute -right-4 -bottom-6 text-8xl font-black opacity-10 pointer-events-none">
             FAIL
@@ -49,8 +69,8 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, 
             <small className="opacity-80 font-bold text-xs">QUALITY GATE</small>
             <div className="text-3xl font-black tracking-tight my-4">배포 차단</div>
           </div>
-          <p className="text-xs opacity-90 leading-relaxed">
-            CRITICAL 등급의 보안 회귀 1건이 감지되어 Candidate 정책을 배포할 수 없습니다.
+          <p className="text-xs opacity-95 leading-relaxed font-medium">
+            보안 회귀 1건이 감지되어 Candidate 정책을 배포할 수 없습니다.
           </p>
         </article>
 
@@ -58,7 +78,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, 
         <article className="bg-white border border-[#e5e9ee] rounded-2xl p-6 shadow-[0_3px_15px_rgba(17,31,44,0.025)] flex flex-col justify-between">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-sm font-bold text-[#17202a]">실행 대상</h2>
-            <StatusPill status="COMPLETED" />
+            <StatusPill kind="execution" status="COMPLETED" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-3">
@@ -80,38 +100,54 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, 
         </article>
       </div>
 
-      {/* 4 Metrics Progress Cards */}
+      {/* 4 Metrics Progress Cards (P1 Metrics 규칙 반영) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <article className="bg-white border border-[#e5e9ee] rounded-2xl p-4 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
-          <span className="text-[10px] text-[#697586] font-bold block">Candidate Assertion</span>
+        <article className="bg-white border border-[#e5e9ee] rounded-2xl p-4 shadow-[0_3px_15px_rgba(17,31,44,0.025)] relative group">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-[#697586] font-bold">Candidate Assertion</span>
+            <Info size={13} className="text-[#8fa0ad] cursor-pointer" />
+          </div>
           <b className="text-lg text-[#17202a] block mt-1">95.8%</b>
           <div className="h-1.5 bg-[#edf0f2] rounded-full overflow-hidden mt-3">
             <div className="h-full bg-[#1a7f5a] rounded-full" style={{ width: '95.8%' }} />
           </div>
+          <div className="text-[10px] text-[#697586] mt-2">Candidate 기대 결과 부합 비율</div>
         </article>
 
         <article className="bg-white border border-[#e5e9ee] rounded-2xl p-4 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
-          <span className="text-[10px] text-[#697586] font-bold block">Security Regression</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-[#697586] font-bold">Security Regression</span>
+            <Info size={13} className="text-[#8fa0ad] cursor-pointer" />
+          </div>
           <b className="text-lg text-[#bd3b35] block mt-1">1건 · 4.2%</b>
           <div className="h-1.5 bg-[#edf0f2] rounded-full overflow-hidden mt-3">
             <div className="h-full bg-[#bd3b35] rounded-full" style={{ width: '4.2%' }} />
           </div>
+          <div className="text-[10px] text-[#697586] mt-2">Baseline 차단 ➔ Candidate 허용 건수</div>
         </article>
 
         <article className="bg-white border border-[#e5e9ee] rounded-2xl p-4 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
-          <span className="text-[10px] text-[#697586] font-bold block">Usability Regression</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-[#697586] font-bold">Usability Regression</span>
+            <Info size={13} className="text-[#8fa0ad] cursor-pointer" />
+          </div>
           <b className="text-lg text-[#a56512] block mt-1">0건 · 0%</b>
           <div className="h-1.5 bg-[#edf0f2] rounded-full overflow-hidden mt-3">
             <div className="h-full bg-[#a56512] rounded-full" style={{ width: '0%' }} />
           </div>
+          <div className="text-[10px] text-[#697586] mt-2">Baseline 허용 ➔ Candidate 오차단 건수</div>
         </article>
 
         <article className="bg-white border border-[#e5e9ee] rounded-2xl p-4 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
-          <span className="text-[10px] text-[#697586] font-bold block">Execution Success</span>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-[#697586] font-bold">Execution Success</span>
+            <Info size={13} className="text-[#8fa0ad] cursor-pointer" />
+          </div>
           <b className="text-lg text-[#246fa8] block mt-1">100%</b>
           <div className="h-1.5 bg-[#edf0f2] rounded-full overflow-hidden mt-3">
             <div className="h-full bg-[#246fa8] rounded-full" style={{ width: '100%' }} />
           </div>
+          <div className="text-[10px] text-[#697586] mt-2">오류 없이 실행을 마친 Snapshot 비율</div>
         </article>
       </div>
 
@@ -119,9 +155,9 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, 
       <article className="bg-white border border-[#e5e9ee] rounded-2xl shadow-[0_3px_15px_rgba(17,31,44,0.025)] overflow-hidden">
         <div className="p-5 border-b border-[#e5e9ee] flex justify-between items-center">
           <div>
-            <h2 className="text-sm font-bold text-[#17202a]">Snapshot별 판정</h2>
+            <h2 className="text-sm font-bold text-[#17202a]">Snapshot별 판정 (행을 클릭하여 상세 Diff 비교)</h2>
             <p className="text-xs text-[#697586] mt-0.5">
-              Candidate Assertion과 Baseline 대비 Change를 함께 표시합니다.
+              Candidate Assertion과 Baseline 대비 Change를 함께 표시하며, 실패·시간초과·미시작 상태를 지원합니다.
             </p>
           </div>
           <span className="px-2.5 py-1 rounded-full bg-[#f1f3f5] text-[#586473] text-[10px] font-extrabold">
@@ -130,15 +166,16 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, 
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-xs min-w-[720px]">
+          <table className="w-full border-collapse text-left text-xs min-w-[760px]">
             <thead>
               <tr className="bg-[#fafbfb] border-b border-[#e5e9ee] text-[#7a8592] uppercase font-bold tracking-wider text-[10px]">
                 <th className="py-3 px-5">테스트 케이스</th>
                 <th className="py-3 px-5">Expected</th>
-                <th className="py-3 px-5">Baseline</th>
-                <th className="py-3 px-5">Candidate</th>
+                <th className="py-3 px-5">Baseline Target</th>
+                <th className="py-3 px-5">Candidate Target</th>
                 <th className="py-3 px-5">Assertion</th>
                 <th className="py-3 px-5">Change</th>
+                <th className="py-3 px-5 text-right">상세</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e5e9ee]">
@@ -150,22 +187,30 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, 
                 };
 
                 const getChangeBadge = (c: string) => {
-                  if (c === 'SECURITY REGRESSION')
+                  if (c === 'SECURITY_REGRESSION')
                     return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#fff0ef] text-[#bd3b35]">SECURITY REGRESSION</span>;
                   if (c === 'IMPROVEMENT')
                     return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#e9f7f1] text-[#1a7f5a]">IMPROVEMENT</span>;
+                  if (c === 'NOT_COMPARABLE')
+                    return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#eef1f4] text-[#586473] border border-[#dce1e6]">비교 불가</span>;
+                  if (c === 'NONE')
+                    return <span className="text-xs font-semibold text-[#8fa0ad]">— 생성 안 됨</span>;
                   return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#f1f3f5] text-[#586473]">NO CHANGE</span>;
                 };
 
                 return (
-                  <tr key={item.id} className="hover:bg-[#fafcfb] transition-colors">
+                  <tr
+                    key={item.id}
+                    onClick={() => setSelectedSnapshot(item)}
+                    className="hover:bg-[#f1faf6] transition-colors cursor-pointer group"
+                  >
                     <td className="py-4 px-5">
                       <div className="flex items-center gap-2">
                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${getSeverityStyle(item.severity)}`}>
                           {item.severity}
                         </span>
                         <div>
-                          <b className="block text-sm text-[#17202a]">{item.title}</b>
+                          <b className="block text-sm text-[#17202a] group-hover:text-[#1a7f5a]">{item.title}</b>
                           <small className="text-[11px] text-[#697586]">
                             {item.category} · {item.id}
                           </small>
@@ -175,16 +220,21 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, 
                     <td className={`py-4 px-5 font-mono font-bold ${item.expected === 'BLOCK' ? 'text-[#1a7f5a]' : 'text-[#246fa8]'}`}>
                       {item.expected}
                     </td>
-                    <td className={`py-4 px-5 font-mono font-bold ${item.baseline === 'BLOCK' ? 'text-[#1a7f5a]' : 'text-[#246fa8]'}`}>
-                      {item.baseline}
-                    </td>
-                    <td className={`py-4 px-5 font-mono font-bold ${item.candidate === 'BLOCK' ? 'text-[#1a7f5a]' : item.assertion === 'FAIL' ? 'text-[#bd3b35]' : 'text-[#246fa8]'}`}>
-                      {item.candidate}
-                    </td>
+                    <td className="py-4 px-5">{renderTargetText(item.baseline)}</td>
+                    <td className="py-4 px-5">{renderTargetText(item.candidate)}</td>
                     <td className="py-4 px-5">
-                      <StatusPill status={item.assertion} />
+                      {item.assertion === 'NONE' ? (
+                        <span className="text-xs font-semibold text-[#8fa0ad]">— 생성 안 됨</span>
+                      ) : (
+                        <StatusPill status={item.assertion} />
+                      )}
                     </td>
                     <td className="py-4 px-5">{getChangeBadge(item.change)}</td>
+                    <td className="py-4 px-5 text-right">
+                      <button className="p-1.5 rounded-lg text-[#697586] hover:bg-white hover:text-[#1a7f5a]">
+                        <Eye size={16} />
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -192,6 +242,12 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ onGoNewRun, 
           </table>
         </div>
       </article>
+
+      {/* Snapshot Diff Modal */}
+      <SnapshotDiffModal
+        snapshot={selectedSnapshot}
+        onClose={() => setSelectedSnapshot(null)}
+      />
     </section>
   );
 };

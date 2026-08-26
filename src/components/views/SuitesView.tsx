@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
+import type { TestSuite } from '../../types';
 import { mockSuites } from '../../mocks/mockData';
 import { StatusPill } from '../common/StatusPill';
+import { SuiteDetailModal } from '../common/SuiteDetailModal';
 import { Plus } from 'lucide-react';
 
 interface SuitesViewProps {
@@ -8,6 +10,8 @@ interface SuitesViewProps {
 }
 
 export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
+  const [selectedSuite, setSelectedSuite] = useState<TestSuite | null>(null);
+
   return (
     <section className="space-y-6 animate-rise">
       {/* Header */}
@@ -16,11 +20,11 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
           <div className="text-[#1a7f5a] text-xs font-black tracking-widest uppercase mb-1.5">Test catalog</div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#17202a]">테스트 스위트</h1>
           <p className="text-[#697586] text-sm mt-1.5 leading-relaxed">
-            검증 목적별 테스트 케이스를 관리합니다. 실행 시점에는 정의가 불변 Snapshot으로 고정됩니다.
+            검증 목적별 테스트 케이스를 관리합니다. 카드를 클릭하여 소속 TestCase를 관리할 수 있습니다.
           </p>
         </div>
         <button
-          onClick={() => onNotify('정적 데모에서는 스위트 생성 모달만 지원됩니다.')}
+          onClick={() => onNotify('새 스위트 등록 모달이 열립니다.')}
           className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#17202a] text-white text-sm font-bold shadow-sm hover:bg-[#253545] transition-all"
         >
           <Plus size={16} /> 스위트 만들기
@@ -32,8 +36,8 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
         {mockSuites.map((suite) => (
           <article
             key={suite.id}
-            onClick={() => onNotify(`스위트 '${suite.name}' 세부 정보 조회`)}
-            className="bg-white border border-[#e5e9ee] rounded-2xl p-5 shadow-[0_3px_15px_rgba(17,31,44,0.025)] hover:-translate-y-0.5 hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between"
+            onClick={() => setSelectedSuite(suite)}
+            className="bg-white border border-[#e5e9ee] rounded-2xl p-5 shadow-[0_3px_15px_rgba(17,31,44,0.025)] hover:-translate-y-0.5 hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group"
           >
             <div>
               <div className="flex justify-between items-start">
@@ -45,7 +49,9 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
                 </div>
                 <StatusPill status={suite.status} />
               </div>
-              <h3 className="text-base font-bold text-[#17202a] mt-4 mb-2">{suite.name}</h3>
+              <h3 className="text-base font-bold text-[#17202a] group-hover:text-[#1a7f5a] mt-4 mb-2">
+                {suite.name}
+              </h3>
               <p className="text-xs text-[#697586] leading-relaxed line-clamp-2">{suite.description}</p>
             </div>
 
@@ -83,6 +89,13 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
           </div>
         </article>
       </div>
+
+      {/* Suite Detail & TestCase Manager Modal */}
+      <SuiteDetailModal
+        suite={selectedSuite}
+        onClose={() => setSelectedSuite(null)}
+        onNotify={onNotify}
+      />
     </section>
   );
 };
