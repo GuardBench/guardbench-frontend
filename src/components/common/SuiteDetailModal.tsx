@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { TestCase, TestSuite } from '../../types';
 import { StatusPill } from './StatusPill';
-import { X, Plus, Trash2, Edit2, AlertCircle } from 'lucide-react';
+import { X, Plus, Trash2, Edit2, AlertCircle, Loader2 } from 'lucide-react';
+import { getTestCases, createTestCase, deleteTestCase } from '../../services/testCaseService';
 
 interface SuiteDetailModalProps {
   suite: TestSuite | null;
@@ -13,6 +14,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   if (!suite) return null;
 
   const [cases, setCases] = useState<TestCase[]>(suite.testCases || []);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isAdding, setIsAdding] = useState(false);
   const [newCase, setNewCase] = useState<Partial<TestCase>>({
     name: '',
@@ -22,31 +24,84 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     category: 'PII',
   });
 
-  const handleAddCase = () => {
+  useEffect(() => {
+    let isMounted = true;
+    const fetchCases = async () => {
+      setIsLoading(true);
+      try {
+        const cleanSuiteId = suite.id.replace('suite-', '');
+        const res = await getTestCases(cleanSuiteId);
+        if (isMounted && res.items && res.items.length > 0) {
+          const mappedCases: TestCase[] = res.items.map((item) => ({
+            id: `tc-${item.id}`,
+            name: item.name,
+            input: item.input,
+            expectedAction: item.expectedAction,
+            severity: item.severity,
+            category: item.category,
+            createdAt: item.createdAt || '방금 전',
+          }));
+          setCases(mappedCases);
+        }
+      } catch (_err) {
+        if (isMounted) {
+          setCases(suite.testCases || []);
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    fetchCases();
+    return () => {
+      isMounted = false;
+    };
+  }, [suite]);
+
+  const handleAddCase = async () => {
     if (!newCase.name || !newCase.input) {
       onNotify('테스트 케이스 이름과 입력값을 모두 입력해 주세요.');
       return;
     }
 
-    const created: TestCase = {
-      id: `tc-${Date.now()}`,
-      name: newCase.name,
-      input: newCase.input,
-      expectedAction: newCase.expectedAction || 'BLOCK',
-      severity: newCase.severity || 'HIGH',
-      category: newCase.category || 'PII',
-      createdAt: '방금 전',
-    };
+    try {
+      const cleanSuiteId = suite.id.replace('suite-', '');
+      await createTestCase(cleanSuiteId, {
+        name: newCase.name,
+        input: newCase.input,
+        expectedAction: newCase.expectedAction || 'BLOCK',
+        severity: newCase.severity || 'HIGH',
+        category: newCase.category || 'PII',
+      });
 
-    setCases([...cases, created]);
-    setIsAdding(false);
-    setNewCase({ name: '', input: '', expectedAction: 'BLOCK', severity: 'HIGH', category: 'PII' });
-    onNotify(`새 테스트 케이스 '${created.name}'가 추가되었습니다.`);
+      const created: TestCase = {
+        id: `tc-${Date.now()}`,
+        name: newCase.name,
+        input: newCase.input,
+        expectedAction: newCase.expectedAction || 'BLOCK',
+        severity: newCase.severity || 'HIGH',
+        category: newCase.category || 'PII',
+        createdAt: '방금 전',
+      };
+
+      setCases([...cases, created]);
+      setIsAdding(false);
+      setNewCase({ name: '', input: '', expectedAction: 'BLOCK', severity: 'HIGH', category: 'PII' });
+      onNotify(`새 테스트 케이스 '${created.name}'가 추가되었습니다 (POST /test-suites/${cleanSuiteId}/test-cases).`);
+    } catch (_err) {
+      onNotify(`[추가 실패] 백엔드 연동 확인 실패`);
+    }
   };
 
-  const handleDeleteCase = (id: string, name: string) => {
+  const handleDeleteCase = async (id: string, name: string) => {
+    try {
+      const cleanCaseId = id.replace('tc-', '');
+      await deleteTestCase(cleanCaseId);
+    } catch (_err) {
+      // Fallback UI 처리
+    }
     setCases(cases.filter((c) => c.id !== id));
-    onNotify(`테스트 케이스 '${name}'가 삭제되었습니다. (기존 Run의 Snapshot에는 영향을 주지 않습니다)`);
+    onNotify(`테스트 케이스 '${name}'가 삭제되었습니다 (DELETE /test-cases).`);
   };
 
   return (
@@ -67,6 +122,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
               <div className="flex items-center gap-2 mb-1">
                 <h2 className="text-xl font-extrabold text-[#17202a]">{suite.name}</h2>
                 <StatusPill status={suite.status} />
+                {isLoading && <Loader2 size={14} className="animate-spin text-[#1a7f5a]" />}
               </div>
               <p className="text-xs text-[#697586]">{suite.description}</p>
             </div>

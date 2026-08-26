@@ -31,6 +31,17 @@ export interface TestRunResultsResponse {
   executionDetails: ExecutionDetail[];
 }
 
+// 5. TestRun 목록 조회 응답 타입 (Pagination)
+export interface TestRunListApiResponse {
+  items: TestRun[];
+  page: {
+    number: number;
+    size: number;
+    totalElements: number;
+    totalPages: number;
+  };
+}
+
 /**
  * 1) 신규 테스트 Run 실행 요청 (POST /test-runs)
  */
@@ -44,7 +55,24 @@ export async function createTestRun(
 }
 
 /**
- * 2) 테스트 Run 진행 상태 조회 (GET /test-runs/{runId})
+ * 2) TestRun 목록 조회 (GET /test-runs)
+ */
+export async function listTestRuns(params?: {
+  page?: number;
+  size?: number;
+  status?: string;
+}): Promise<TestRunListApiResponse> {
+  const query = new URLSearchParams();
+  if (params?.page) query.append('page', params.page.toString());
+  if (params?.size) query.append('size', params.size.toString());
+  if (params?.status) query.append('status', params.status);
+
+  const queryString = query.toString() ? `?${query.toString()}` : '';
+  return apiRequest<TestRunListApiResponse>(`/test-runs${queryString}`);
+}
+
+/**
+ * 3) 테스트 Run 진행 상태 조회 (GET /test-runs/{runId})
  */
 export async function getTestRunProgress(
   runId: string
@@ -53,17 +81,10 @@ export async function getTestRunProgress(
 }
 
 /**
- * 3) 테스트 Run 실행 결과 및 스냅샷 목록 조회 (GET /test-runs/{runId}/results)
+ * 4) 테스트 Run 실행 결과 및 스냅샷 목록 조회 (GET /test-runs/{runId}/results)
  */
 export async function getTestRunResults(
   runId: string
 ): Promise<TestRunResultsResponse> {
   return apiRequest<TestRunResultsResponse>(`/test-runs/${runId}/results`);
-}
-
-/**
- * 4) 전체 테스트 스위트 목록 조회 (GET /test-suites)
- */
-export async function getTestSuites(): Promise<any[]> {
-  return apiRequest<any[]>('/test-suites');
 }

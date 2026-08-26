@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-
+import React, { useState, useEffect } from 'react';
+import type { TestRun } from '../../types';
 import { mockRuns } from '../../mocks/mockData';
 import { StatusPill } from '../common/StatusPill';
-import { Plus, Search } from 'lucide-react';
+import { Plus, Search, Loader2 } from 'lucide-react';
+import { listTestRuns } from '../../services/testRunService';
 
 interface RunsViewProps {
   onGoNewRun: () => void;
@@ -12,8 +13,34 @@ interface RunsViewProps {
 export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filter, setFilter] = useState('ALL');
+  const [runs, setRuns] = useState<TestRun[]>(mockRuns);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const filteredRuns = mockRuns.filter((run) => {
+  useEffect(() => {
+    let isMounted = true;
+    const fetchRuns = async () => {
+      setIsLoading(true);
+      try {
+        const res = await listTestRuns();
+        if (isMounted && res.items && res.items.length > 0) {
+          setRuns(res.items);
+        }
+      } catch (_err) {
+        if (isMounted) {
+          setRuns(mockRuns);
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    fetchRuns();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const filteredRuns = runs.filter((run) => {
     const matchesSearch =
       run.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       run.suiteName.toLowerCase().includes(searchTerm.toLowerCase());
@@ -45,7 +72,10 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <div className="text-[#1a7f5a] text-xs font-black tracking-widest uppercase mb-1.5">Execution history</div>
+          <div className="text-[#1a7f5a] text-xs font-black tracking-widest uppercase mb-1.5 flex items-center gap-2">
+            <span>Execution history</span>
+            {isLoading && <Loader2 size={13} className="animate-spin text-[#1a7f5a]" />}
+          </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#17202a]">실행 이력</h1>
           <p className="text-[#697586] text-sm mt-1.5 leading-relaxed">
             진행 상태, 실행 결과, Quality Gate를 별도 축으로 분리하여 명확하게 표현합니다.
