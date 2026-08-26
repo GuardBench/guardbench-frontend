@@ -4,7 +4,7 @@ import { apiRequest } from './apiClient';
 export interface CreateTestSuitePayload {
   name: string;
   description?: string;
-  initialTestCases?: Array<{
+  testCases?: Array<{
     name: string;
     input: string;
     expectedAction: 'ALLOW' | 'BLOCK';
@@ -28,6 +28,8 @@ export interface TestSuiteListApiResponse {
     size: number;
     totalElements: number;
     totalPages: number;
+    hasPrevious: boolean;
+    hasNext: boolean;
   };
 }
 
