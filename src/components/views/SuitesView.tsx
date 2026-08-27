@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import type { TestSuite, SuiteStatus } from '../../types';
-import { StatusPill } from '../common/StatusPill';
 import { CreateSuiteModal } from '../common/CreateSuiteModal';
 import { SuiteDetailModal } from '../common/SuiteDetailModal';
 import { Plus, Loader2, AlertCircle } from 'lucide-react';
@@ -13,6 +12,7 @@ interface SuitesViewProps {
 export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
   const [selectedSuite, setSelectedSuite] = useState<TestSuite | null>(null);
   const [isCreateSuiteOpen, setIsCreateSuiteOpen] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const [suites, setSuites] = useState<TestSuite[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
@@ -52,7 +52,7 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [reloadToken]);
 
   return (
     <section className="space-y-6 animate-rise">
@@ -94,14 +94,8 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
               className="bg-white border border-[#e5e9ee] rounded-2xl p-5 shadow-[0_3px_15px_rgba(17,31,44,0.025)] hover:-translate-y-0.5 hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group"
             >
               <div>
-                <div className="flex justify-between items-start">
-                  <div
-                    className="w-10 h-10 rounded-xl grid place-items-center text-lg font-bold"
-                    style={{ backgroundColor: suite.tintBg }}
-                  >
-                    {suite.icon}
-                  </div>
-                  <StatusPill status={suite.status} />
+                <div className="w-10 h-10 rounded-xl grid place-items-center text-lg font-bold" style={{ backgroundColor: suite.tintBg }}>
+                  {suite.icon}
                 </div>
                 <h3 className="text-base font-bold text-[#17202a] group-hover:text-[#1a7f5a] mt-4 mb-2">
                   {suite.name}
@@ -109,18 +103,10 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
                 <p className="text-xs text-[#697586] leading-relaxed line-clamp-2">{suite.description}</p>
               </div>
 
-              <div className="flex gap-4 pt-4 mt-4 border-t border-[#e5e9ee] text-[10px] text-[#697586]">
+              <div className="pt-4 mt-4 border-t border-[#e5e9ee] text-[10px] text-[#697586]">
                 <div>
                   <b className="block text-sm text-[#17202a]">{suite.caseCount}</b>
                   테스트 케이스
-                </div>
-                <div>
-                  <b className="block text-sm text-[#17202a]">{suite.passRate}</b>
-                  최근 통과율
-                </div>
-                <div>
-                  <b className="block text-sm text-[#17202a]">{suite.lastRun}</b>
-                  마지막 실행
                 </div>
               </div>
             </article>
@@ -152,6 +138,7 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
       <CreateSuiteModal
         isOpen={isCreateSuiteOpen}
         onClose={() => setIsCreateSuiteOpen(false)}
+        onCreated={() => setReloadToken((token) => token + 1)}
       />
     </section>
   );
