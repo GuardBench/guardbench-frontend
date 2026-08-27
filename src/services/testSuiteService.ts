@@ -3,7 +3,7 @@ import { apiRequest } from './apiClient';
 // 1. TestSuite 생성 요청
 export interface CreateTestSuitePayload {
   name: string;
-  description?: string;
+  description?: string | null;
   testCases?: Array<{
     name: string;
     input: string;

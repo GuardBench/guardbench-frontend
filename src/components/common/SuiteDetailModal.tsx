@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import type { TestCase, TestSuite } from '../../types';
-import { StatusPill } from './StatusPill';
 import { X, Plus, Trash2, Edit2, AlertCircle, Loader2 } from 'lucide-react';
 import { getTestCases, createTestCase, deleteTestCase } from '../../services/testCaseService';
 
@@ -122,7 +121,6 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <h2 className="text-xl font-extrabold text-[#17202a]">{suite.name}</h2>
-                <StatusPill status={suite.status} />
                 {isLoading && <Loader2 size={14} className="animate-spin text-[#1a7f5a]" />}
               </div>
               <p className="text-xs text-[#697586]">{suite.description}</p>

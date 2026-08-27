@@ -104,11 +104,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView, isO
 
         <div className="mt-auto border border-[#253540] rounded-xl p-3.5 text-[#8fa0ad] text-[11px] leading-relaxed">
           <div className="flex items-center gap-2 mb-1">
-            <span className="w-2 h-2 rounded-full bg-[#32ca92] shadow-[0_0_0_4px_rgba(50,202,146,0.12)]" />
-            <b className="text-[#dce5ec]">모든 시스템 정상</b>
+            <span className="w-2 h-2 rounded-full bg-[#8092a1]" />
+            <b className="text-[#dce5ec]">시스템 상태 API 미제공</b>
           </div>
-          <div>Amazon Bedrock · SQS · RDS</div>
-          <div className="text-[#5f7180] text-[10px] mt-0.5">마지막 확인 1분 전</div>
+          <div>실행·목록 요청의 개별 응답을 확인하세요.</div>
         </div>
       </aside>
     </>
