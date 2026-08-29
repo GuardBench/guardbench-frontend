@@ -2,8 +2,8 @@
 
 > Status: AS-IS
 > Owner: Frontend
-> Last reviewed: 2026-08-27
-> Scope: GitHub Issue #8
+> Last reviewed: 2026-08-29
+> Scope: GitHub Issues #8, #11
 
 이 디렉터리는 GuardBench 프론트엔드의 화면 동작, 사용자 흐름, API 소비 방식, 구조와 UI 규칙을 저장소에서 관리하기 위한 문서 진입점이다.
 
@@ -37,7 +37,7 @@
 | 문서 | 상태 | 목적 |
 | --- | --- | --- |
 | [화면 및 기능 명세](product/screen-spec.md) | `AS-IS` | 현재 6개 화면의 사용자 행동, 데이터 출처, 상태 표현과 계약 불일치를 기록한다. |
-| `product/user-flows.md` | 예정 | TestSuite 관리부터 TestRun 결과 확인까지 사용자 흐름을 정의한다. |
+| [사용자 흐름](product/user-flows.md) | `AS-IS` / `TO-BE` / `미결정` | TestSuite 관리부터 TestRun 결과·Snapshot 분석까지 정상·오류·평가 불가 흐름을 연결한다. |
 | `contracts/api-integration.md` | 예정 | 화면별 API 매핑, 오류, Polling, 멱등성과 pagination 정책을 정의한다. |
 | `architecture/frontend-architecture.md` | 예정 | 라우팅, 상태, API 계층, 컴포넌트와 테스트 구조를 정의한다. |
 | `conventions/ui-guidelines.md` | 예정 | 로딩·빈 결과·오류·폼·반응형·접근성 표현을 정의한다. |
