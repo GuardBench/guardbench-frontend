@@ -2,7 +2,7 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-08-29
+> Last reviewed: 2026-08-30
 > Scope: GitHub Issue #11
 > Canonical product scope: `guardbench-backend/docs/product/mvp-scope.md` (`APPROVED`)
 > Canonical API: `guardbench-backend/docs/api/openapi.yaml` (`APPROVED`)
@@ -33,19 +33,20 @@
 
 ```mermaid
 flowchart LR
-    A[테스트 스위트] --> B[TestSuite와 TestCase 관리]
-    B --> C[새 테스트 실행]
-    C --> D[TestRun 접수]
-    D --> E[실행 이력 또는 결과 상세]
-    E --> F{실행 상태}
-    F -->|QUEUED / PREPARING / RUNNING| E
-    F -->|FINISHED| G[결과와 Quality Gate 확인]
-    G --> H[Snapshot별 결과 분석]
-    C -->|요청 실패| C
-    E -->|조회 실패| I[오류 안내와 재시도]
+    A[TestSuite 목록 조회] --> B[TestSuite와 TestCase 관리]
+    B --> C[TestRun 실행 조건 입력]
+    C --> D[TestRun 생성 요청]
+    D -->|202 Accepted| E[QUEUED 접수]
+    E --> F[TestRun 상세 조회와 Polling]
+    F --> G{TestRun status}
+    G -->|QUEUED / PREPARING / RUNNING| F
+    G -->|FINISHED| H[실행 결과와 Quality Gate 확인]
+    H --> I[Snapshot 결과 목록 조회와 분석]
+    D -->|요청 실패| C
+    F -->|조회 실패| J[오류 안내와 재시도]
 ```
 
-승인된 MVP 여정은 TestSuite와 TestCase 관리, Baseline numbered version과 Candidate DRAFT를 이용한 TestRun 요청, 진행 확인, 결과와 Snapshot 분석 순서다. 현재 프론트엔드는 이 여정의 일부만 API와 연결되어 있고, TestRun 진행 확인과 결과 분석은 mock 또는 미사용 코드에 의존한다.
+승인된 MVP 여정은 TestSuite와 TestCase 관리, Baseline numbered version과 Candidate DRAFT를 이용한 TestRun 생성 요청, 비동기 접수 이후의 진행 확인, 완료된 결과와 Snapshot 분석 순서다. 생성 API는 `202 Accepted`와 `QUEUED` TestRun을 반환하며, 프론트엔드는 접수 직후부터 상세 조회로 상태를 확인할 수 있다. Snapshot 결과 목록은 `FINISHED` 이후에 조회한다. 현재 프론트엔드는 이 여정의 일부만 API와 연결되어 있고, TestRun 진행 확인과 결과 분석은 mock 또는 미사용 코드에 의존한다.
 
 | 구간 | 관련 화면 | 현재 상태 | 핵심 차이 |
 | --- | --- | --- | --- |
@@ -226,16 +227,20 @@ stateDiagram-v2
     QUEUED --> PREPARING
     PREPARING --> RUNNING
     RUNNING --> FINISHED
-    FINISHED --> COMPLETED
-    FINISHED --> ERROR
-    FINISHED --> INCOMPLETE
+    FINISHED --> [*]
 ```
 
 - TestRun의 실행 상태는 `QUEUED`, `PREPARING`, `RUNNING`, `FINISHED`다.
-- `FINISHED` 이후 실행 결과는 `COMPLETED`, `ERROR`, `INCOMPLETE`로 해석한다.
+- `COMPLETED`, `ERROR`, `INCOMPLETE`는 `FINISHED` 이후에 전이하는 상태가 아니라, 완료된 TestRun의 별도 `executionOutcome` 값이다.
 - Quality Gate는 실행 결과와 별도 축이며 `PASS`, `FAIL`, `NOT_EVALUATED`다.
+- 실행 중 `qualityGate = null`은 아직 평가 전이라는 뜻이고, 완료 후 `qualityGate.status = NOT_EVALUATED`는 평가할 수 없다는 뜻이다.
 - 오류를 별도 TestRun 상태 `FAILED`로 만들지 않는다.
 - 처리 진행률은 완료된 TestCase 수와 percent를 기준으로 한다. 실패와 timeout도 더 재시도하지 않는 터미널 결과이면 처리 완료 수에 포함된다.
+
+| 완료 시 별도 결과 축 | 값 | 의미 |
+| --- | --- | --- |
+| `executionOutcome` | `COMPLETED`, `ERROR`, `INCOMPLETE` | 실행 처리의 완료 결과이며 TestRun status가 아니다. |
+| `qualityGate.status` | `PASS`, `FAIL`, `NOT_EVALUATED` | 정책 Gate 판정이며 실행 결과와 별도로 해석한다. |
 
 ### 현재 진입점과 동작 (`AS-IS`)
 
