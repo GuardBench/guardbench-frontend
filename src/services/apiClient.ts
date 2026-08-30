@@ -1,3 +1,5 @@
+import { runtimeConfig } from '../config/runtimeConfig';
+
 // 백엔드 공통 API Response Envelope 타입 정의
 export interface ApiResponseEnvelope<T> {
   httpStatus: number;
@@ -39,8 +41,30 @@ export class ApiError extends Error {
   }
 }
 
+export interface ApiErrorPresentation {
+  message: string;
+  code: string;
+  fieldErrors: Array<{ field: string; message: string }>;
+}
+
+export function presentApiError(error: unknown, fallbackMessage: string): ApiErrorPresentation {
+  if (error instanceof ApiError) {
+    return {
+      message: error.message || fallbackMessage,
+      code: error.code,
+      fieldErrors: error.fieldErrors ?? [],
+    };
+  }
+
+  return {
+    message: error instanceof Error && error.message ? error.message : fallbackMessage,
+    code: 'UNKNOWN_ERROR',
+    fieldErrors: [],
+  };
+}
+
 // 백엔드 API 기본 URL (개발 환경 proxy 또는 환경변수)
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+const API_BASE_URL = runtimeConfig.apiBaseUrl;
 
 /**
  * 백엔드 REST API를 호출하고 Envelope를 자동으로 언래핑(Unwrap)해주는 공통 fetch 함수.
@@ -59,20 +83,46 @@ export async function apiRequest<T>(
     Accept: 'application/json',
   };
 
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...defaultHeaders,
-      ...options?.headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers: {
+        ...defaultHeaders,
+        ...options?.headers,
+      },
+    });
+  } catch (error) {
+    throw new ApiError(
+      error instanceof Error ? error.message : '서버에 연결할 수 없습니다.',
+      0,
+      'NETWORK_ERROR',
+    );
+  }
 
   // 204 No Content — 삭제 성공 등 body가 없는 정상 응답
   if (response.status === 204) {
     return undefined as T;
   }
 
-  const json: ApiResponseEnvelope<T> = await response.json();
+  let json: ApiResponseEnvelope<T>;
+  try {
+    json = await response.json() as ApiResponseEnvelope<T>;
+  } catch {
+    throw new ApiError(
+      response.ok ? '서버 응답 형식을 해석할 수 없습니다.' : `API 요청 실패 (HTTP ${response.status})`,
+      response.status,
+      response.ok ? 'INVALID_RESPONSE' : 'HTTP_ERROR',
+    );
+  }
+
+  if (!json || typeof json !== 'object' || typeof json.httpStatus !== 'number') {
+    throw new ApiError(
+      '서버 응답 형식이 API 계약과 일치하지 않습니다.',
+      response.status,
+      'INVALID_RESPONSE',
+    );
+  }
 
   if (!response.ok || json.httpStatus >= 400) {
     // 서버가 ErrorDetail 또는 ValidationErrorDetail을 반환한 경우 구조화

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import type { TestRunListItemRes } from '../../services/testRunService';
 import { listTestRuns } from '../../services/testRunService';
 import { StatusPill } from '../common/StatusPill';
-import { Plus, Search, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Search, Loader2 } from 'lucide-react';
+import { RequestErrorBanner } from '../common/RequestErrorBanner';
 
 interface RunsViewProps {
   onGoNewRun: () => void;
@@ -14,22 +15,22 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
   const [filter, setFilter] = useState('ALL');
   const [runs, setRuns] = useState<TestRunListItemRes[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [hasError, setHasError] = useState<boolean>(false);
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
     const fetchRuns = async () => {
       setIsLoading(true);
-      setHasError(false);
+      setLoadError(null);
       try {
         const res = await listTestRuns();
         if (isMounted) {
           setRuns(res.items || []);
         }
-      } catch (_err) {
+      } catch (error) {
         if (isMounted) {
-          setHasError(true);
-          setRuns([]);
+          setLoadError(error);
         }
       } finally {
         if (isMounted) setIsLoading(false);
@@ -40,7 +41,7 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [reloadToken]);
 
   const filteredRuns = runs.filter((run) => {
     const idStr = `#${run.id}`;
@@ -110,11 +111,13 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
       </div>
 
       {/* Error Banner */}
-      {hasError && (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-[#fff0ef] border border-[#fdd] text-[#bd3b35] text-xs font-medium">
-          <AlertCircle size={14} />
-          <span>실행 이력을 불러오지 못했습니다.</span>
-        </div>
+      {loadError !== null && (
+        <RequestErrorBanner
+          error={loadError}
+          fallbackMessage="실행 이력을 불러오지 못했습니다."
+          stale={runs.length > 0}
+          onRetry={() => setReloadToken((token) => token + 1)}
+        />
       )}
 
       {/* Table Card */}
@@ -193,7 +196,7 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
                     <td className="py-4 px-5 text-[#697586]">{run.createdAt}</td>
                   </tr>
                 ))
-              ) : !isLoading ? (
+              ) : !isLoading && !loadError ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-xs text-[#697586]">
                     실행 이력이 없습니다.

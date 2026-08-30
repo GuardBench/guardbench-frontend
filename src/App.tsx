@@ -8,6 +8,7 @@ import { NewRunView } from './components/views/NewRunView';
 import { RunsView } from './components/views/RunsView';
 import { ResultDetailView } from './components/views/ResultDetailView';
 import { ArchitectureView } from './components/views/ArchitectureView';
+import { runtimeConfig } from './config/runtimeConfig';
 
 export function App() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
@@ -58,6 +59,11 @@ export function App() {
         />
 
         <main className="flex-1 p-6 sm:p-8 max-w-[1500px] w-full mx-auto">
+          {runtimeConfig.dataMode === 'demo' && (
+            <div className="mb-5 rounded-xl border border-[#e6c979] bg-[#fff7e8] px-4 py-3 text-xs font-bold text-[#78501b]">
+              DEMO 데이터 모드입니다. 화면의 데모·정적 정보는 실제 API 결과가 아닙니다.
+            </div>
+          )}
           {currentView === 'dashboard' && (
             <DashboardView
               onGoNewRun={() => handleSelectView('new-run')}

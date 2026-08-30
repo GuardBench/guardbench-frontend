@@ -3,6 +3,7 @@ import { StatusPill } from '../common/StatusPill';
 import { SnapshotDiffModal } from '../common/SnapshotDiffModal';
 import { Download, RefreshCw, ArrowRight, Eye, Info, Loader2, AlertCircle } from 'lucide-react';
 import { ApiError } from '../../services/apiClient';
+import { RequestErrorBanner } from '../common/RequestErrorBanner';
 import {
   getTestRunDetail,
   getTestRunResults,
@@ -81,6 +82,9 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
   const [snapshots, setSnapshots] = useState<SnapshotCase[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isNotFinished, setIsNotFinished] = useState<boolean>(false);
+  const [detailError, setDetailError] = useState<unknown>(null);
+  const [resultsError, setResultsError] = useState<unknown>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -89,6 +93,8 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
       if (!selectedRunId) return;
       setIsLoading(true);
       setIsNotFinished(false);
+      setDetailError(null);
+      setResultsError(null);
 
       const cleanId = selectedRunId.replace('#', '');
 
@@ -111,6 +117,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
               setIsNotFinished(true);
               setSnapshots([]);
             } else {
+              setResultsError(err);
               setSnapshots([]);
             }
           }
@@ -119,8 +126,9 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
           setIsNotFinished(true);
           setSnapshots([]);
         }
-      } catch (_err) {
+      } catch (error) {
         if (!isMounted) return;
+        setDetailError(error);
         setRunDetail(null);
         setSnapshots([]);
       } finally {
@@ -130,7 +138,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
 
     fetchData();
     return () => { isMounted = false; };
-  }, [selectedRunId]);
+  }, [selectedRunId, reloadToken]);
 
   // ── 표시용 값 계산 ──────────────────────────────────────────
 
@@ -210,6 +218,22 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
 
   const executionOutcomeStatus = runDetail?.executionOutcome ?? null;
 
+  if (!isLoading && detailError && !runDetail) {
+    return (
+      <section className="space-y-6 animate-rise">
+        <div>
+          <div className="mb-1.5 text-xs font-black uppercase tracking-widest text-[#1a7f5a]">Run {selectedRunId || '—'}</div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-[#17202a] sm:text-3xl">테스트 결과 상세</h1>
+        </div>
+        <RequestErrorBanner
+          error={detailError}
+          fallbackMessage="테스트 실행 상세를 불러오지 못했습니다."
+          onRetry={() => setReloadToken((token) => token + 1)}
+        />
+      </section>
+    );
+  }
+
   return (
     <section className="space-y-6 animate-rise">
       {/* Header */}
@@ -253,6 +277,24 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
             완료 후 결과를 확인할 수 있습니다.
           </span>
         </div>
+      )}
+
+      {detailError !== null && runDetail && !isLoading && (
+        <RequestErrorBanner
+          error={detailError}
+          fallbackMessage="최신 테스트 실행 상세를 불러오지 못했습니다."
+          stale
+          onRetry={() => setReloadToken((token) => token + 1)}
+        />
+      )}
+
+      {resultsError !== null && !isLoading && (
+        <RequestErrorBanner
+          error={resultsError}
+          fallbackMessage="Snapshot 결과를 불러오지 못했습니다."
+          stale={snapshots.length > 0}
+          onRetry={() => setReloadToken((token) => token + 1)}
+        />
       )}
 
       {/* Result Hero: Gate Card & Target Card */}
@@ -397,6 +439,8 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
           <div className="p-8 text-center text-xs text-[#697586]">
             {isNotFinished
               ? '실행이 완료되면 Snapshot별 판정 결과가 표시됩니다.'
+              : resultsError
+              ? '결과 조회 오류를 해결한 뒤 다시 시도해 주세요.'
               : '비교 가능한 Snapshot 데이터가 없습니다.'}
           </div>
         ) : (

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Play } from 'lucide-react';
 import { createTestRun } from '../../services/testRunService';
 import { getTestSuites } from '../../services/testSuiteService';
+import { RequestErrorBanner } from '../common/RequestErrorBanner';
 
 interface NewRunViewProps {
   onNotify: (msg: string) => void;
@@ -13,6 +14,8 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
   const [suiteOptions, setSuiteOptions] = useState<Array<{ id: number; name: string; caseCount: number }>>([]);
   const [selectedSuiteId, setSelectedSuiteId] = useState<number>(0);
   const [isSuiteLoading, setIsSuiteLoading] = useState(true);
+  const [suiteLoadError, setSuiteLoadError] = useState<unknown>(null);
+  const [suiteReloadToken, setSuiteReloadToken] = useState(0);
 
   // Baseline — guardrailId + numbered version
   const [guardrailId, setGuardrailId] = useState('');
@@ -22,12 +25,14 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
   // guardrailId는 Baseline과 동일하게 사용
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<unknown>(null);
 
   // TestSuite 목록 로드
   useEffect(() => {
     let isMounted = true;
     const fetchSuites = async () => {
       setIsSuiteLoading(true);
+      setSuiteLoadError(null);
       try {
         const res = await getTestSuites({ size: 100 });
         if (isMounted && res.items) {
@@ -37,13 +42,11 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
             caseCount: item.testCaseCount ?? 0,
           }));
           setSuiteOptions(options);
-          if (options.length > 0) {
-            setSelectedSuiteId(options[0].id);
-          }
+          setSelectedSuiteId(options[0]?.id ?? 0);
         }
-      } catch (_err) {
+      } catch (error) {
         if (isMounted) {
-          setSuiteOptions([]);
+          setSuiteLoadError(error);
         }
       } finally {
         if (isMounted) setIsSuiteLoading(false);
@@ -51,7 +54,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
     };
     fetchSuites();
     return () => { isMounted = false; };
-  }, []);
+  }, [suiteReloadToken]);
 
   const selectedSuite = suiteOptions.find((s) => s.id === selectedSuiteId);
   const caseCount = selectedSuite?.caseCount ?? 0;
@@ -72,6 +75,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
     }
 
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       const res = await createTestRun({
         testSuiteId: selectedSuiteId,
@@ -90,6 +94,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
         onRunCreated(String(res.id));
       }
     } catch (err) {
+      setSubmitError(err);
       const errorMsg = err instanceof Error ? err.message : '요청 실패';
       onNotify(`[실행 실패] ${errorMsg}`);
     } finally {
@@ -120,10 +125,22 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
             </p>
             <div>
               <label className="block text-xs font-bold text-[#4e5a68] mb-2">테스트 스위트</label>
+              {suiteLoadError !== null && (
+                <div className="mb-3">
+                  <RequestErrorBanner
+                    error={suiteLoadError}
+                    fallbackMessage="테스트 스위트 목록을 불러오지 못했습니다."
+                    stale={suiteOptions.length > 0}
+                    onRetry={() => setSuiteReloadToken((token) => token + 1)}
+                  />
+                </div>
+              )}
               {isSuiteLoading ? (
                 <div className="text-xs text-[#697586]">스위트 목록을 불러오는 중...</div>
               ) : suiteOptions.length === 0 ? (
-                <div className="text-xs text-[#bd3b35]">등록된 테스트 스위트가 없습니다. 먼저 스위트를 생성해 주세요.</div>
+                suiteLoadError === null ? (
+                  <div className="text-xs text-[#697586]">등록된 테스트 스위트가 없습니다. 먼저 스위트를 생성해 주세요.</div>
+                ) : null
               ) : (
                 <select
                   value={selectedSuiteId}
@@ -232,6 +249,13 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
           <div className="p-3.5 rounded-xl bg-[#fff7e8] text-[#78501b] text-[11px] leading-relaxed">
             실행 요청 후 Target과 Snapshot은 변경할 수 없습니다. 예상 소요 시간은 약 1–2분입니다.
           </div>
+
+          {submitError !== null && (
+            <RequestErrorBanner
+              error={submitError}
+              fallbackMessage="테스트 실행 요청에 실패했습니다."
+            />
+          )}
 
           <button
             onClick={handleRun}
