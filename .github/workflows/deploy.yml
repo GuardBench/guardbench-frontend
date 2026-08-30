@@ -63,20 +63,6 @@ jobs:
           name: frontend-dist
           path: dist/
 
-      - name: Inspect OIDC Claims
-        uses: actions/github-script@v8
-        with:
-          script: |
-            const token = await core.getIDToken('sts.amazonaws.com');
-            const claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
-            core.info(JSON.stringify({
-              aud: claims.aud,
-              sub: claims.sub,
-              repository: claims.repository,
-              ref: claims.ref,
-              event_name: claims.event_name,
-            }));
-
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
