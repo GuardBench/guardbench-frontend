@@ -2,8 +2,8 @@
 
 > Status: AS-IS
 > Owner: Frontend
-> Last reviewed: 2026-08-30
-> Scope: GitHub Issues #8, #11, #13, #15, #17
+> Last reviewed: 2026-08-31
+> Scope: GitHub Issues #8, #10, #11, #13, #15, #17
 
 이 디렉터리는 GuardBench 프론트엔드의 화면 동작, 사용자 흐름, API 소비 방식, 구조와 UI 규칙을 저장소에서 관리하기 위한 문서 진입점이다.
 
@@ -41,6 +41,7 @@
 | [API 연동 계약](contracts/api-integration.md) | `AS-IS` / `TO-BE` / `미결정` | 화면별 API 매핑, 오류, Polling, 멱등성, pagination, mock과 빈 결과 정책을 정의한다. |
 | [프론트엔드 아키텍처](architecture/frontend-architecture.md) | `AS-IS` / `TO-BE` / `미결정` | 라우팅, 상태 소유권, API 계층, 컴포넌트, 오류 경계와 테스트 구조를 정의한다. |
 | [UI 및 접근성 가이드](conventions/ui-guidelines.md) | `AS-IS` / `TO-BE` / `미결정` | 로딩·빈 결과·오류·폼·피드백·반응형·키보드와 접근성 표현을 정의한다. |
+| [프론트엔드 빌드 및 dev 배포](operations/frontend-deployment.md) | `AS-IS` / `DRAFT` | PR build, 문서-only 제외, dev 배포 조건과 AWS 인증 전환 방향을 기록한다. |
 
 예정 문서는 해당 세부 Issue에서 범위와 결정 사항을 확정한 뒤 생성한다.
 
