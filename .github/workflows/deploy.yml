@@ -63,13 +63,10 @@ jobs:
           name: frontend-dist
           path: dist/
 
-      - name: Mask AWS Deploy Role ARN
-        run: echo "::add-mask::${{ vars.AWS_DEPLOY_ROLE_ARN }}"
-
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           role-session-name: guardbench-frontend-deploy
           aws-region: ap-northeast-2
 
