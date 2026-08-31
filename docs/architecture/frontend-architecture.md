@@ -120,7 +120,8 @@ view/modal → endpoint service → apiClient → fetch
 - `apiClient`가 base URL, 공통 header와 success envelope unwrap을 담당한다.
 - service가 endpoint와 query/body를 구성한다.
 - 일부 service DTO가 화면 `types`를 직접 사용하거나 `any`를 반환한다.
-- view가 mock fallback과 API→UI 변환을 직접 수행한다.
+- view가 API→UI 변환과 loading/empty/error/stale 상태를 직접 소유하고 공통 오류 banner를 사용한다.
+- API 화면은 조회 실패를 mock으로 대체하지 않는다. Architecture 화면의 정적 자료는 명시적인 데모 자료다.
 - `204`, error code와 validation detail 처리 제약은 API 연동 계약에 기록돼 있다.
 
 ### TO-BE

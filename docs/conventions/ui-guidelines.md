@@ -25,8 +25,8 @@
 | 영역 | 현재 동작 | 제약 |
 | --- | --- | --- |
 | loading | 제목 옆 작은 spinner 또는 제출 button 문구 | accessible status와 지속 상태 설명 없음 |
-| empty | 빈 table 또는 mock 유지 | 실제 0건과 오류를 구분하기 어려움 |
-| error | 일반 toast 또는 silent mock fallback | code·field error·재시도 경로 없음 |
+| empty | API 성공 후 0건 전용 문구·CTA | 화면별 문구와 CTA 정교화 필요 |
+| error | 지속 오류 banner, code, stale와 재시도 | 오류 code별 문구와 자동 재시도 정책 미정 |
 | toast | 우측 하단 약 2.8초, 문자열 하나 | severity, queue와 dismiss 없음 |
 | modal/drawer | overlay click과 닫기 button | dialog semantics, focus trap·복원, Escape 미지원 |
 | clickable card/row | `article`/`tr`에 `onClick` | keyboard focus와 activation 없음 |
@@ -239,8 +239,8 @@ axe 등 자동 검사와 CI required check는 `미결정`이다. screen reader �
 
 ## 17. 후속 구현·Decision 후보
 
-- loading/empty/error/stale 공통 상태 component
-- structured field error와 form validation
+- loading 공통 상태 component와 empty CTA 정교화
+- structured field error의 control별 연결과 form validation
 - toast severity, queue와 지속 오류 영역
 - accessible dialog/drawer와 destructive confirmation
 - clickable card/row의 native interaction 전환

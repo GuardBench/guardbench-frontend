@@ -99,21 +99,21 @@ API 응답에 없는 다음 필드는 프론트엔드에서 고정 또는 장식
 | 아이콘 | 고정 기호 |
 | 배경색 | 고정 색상 |
 
-따라서 사용자는 화면만 보고 실제 API 데이터와 mock fallback을 구분할 수 없다.
+Architecture 화면의 규칙 목록은 정적 데모 자료로 명시한다. `VITE_DATA_MODE=demo` 환경은 앱 상단에 DEMO 표시를 제공하며 API 오류를 mock 성공 데이터로 바꾸지 않는다.
 
 ### 사용자 동작
 
 | 동작 | 상태 | 현재 동작 |
 | --- | --- | --- |
 | Suite 카드 선택 | 부분 연동 | TestCase 관리 modal을 연다. |
-| 스위트 만들기 | 데모 | 생성 UI 없이 “API 연동 완료” toast만 표시한다. |
-| 빈 카드 영역의 새 Suite 선택 | 데모 | 같은 toast만 표시한다. |
+| 스위트 만들기 | API | 생성 modal에서 Suite와 선택적인 초기 TestCase를 등록한다. |
+| 빈 카드 영역의 새 Suite 선택 | API | 같은 생성 modal을 연다. |
 
 ### 목록 상태 지원
 
-- 로딩: 상단의 작은 spinner만 표시
-- 빈 결과: 전용 빈 화면 없음. API가 빈 목록이면 mock 유지
-- 오류: 전용 오류 표시 없음. mock으로 조용히 대체
+- 로딩: 상단의 작은 spinner 표시
+- 빈 결과: 실제 0건 전용 화면과 Suite 생성 action 표시
+- 오류: 구조화된 오류 code, stale 상태와 재시도 action 표시
 - pagination, 검색, 정렬: UI에 없음
 
 ### TestCase 관리 modal
@@ -123,15 +123,15 @@ API 응답에 없는 다음 필드는 프론트엔드에서 고정 또는 장식
 - Suite 선택 시 `GET /api/v1/test-suites/{suiteId}/test-cases`를 호출한다.
 - `suite-` 접두사를 제거한 값을 API ID로 사용한다.
 - 페이지 크기는 20이며 page 값은 UI의 1-based 값을 그대로 전송한다.
-- 오류 시 선택된 mock Suite의 `testCases`로 대체한다.
-- API와 mock을 구분하는 안내는 없다.
+- 오류 시 기존 API 데이터가 있으면 stale로 표시하고, 없으면 오류 상태와 재시도 action을 제공한다.
+- API 실패를 선택된 Suite의 mock `testCases`로 대체하지 않는다.
 
 #### 생성
 
 - 이름과 input의 빈 문자열 여부만 검사한다. 공백만 있는 값은 클라이언트에서 거르지 않는다.
 - category, expectedAction, severity 입력을 제공한다.
 - `POST /api/v1/test-suites/{suiteId}/test-cases`를 호출한다.
-- 성공 응답은 사용하지 않고 현재 시각 기반 임시 ID로 로컬 목록 끝에 추가한다.
+- 성공 응답의 서버 ID와 field를 로컬 목록 끝에 추가한다.
 - 생성 후 전체 개수와 pagination 메타데이터는 다시 조회하지 않는다.
 - 요청 중 중복 제출 방지와 field별 오류 표시는 없다.
 
@@ -149,9 +149,9 @@ API 응답에 없는 다음 필드는 프론트엔드에서 고정 또는 장식
 
 - 로딩: 제목 옆 spinner
 - 빈 결과: 빈 table만 표시하며 설명이나 CTA 없음
-- 조회 오류: mock fallback, 오류 안내 없음
-- 생성 오류: 일반 실패 toast
-- 삭제 오류: 성공처럼 처리
+- 조회 오류: 구조화된 오류 code, 재시도와 stale 상태 표시
+- 생성 오류: code와 field errors를 form 영역에 유지
+- 삭제 오류: 서버 성공 전에는 로컬 목록에서 제거하지 않고 code를 포함해 안내
 - 접근성: dialog role, focus trap, Escape 닫기, 삭제 확인이 없음
 
 ## 5. 새 테스트 실행
@@ -203,16 +203,16 @@ TestRun의 진행 상태, 실행 결과와 Quality Gate를 서로 다른 축으�
 
 ### 데이터 흐름
 
-1. 화면은 먼저 `mockRuns`를 표시한다.
-2. mount 시 `GET /api/v1/test-runs`를 호출한다.
-3. 응답 `items`가 있으면 별도 mapping 없이 프론트엔드 `TestRun[]`으로 사용한다.
-4. 오류 시 mock을 유지한다.
+1. 빈 로컬 목록에서 시작해 mount 시 `GET /api/v1/test-runs`를 호출한다.
+2. 응답 `items`를 승인된 `TestRunListItemRes`로 사용한다.
+3. 성공한 `items: []`는 실제 빈 결과로 표시한다.
+4. 오류 시 mock으로 바꾸지 않고 code, stale 상태와 재시도 action을 표시한다.
 
-프론트엔드 행은 `suiteName`, `snapshotsText`, `progressState`, `executionResultState`, `qualityGateState`, `versionChange`를 요구한다. 승인된 목록 응답은 `testSuiteId`, `status`, `testCaseCount`, `progress`, `executionOutcome`, `qualityGateStatus`를 제공하며 Suite 이름과 Target version을 포함하지 않는다. 현재 별도 변환이 없어 계약과 UI 타입이 일치하지 않는다.
+행은 승인된 목록 응답의 `testSuiteId`, `status`, `testCaseCount`, `progress`, `executionOutcome`, `qualityGateStatus`를 직접 소비한다. API에 없는 Suite 이름과 Target version은 만들지 않는다.
 
 ### 검색과 필터
 
-- 검색은 현재 메모리 목록의 Run ID와 Suite 이름에 대해 수행한다.
+- 검색은 현재 메모리 목록의 Run ID와 Suite ID에 대해 수행한다.
 - 상태 필터도 현재 메모리 목록에서 수행한다.
 - `RUNNING` 필터는 실제 `RUNNING`만이 아니라 `FINISHED`가 아닌 모든 상태를 포함한다.
 - API가 제공하는 status, executionOutcome, qualityGateStatus, 기간 필터를 사용하지 않는다.
@@ -224,7 +224,7 @@ TestRun의 진행 상태, 실행 결과와 Quality Gate를 서로 다른 축으�
 - 새 테스트 실행: `new-run`으로 이동
 - 로딩: 상단 작은 spinner
 - 빈 결과: 빈 table만 표시
-- 오류: mock fallback, 오류 안내 없음
+- 오류: 구조화된 오류 code와 재시도 경로를 표시하며 이전 데이터가 있으면 stale로 유지
 
 ## 7. 결과 상세
 
@@ -254,9 +254,9 @@ TestRun의 진행 상태, 실행 결과와 Quality Gate를 서로 다른 축으�
 ### 상태 지원
 
 - 로딩: 제목 옆 작은 spinner
-- 실행 중: results API가 409를 반환하면 mock 상세로 대체될 수 있음
-- 빈 결과: mock Snapshot이 비어 있을 때만 전용 문구 표시
-- 오류: API 오류 표시 없이 mock fallback
+- 실행 중: results API의 `TEST_RUN_NOT_FINISHED`를 진행 중 상태로 유지
+- 빈 결과: FINISHED 결과 조회 성공 후 `items: []`일 때 전용 문구 표시
+- 오류: 상세·결과 오류를 분리하고 code와 재시도 경로 표시
 - pagination 및 결과 필터: 없음
 
 ### Snapshot diff modal
@@ -294,9 +294,9 @@ TestRun의 진행 상태, 실행 결과와 Quality Gate를 서로 다른 축으�
 
 ### 현재 제약
 
-- JSON body가 없는 `204 No Content` 응답도 무조건 JSON으로 parsing한다. TestCase DELETE 성공 응답 처리와 충돌할 수 있다.
-- 오류 envelope의 code와 field errors를 보존하지 않고 message만 사용한다.
-- network 오류, JSON parsing 오류, API 오류를 UI가 구분하지 않는다.
+- JSON body가 없는 `204 No Content` 응답은 parsing을 생략한다.
+- 오류 envelope의 code와 field errors를 `ApiError`에 보존한다.
+- network 오류와 계약에 맞지 않는 JSON 응답을 별도 client code로 구분한다.
 - request 취소, timeout, 인증, 공통 재시도 정책이 없다.
 
 ## 10. Polling 구현 상태
@@ -345,7 +345,7 @@ TestRun의 진행 상태, 실행 결과와 Quality Gate를 서로 다른 축으�
 - TestRun 목록 DTO mapping과 Suite 이름 표시 전략 결정
 - 상태 조회 Polling을 승인된 상태 모델로 구현
 - 결과 상세와 paginated Snapshot 결과 mapping 구현
-- API 실패 시 mock fallback 정책 결정 및 사용자 표시
+- demo fixture 적용 화면과 운영 환경 차단 정책 결정
 - TestSuite 생성과 TestCase 수정 UI 구현
 - TestCase 생성·삭제 후 서버 상태 재동기화
 - URL routing과 직접 링크 도입 결정

@@ -39,17 +39,17 @@
 
 | 사용자 목표 | 화면 | Endpoint | AS-IS | TO-BE mapping |
 | --- | --- | --- | --- | --- |
-| Suite 목록 확인 | 테스트 스위트 | `GET /api/v1/test-suites` | API 항목이 있으면 카드로 변환하고 빈 결과·오류는 mock 유지 | `TestSuiteListRes.items`와 `page`를 서버 상태로 보존하고 실제 빈 결과를 표시 |
-| Suite 생성 | 테스트 스위트 | `POST /api/v1/test-suites` | 연결된 UI는 데모 | `TestSuiteCreateReq`를 보내고 `TestSuiteCreateRes`의 서버 ID로 반영 |
+| Suite 목록 확인 | 테스트 스위트 | `GET /api/v1/test-suites` | API 항목과 실제 빈 결과를 구분하고 오류에는 code·stale·재시도를 표시 | pagination/filter 정책 확정 |
+| Suite 생성 | 테스트 스위트 | `POST /api/v1/test-suites` | 생성 modal이 요청하고 서버 ID를 반영 | field별 오류 control 연결 |
 | Suite 상세·수정 | 테스트 스위트 | `GET/PATCH /api/v1/test-suites/{suiteId}` | 서비스만 있고 연결 UI 없음 | summary field만 표시하고 API에 없는 상태·통과율을 사실처럼 만들지 않음 |
-| TestCase 목록 | TestCase 관리 modal | `GET /api/v1/test-suites/{suiteId}/test-cases` | 실패 시 mock, page 20 | `TestCaseListRes.items/page`를 함께 보존 |
-| TestCase 생성 | TestCase 관리 modal | `POST /api/v1/test-suites/{suiteId}/test-cases` | 응답 대신 임시 ID로 로컬 추가 | 생성 응답의 ID와 필드를 사용하고 목록/page를 재동기화 |
+| TestCase 목록 | TestCase 관리 modal | `GET /api/v1/test-suites/{suiteId}/test-cases` | 실제 빈 결과와 code·stale·재시도를 표시하며 mock fallback 없음 | `TestCaseListRes.page`를 UI pagination에 연결 |
+| TestCase 생성 | TestCase 관리 modal | `POST /api/v1/test-suites/{suiteId}/test-cases` | 생성 응답의 서버 ID와 field로 로컬 추가 | 목록/page 재동기화 정책 |
 | TestCase 상세·수정 | TestCase 관리 modal | `GET/PATCH /api/v1/test-cases/{testCaseId}` | 수정 UI는 데모 | 허용 field의 부분 수정과 validation detail을 mapping |
-| TestCase 삭제 | TestCase 관리 modal | `DELETE /api/v1/test-cases/{testCaseId}` | 실패해도 성공처럼 제거할 수 있고 204 parsing 충돌 가능 | 204 성공 후에만 UI를 갱신하고 실패 시 서버 상태를 유지 |
-| TestRun 생성 | 새 테스트 실행 | `POST /api/v1/test-runs` | 요청·응답 DTO가 계약과 불일치 | `TestRunCreateReq/Res`와 `Idempotency-Key`를 사용 |
-| 실행 이력 | 실행 이력 | `GET /api/v1/test-runs` | API DTO를 UI 타입으로 직접 사용하고 오류 시 mock | 세 상태 축과 progress를 명시적으로 mapping |
+| TestCase 삭제 | TestCase 관리 modal | `DELETE /api/v1/test-cases/{testCaseId}` | 204 성공 후에만 로컬 제거하고 실패 시 code와 서버 상태 유지 | 필요 시 서버 재동기화 |
+| TestRun 생성 | 새 테스트 실행 | `POST /api/v1/test-runs` | 승인된 요청·응답 DTO 사용, 오류 code 보존 | `Idempotency-Key` 생성·복원 정책 |
+| 실행 이력 | 실행 이력 | `GET /api/v1/test-runs` | 세 상태 축과 progress를 표시하고 오류·빈 결과 분리 | server pagination/filter 연결 |
 | 진행 확인 | 결과 상세 또는 실행 이력 | `GET /api/v1/test-runs/{runId}` | Polling hook이 화면에 연결되지 않음 | 상세를 즉시 조회하고 `FINISHED`까지 Polling |
-| 결과 분석 | 결과 상세 | `GET /api/v1/test-runs/{runId}/results` | mock Snapshot 중심, 응답 구조 불일치 | `TestRunResultListRes.items/page`를 Snapshot 행과 상세에 동일하게 사용 |
+| 결과 분석 | 결과 상세 | `GET /api/v1/test-runs/{runId}/results` | 응답 items를 Snapshot 행으로 mapping하고 오류·빈 결과 분리 | pagination과 결과 filter 연결 |
 
 대시보드와 아키텍처 화면에는 승인된 전용 API가 없다. 정적·mock 데이터를 실제 서버 집계나 도메인 최신 상태로 표현하지 않는다. (`AS-IS`, 후속 Decision)
 
@@ -89,8 +89,9 @@
 
 - base URL은 `VITE_API_BASE_URL` 또는 `/api/v1`이다.
 - JSON envelope의 `data`를 반환한다.
-- HTTP 또는 envelope 오류는 일반 `Error`로 바뀌며 message 외 code와 field errors를 잃는다.
-- 모든 응답을 JSON으로 parsing해 204와 충돌할 수 있다.
+- HTTP 또는 envelope 오류는 `ApiError`로 변환하며 HTTP status, code와 field errors를 보존한다.
+- network 실패와 계약에 맞지 않는 JSON 응답은 각각 `NETWORK_ERROR`, `INVALID_RESPONSE`로 구분한다.
+- `204 No Content`는 JSON parsing을 생략한다.
 - timeout, 취소, 인증과 공통 재시도 정책이 없다.
 
 ### TO-BE
@@ -177,9 +178,9 @@ URL에 page/filter를 보존할지, filter 변경 시 page를 1로 되돌릴지�
 
 | 상황 | AS-IS | TO-BE 원칙 |
 | --- | --- | --- |
-| 목록 조회 실패 | mock으로 조용히 대체 | 오류 상태와 재시도 경로를 제공하고 mock과 구분 |
-| mutation validation | 일반 toast | `VALIDATION_ERROR` field details를 보존 |
-| 404 | 일반 오류 또는 mock | 리소스 미존재를 구분하고 stale 화면 상태를 정리 |
+| 목록 조회 실패 | 오류 code와 재시도 경로를 표시하고 이전 데이터가 있으면 stale로 표시 | 화면별 404·권한 문구 세분화 |
+| mutation validation | `ApiError` code와 field details를 form 또는 지속 오류 영역에 보존 | field별 control 연결 |
+| 404 | 구조화된 오류로 표시하며 mock으로 대체하지 않음 | 리소스 미존재 전용 이동 경로 |
 | 409 | 일반 오류 | `TEST_SUITE_EMPTY`, `IDEMPOTENCY_KEY_CONFLICT`, `TEST_RUN_NOT_FINISHED`별 흐름 분리 |
 | DELETE 실패 | 성공처럼 제거 가능 | 성공을 확정하지 않고 서버 상태 유지 또는 재조회 |
 | network/timeout | 일반 오류 | 결과 불명과 명시적 거부를 구분 |
@@ -188,10 +189,8 @@ URL에 page/filter를 보존할지, filter 변경 시 page를 1로 되돌릴지�
 
 ## 12. 후속 구현·Decision 후보
 
-- `dev`의 계약 정렬 구현을 현재 `main`과 안전하게 통합하고 문서 AS-IS 갱신
-- 환경별 mock mode와 실제 API mode Decision
-- silent mock fallback 제거 또는 명시적 표시
-- 공통 204·구조화된 오류·abort/timeout 처리
+- 환경별 `VITE_DATA_MODE`의 실제 demo fixture 적용 범위 Decision
+- abort/timeout 처리와 오류별 자동 재시도 정책
 - TestRun 멱등 key 생성과 복원
 - Polling 연결, backoff, 오류 복구와 background tab 정책
 - pagination/filter UI와 URL 상태 Decision
