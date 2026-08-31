@@ -86,7 +86,9 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
       close();
     } catch (error) {
       if (error instanceof ApiError && error.fieldErrors?.length) {
-        setValidationMessage(error.fieldErrors.map((fieldError) => fieldError.message).join(' '));
+        setValidationMessage(`[${error.code}] ${error.fieldErrors.map((fieldError) => fieldError.message).join(' ')}`);
+      } else if (error instanceof ApiError) {
+        setValidationMessage(`[${error.code}] ${error.message}`);
       } else {
         setValidationMessage(error instanceof Error ? error.message : '테스트 스위트를 생성하지 못했습니다.');
       }
@@ -244,7 +246,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
           </section>
 
           {validationMessage && (
-            <div role="status" className="flex items-center gap-2 rounded-lg bg-[#fff5e8] px-3 py-2 text-xs text-[#805100]">
+            <div className="flex items-center gap-2 rounded-lg bg-[#fff5e8] px-3 py-2 text-xs text-[#805100]">
               <AlertCircle size={16} className="shrink-0" />
               {validationMessage}
             </div>

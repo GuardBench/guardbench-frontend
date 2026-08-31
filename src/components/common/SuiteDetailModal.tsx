@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import type { TestCase, TestSuite } from '../../types';
 import { X, Plus, Trash2, Edit2, AlertCircle, Loader2 } from 'lucide-react';
 import { getTestCases, createTestCase, deleteTestCase } from '../../services/testCaseService';
+import { presentApiError } from '../../services/apiClient';
+import { RequestErrorBanner } from './RequestErrorBanner';
 
 interface SuiteDetailModalProps {
   suite: TestSuite | null;
@@ -10,10 +12,11 @@ interface SuiteDetailModalProps {
 }
 
 export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClose, onNotify }) => {
-  if (!suite) return null;
-
-  const [cases, setCases] = useState<TestCase[]>(suite.testCases || []);
+  const [cases, setCases] = useState<TestCase[]>([]);
+  const [casesOwnerSuiteId, setCasesOwnerSuiteId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const [isAdding, setIsAdding] = useState(false);
   const [newCase, setNewCase] = useState<Partial<TestCase>>({
     name: '',
@@ -24,13 +27,16 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   });
 
   useEffect(() => {
+    if (!suite) return undefined;
+
     let isMounted = true;
     const fetchCases = async () => {
       setIsLoading(true);
+      setLoadError(null);
       try {
         const cleanSuiteId = suite.id.replace('suite-', '');
         const res = await getTestCases(cleanSuiteId);
-        if (isMounted && res.items && res.items.length > 0) {
+        if (isMounted) {
           const mappedCases: TestCase[] = res.items.map((item) => ({
             id: `tc-${item.id}`,
             name: item.name,
@@ -41,10 +47,11 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             createdAt: item.createdAt || '방금 전',
           }));
           setCases(mappedCases);
+          setCasesOwnerSuiteId(suite.id);
         }
-      } catch (_err) {
+      } catch (error) {
         if (isMounted) {
-          setCases(suite.testCases || []);
+          setLoadError(error);
         }
       } finally {
         if (isMounted) setIsLoading(false);
@@ -55,7 +62,12 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     return () => {
       isMounted = false;
     };
-  }, [suite]);
+  }, [suite, reloadToken]);
+
+  if (!suite) return null;
+
+  const isCurrentSuiteLoaded = casesOwnerSuiteId === suite.id;
+  const visibleCases = isCurrentSuiteLoaded ? cases : [];
 
   const handleAddCase = async () => {
     if (!newCase.name || !newCase.input) {
@@ -65,7 +77,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
 
     try {
       const cleanSuiteId = suite.id.replace('suite-', '');
-      await createTestCase(cleanSuiteId, {
+      const response = await createTestCase(cleanSuiteId, {
         name: newCase.name,
         input: newCase.input,
         expectedAction: newCase.expectedAction || 'BLOCK',
@@ -74,21 +86,23 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
       });
 
       const created: TestCase = {
-        id: `tc-${Date.now()}`,
-        name: newCase.name,
-        input: newCase.input,
-        expectedAction: newCase.expectedAction || 'BLOCK',
-        severity: newCase.severity || 'HIGH',
-        category: newCase.category || 'PII',
-        createdAt: '방금 전',
+        id: `tc-${response.id}`,
+        name: response.name,
+        input: response.input,
+        expectedAction: response.expectedAction,
+        severity: response.severity,
+        category: response.category,
+        createdAt: response.createdAt || '방금 전',
       };
 
-      setCases([...cases, created]);
+      setCases((currentCases) => [...currentCases, created]);
+      setCasesOwnerSuiteId(suite.id);
       setIsAdding(false);
       setNewCase({ name: '', input: '', expectedAction: 'BLOCK', severity: 'HIGH', category: 'PII' });
       onNotify(`새 테스트 케이스 '${created.name}'가 추가되었습니다 (POST /test-suites/${cleanSuiteId}/test-cases).`);
-    } catch (_err) {
-      onNotify(`[추가 실패] 백엔드 연동 확인 실패`);
+    } catch (error) {
+      const presented = presentApiError(error, '테스트 케이스를 추가하지 못했습니다.');
+      onNotify(`[추가 실패 · ${presented.code}] ${presented.message}`);
     }
   };
 
@@ -97,10 +111,11 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
       const cleanCaseId = id.replace('tc-', '');
       await deleteTestCase(cleanCaseId);
       // 삭제 성공 시에만 UI 상태 업데이트
-      setCases(cases.filter((c) => c.id !== id));
+      setCases((currentCases) => currentCases.filter((c) => c.id !== id));
       onNotify(`테스트 케이스 '${name}'가 삭제되었습니다.`);
-    } catch (_err) {
-      onNotify(`[삭제 실패] '${name}' 삭제에 실패했습니다. 다시 시도해 주세요.`);
+    } catch (error) {
+      const presented = presentApiError(error, `'${name}' 삭제에 실패했습니다.`);
+      onNotify(`[삭제 실패 · ${presented.code}] ${presented.message}`);
     }
   };
 
@@ -144,14 +159,23 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
 
         {/* Body */}
         <div className="p-6 overflow-y-auto space-y-6 flex-1">
+          {loadError !== null && (
+            <RequestErrorBanner
+              error={loadError}
+              fallbackMessage="테스트 케이스 목록을 불러오지 못했습니다."
+              stale={visibleCases.length > 0}
+              onRetry={() => setReloadToken((token) => token + 1)}
+            />
+          )}
           {/* Header & Add Button */}
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-bold text-[#17202a]">
-              소속 테스트 케이스 목록 ({cases.length}개)
+              소속 테스트 케이스 목록 ({visibleCases.length}개)
             </h3>
             <button
               onClick={() => setIsAdding(!isAdding)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545]"
+              disabled={!isCurrentSuiteLoaded || isLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus size={14} /> {isAdding ? '취소' : '케이스 추가'}
             </button>
@@ -241,7 +265,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e5e9ee]">
-                {cases.map((c) => (
+                {visibleCases.map((c) => (
                   <tr key={c.id} className="hover:bg-[#fafcfb]">
                     <td className="p-3">
                       <b className="block text-[#17202a]">{c.name}</b>
@@ -276,6 +300,13 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                     </td>
                   </tr>
                 ))}
+                {!isLoading && !loadError && isCurrentSuiteLoaded && visibleCases.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-[#697586]">
+                      등록된 테스트 케이스가 없습니다.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import type { TestSuite, SuiteStatus } from '../../types';
 import { CreateSuiteModal } from '../common/CreateSuiteModal';
 import { SuiteDetailModal } from '../common/SuiteDetailModal';
-import { Plus, Loader2, AlertCircle } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react';
 import { getTestSuites } from '../../services/testSuiteService';
+import { RequestErrorBanner } from '../common/RequestErrorBanner';
 
 interface SuitesViewProps {
   onNotify: (msg: string) => void;
@@ -15,13 +16,13 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
   const [reloadToken, setReloadToken] = useState(0);
   const [suites, setSuites] = useState<TestSuite[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [hasError, setHasError] = useState<boolean>(false);
+  const [loadError, setLoadError] = useState<unknown>(null);
 
   useEffect(() => {
     let isMounted = true;
     const fetchSuites = async () => {
       setIsLoading(true);
-      setHasError(false);
+      setLoadError(null);
       try {
         const res = await getTestSuites();
         if (isMounted) {
@@ -38,10 +39,9 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
           }));
           setSuites(mappedSuites);
         }
-      } catch (_err) {
+      } catch (error) {
         if (isMounted) {
-          setHasError(true);
-          setSuites([]);
+          setLoadError(error);
         }
       } finally {
         if (isMounted) setIsLoading(false);
@@ -77,11 +77,13 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
       </div>
 
       {/* Error Banner */}
-      {hasError && (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-[#fff0ef] border border-[#fdd] text-[#bd3b35] text-xs font-medium">
-          <AlertCircle size={14} />
-          <span>테스트 스위트 목록을 불러오지 못했습니다. 네트워크 연결 또는 백엔드 상태를 확인해 주세요.</span>
-        </div>
+      {loadError !== null && (
+        <RequestErrorBanner
+          error={loadError}
+          fallbackMessage="테스트 스위트 목록을 불러오지 못했습니다."
+          stale={suites.length > 0}
+          onRetry={() => setReloadToken((token) => token + 1)}
+        />
       )}
 
       {/* Suite Card Grid */}
@@ -111,7 +113,7 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
               </div>
             </article>
           ))
-        ) : !isLoading && !hasError ? (
+        ) : !isLoading && !loadError ? (
           <div className="col-span-full rounded-2xl border-2 border-dashed border-[#dce1e6] bg-[#fafbfc] px-6 py-12 text-center">
             <div className="mx-auto grid h-11 w-11 place-items-center rounded-xl bg-[#eef1f4] text-[#697586]">
               <Plus size={20} />
@@ -131,6 +133,7 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
 
       {/* Suite Detail & TestCase Manager Modal */}
       <SuiteDetailModal
+        key={selectedSuite?.id ?? 'closed'}
         suite={selectedSuite}
         onClose={() => setSelectedSuite(null)}
         onNotify={onNotify}

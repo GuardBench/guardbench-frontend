@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, AlertCircle, Loader2 } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react';
 import { StatCard } from '../common/StatCard';
 import { StatusPill } from '../common/StatusPill';
+import { RequestErrorBanner } from '../common/RequestErrorBanner';
 import { getTestSuites } from '../../services/testSuiteService';
 import { listTestRuns, type TestRunListItemRes } from '../../services/testRunService';
 
@@ -15,25 +16,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onGoNewRun, onGoRu
   const [suiteTotal, setSuiteTotal] = useState(0);
   const [testCaseTotal, setTestCaseTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
+  const [loadError, setLoadError] = useState<unknown>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
     const load = async () => {
       setIsLoading(true);
-      setHasError(false);
+      setLoadError(null);
       try {
         const [suiteResponse, runResponse] = await Promise.all([getTestSuites({ size: 100 }), listTestRuns({ size: 100 })]);
         if (!isMounted) return;
         setSuiteTotal(suiteResponse.page.totalElements);
         setTestCaseTotal(suiteResponse.items.reduce((sum, suite) => sum + suite.testCaseCount, 0));
         setRuns(runResponse.items);
-      } catch (_error) {
+      } catch (error) {
         if (isMounted) {
-          setHasError(true);
-          setRuns([]);
-          setSuiteTotal(0);
-          setTestCaseTotal(0);
+          setLoadError(error);
         }
       } finally {
         if (isMounted) setIsLoading(false);
@@ -41,7 +40,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onGoNewRun, onGoRu
     };
     load();
     return () => { isMounted = false; };
-  }, []);
+  }, [reloadToken]);
 
   const stats = useMemo(() => [
     { label: '테스트 스위트', value: suiteTotal, note: '등록된 스위트', tintBg: '#e9f7f1' },
@@ -61,7 +60,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onGoNewRun, onGoRu
         </div>
         <button onClick={onGoNewRun} className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#17202a] text-white text-sm font-bold shadow-sm hover:bg-[#253545] transition-all"><Plus size={16} /> 새 테스트 실행</button>
       </div>
-      {hasError && <div className="flex items-center gap-2 rounded-xl border border-[#fdd] bg-[#fff0ef] px-4 py-3 text-xs font-medium text-[#bd3b35]"><AlertCircle size={14} /> 대시보드 데이터를 불러오지 못했습니다.</div>}
+      {loadError !== null && (
+        <RequestErrorBanner
+          error={loadError}
+          fallbackMessage="대시보드 데이터를 불러오지 못했습니다."
+          stale={runs.length > 0 || suiteTotal > 0 || testCaseTotal > 0}
+          onRetry={() => setReloadToken((token) => token + 1)}
+        />
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">{stats.map((stat) => <StatCard key={stat.label} {...stat} />)}</div>
       <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_0.85fr] gap-5">
         <article className="bg-white border border-[#e5e9ee] rounded-2xl p-6 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">

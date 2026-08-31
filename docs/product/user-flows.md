@@ -119,10 +119,10 @@ flowchart TD
 2. 이름, input, category, expected action, severity를 입력한다. (`AS-IS`)
 3. 현재 클라이언트는 이름과 input의 빈 문자열만 검사하며 공백 문자열과 나머지 field 오류는 서버에 맡긴다. (`AS-IS`)
 4. `POST /api/v1/test-suites/{suiteId}/test-cases`를 호출한다. (`AS-IS`, API)
-5. 성공 응답 대신 임시 ID를 만든 뒤 로컬 목록 끝에 항목을 추가한다. (`AS-IS`, 로컬)
-6. 실패하면 일반 toast를 표시하고 입력 화면에 남는다. (`AS-IS`)
+5. 성공 응답의 서버 ID와 값을 사용해 로컬 목록 끝에 항목을 추가한다. (`AS-IS`, API 응답)
+6. 실패하면 `ApiError` code를 포함한 toast를 표시하고 입력 화면에 남는다. (`AS-IS`)
 
-성공 종료 조건은 서버가 생성한 TestCase가 서버 ID와 최신 pagination 정보로 목록에 반영되는 것이다. 현재는 서버 응답과 목록을 재동기화하지 않아 이 조건을 완전히 충족하지 않는다.
+성공 종료 조건은 서버가 생성한 TestCase가 서버 ID로 목록에 반영되는 것이다. 전체 pagination 재조회 정책은 아직 없다.
 
 중복 제출 방지, field별 validation 표시, 생성 성공 후 페이지 위치는 `미결정`이다.
 
@@ -148,12 +148,12 @@ flowchart TD
 
 | 상황 | AS-IS | TO-BE 또는 미결정 |
 | --- | --- | --- |
-| 목록 조회 실패 | mock으로 조용히 대체 | 오류와 재시도 제공 필요 (`TO-BE`) |
-| 빈 Suite/TestCase 목록 | mock 또는 빈 table | 실제 빈 상태 표시 필요 (`TO-BE`) |
-| 잘못된 ID / 404 | 일반 오류 또는 mock fallback | 리소스 미존재를 구분해야 함 (`TO-BE`) |
-| 생성 validation 실패 | 일반 toast | field 오류 mapping은 API 연동/UI 가이드에서 결정 (`미결정`) |
+| 목록 조회 실패 | code, stale 상태와 재시도 표시 | 오류 code별 문구 세분화 |
+| 빈 Suite/TestCase 목록 | 실제 0건 전용 empty UI | 화면별 CTA 정교화 |
+| 잘못된 ID / 404 | 구조화된 오류로 표시 | 리소스 미존재 전용 이동 경로 필요 (`TO-BE`) |
+| 생성 validation 실패 | code와 field details를 form에 유지 | field별 control 연결 (`미결정`) |
 | modal 취소 | 닫으면 로컬 입력 상태 소멸 가능 | 작성값 보존 정책 (`미결정`) |
-| 삭제 실패 | 성공처럼 로컬 제거 | 실패 안내와 서버 재동기화 필요 (`TO-BE`) |
+| 삭제 실패 | 로컬 항목을 유지하고 code 포함 실패 안내 | 필요 시 서버 재동기화 정책 |
 
 ## 4. TestRun 생성
 
@@ -268,7 +268,7 @@ Polling 간격, 최대 지속 시간, background tab 처리, 수동 재시도와
 
 | 상황 | 현재 상태 | 필요한 후속 결정 또는 동작 |
 | --- | --- | --- |
-| 일시적 네트워크 오류 | mock fallback 또는 갱신 중단 | 자동 재시도와 사용자 안내 정책 (`미결정`) |
+| 일시적 네트워크 오류 | `NETWORK_ERROR`와 수동 재시도 표시 | 자동 재시도 정책 (`미결정`) |
 | 404 | 별도 처리 없음 | 잘못된 ID 또는 삭제된 리소스 안내 (`TO-BE`) |
 | 장시간 상태 변화 없음 | timeout 없음 | 최대 대기 및 수동 새로고침 정책 (`미결정`) |
 | 새로고침·직접 URL | 화면과 Run ID 소실 | URL routing과 상태 복원 필요 (`미결정`) |
@@ -346,13 +346,13 @@ Snapshot 상세의 URL 직접 진입, 이전·다음 탐색, 결과 다운로드
 | 상황 | AS-IS | 목표 또는 후속 결정 |
 | --- | --- | --- |
 | 로딩 | 화면 제목 근처 작은 spinner 또는 제출 버튼 상태 | 기존 콘텐츠 유지 여부와 skeleton 사용은 UI 가이드에서 결정 |
-| 빈 결과 | mock 유지 또는 빈 table | 실제 빈 상태와 다음 행동을 제공 (`TO-BE`) |
-| API 오류 | toast 또는 조용한 mock fallback | 오류를 숨기지 않고 재시도 경로 제공 (`TO-BE`) |
-| validation 오류 | 일반 message toast | API field error mapping 방식 (`미결정`) |
-| 네트워크 단절 | 일반 오류와 구분하지 않음 | 연결 복구, 자동·수동 재시도 정책 (`미결정`) |
+| 빈 결과 | API 성공 후 0건 전용 문구 | 화면별 다음 행동 정교화 |
+| API 오류 | code, stale 상태와 재시도 경로 표시 | 오류별 문구 세분화 |
+| validation 오류 | code와 field details 보존 | field control 연결 방식 (`미결정`) |
+| 네트워크 단절 | `NETWORK_ERROR`와 수동 재시도 표시 | 연결 복구와 자동 재시도 정책 (`미결정`) |
 | 잘못된 식별자 | 전용 화면 없음 | 404와 입력 오류를 구분 (`TO-BE`) |
 | 취소 | modal 닫기 또는 화면 이동 | 미저장 변경 확인과 보존 정책 (`미결정`) |
-| mock fallback | 사용자에게 표시하지 않음 | 유지 여부를 별도 Decision 이슈에서 결정 |
+| demo/static 자료 | 환경·화면에 DEMO 또는 정적 자료로 표시 | fixture 적용 범위 Decision |
 
 공통 오류 처리는 백엔드 envelope의 message만 표시하는 현재 방식에 제한되지 않는다. 오류 code와 validation detail 보존, body 없는 `204`, timeout과 request 취소는 API 연동 계약에서 다룬다.
 
@@ -382,7 +382,7 @@ Snapshot 상세의 URL 직접 진입, 이전·다음 탐색, 결과 다운로드
 - 새로고침과 직접 URL 진입 시 Run 상태 복원 방식
 - 실패한 TestRun의 재실행과 입력 복사 범위
 - Snapshot 상세 탐색과 결과 내보내기 형식
-- API 실패 시 mock fallback 유지 여부와 사용자 표시
+- demo fixture 적용 화면과 운영 환경 차단 방식
 - 인증·권한 오류가 도입될 경우의 사용자 흐름
 
 ## 10. 후속 구현·Decision 이슈 후보
@@ -393,7 +393,7 @@ Snapshot 상세의 URL 직접 진입, 이전·다음 탐색, 결과 다운로드
 - TestRun 목록 DTO mapping과 Suite 이름 표시 전략 결정
 - 승인된 상태 모델 기반 Polling 연결
 - 결과 상세 및 Snapshot pagination mapping 구현
-- API 오류·빈 결과와 mock fallback 정책 결정
+- 자동 재시도·timeout과 오류 code별 사용자 문구 결정
 - URL routing과 TestRun 직접 링크·상태 복원 도입 결정
 - 결과 내보내기 및 재실행 사용자 흐름 결정
 
