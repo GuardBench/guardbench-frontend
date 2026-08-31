@@ -13,6 +13,7 @@ interface SuiteDetailModalProps {
 
 export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClose, onNotify }) => {
   const [cases, setCases] = useState<TestCase[]>([]);
+  const [casesOwnerSuiteId, setCasesOwnerSuiteId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<unknown>(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -46,6 +47,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             createdAt: item.createdAt || '방금 전',
           }));
           setCases(mappedCases);
+          setCasesOwnerSuiteId(suite.id);
         }
       } catch (error) {
         if (isMounted) {
@@ -63,6 +65,9 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   }, [suite, reloadToken]);
 
   if (!suite) return null;
+
+  const isCurrentSuiteLoaded = casesOwnerSuiteId === suite.id;
+  const visibleCases = isCurrentSuiteLoaded ? cases : [];
 
   const handleAddCase = async () => {
     if (!newCase.name || !newCase.input) {
@@ -91,6 +96,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
       };
 
       setCases((currentCases) => [...currentCases, created]);
+      setCasesOwnerSuiteId(suite.id);
       setIsAdding(false);
       setNewCase({ name: '', input: '', expectedAction: 'BLOCK', severity: 'HIGH', category: 'PII' });
       onNotify(`새 테스트 케이스 '${created.name}'가 추가되었습니다 (POST /test-suites/${cleanSuiteId}/test-cases).`);
@@ -157,18 +163,19 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             <RequestErrorBanner
               error={loadError}
               fallbackMessage="테스트 케이스 목록을 불러오지 못했습니다."
-              stale={cases.length > 0}
+              stale={visibleCases.length > 0}
               onRetry={() => setReloadToken((token) => token + 1)}
             />
           )}
           {/* Header & Add Button */}
           <div className="flex justify-between items-center">
             <h3 className="text-sm font-bold text-[#17202a]">
-              소속 테스트 케이스 목록 ({cases.length}개)
+              소속 테스트 케이스 목록 ({visibleCases.length}개)
             </h3>
             <button
               onClick={() => setIsAdding(!isAdding)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545]"
+              disabled={!isCurrentSuiteLoaded || isLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus size={14} /> {isAdding ? '취소' : '케이스 추가'}
             </button>
@@ -258,7 +265,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e5e9ee]">
-                {cases.map((c) => (
+                {visibleCases.map((c) => (
                   <tr key={c.id} className="hover:bg-[#fafcfb]">
                     <td className="p-3">
                       <b className="block text-[#17202a]">{c.name}</b>
@@ -293,7 +300,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                     </td>
                   </tr>
                 ))}
-                {!isLoading && !loadError && cases.length === 0 && (
+                {!isLoading && !loadError && isCurrentSuiteLoaded && visibleCases.length === 0 && (
                   <tr>
                     <td colSpan={5} className="p-8 text-center text-[#697586]">
                       등록된 테스트 케이스가 없습니다.

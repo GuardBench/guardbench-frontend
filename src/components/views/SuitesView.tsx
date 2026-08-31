@@ -133,6 +133,7 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
 
       {/* Suite Detail & TestCase Manager Modal */}
       <SuiteDetailModal
+        key={selectedSuite?.id ?? 'closed'}
         suite={selectedSuite}
         onClose={() => setSelectedSuite(null)}
         onNotify={onNotify}

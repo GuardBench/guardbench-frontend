@@ -87,6 +87,7 @@ export function App() {
           )}
           {currentView === 'result' && (
             <ResultDetailView
+              key={selectedRunId}
               selectedRunId={selectedRunId}
               onGoNewRun={() => handleSelectView('new-run')}
               onNotify={showToast}

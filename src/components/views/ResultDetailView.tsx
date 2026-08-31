@@ -118,7 +118,6 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
               setSnapshots([]);
             } else {
               setResultsError(err);
-              setSnapshots([]);
             }
           }
         } else {
@@ -129,8 +128,6 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
       } catch (error) {
         if (!isMounted) return;
         setDetailError(error);
-        setRunDetail(null);
-        setSnapshots([]);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -253,6 +250,14 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
           </p>
         </div>
         <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setReloadToken((token) => token + 1)}
+            disabled={isLoading}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#e5e9ee] bg-white text-xs font-bold text-[#17202a] hover:bg-gray-50 disabled:opacity-50"
+          >
+            <RefreshCw size={14} /> 새로고침
+          </button>
           <button
             onClick={() => onNotify('리포트 내보내기는 아직 지원하지 않습니다.')}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#e5e9ee] bg-white text-xs font-bold text-[#17202a] hover:bg-gray-50"
