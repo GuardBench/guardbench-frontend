@@ -75,7 +75,7 @@ export function App() {
             <NewRunView
               onNotify={showToast}
               onRunCreated={(runId) => {
-                handleSelectRun(`#${runId}`);
+                handleSelectRun(runId);
               }}
             />
           )}

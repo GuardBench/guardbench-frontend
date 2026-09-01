@@ -12,6 +12,12 @@ export interface TargetReferenceReq {
   revision?: string;
 }
 
+export interface TargetReferenceRes {
+  type: 'HTTP_ENDPOINT';
+  identifier: string;
+  revision: string | null;
+}
+
 export interface EvaluationProfileReq {
   checks: EvaluationCheck[];
   strictness: EvaluationStrictness;
@@ -29,7 +35,7 @@ export interface CreateTestRunResponse {
   testSuiteId: number;
   status: TestRunStatus;
   testCaseCount: number;
-  target: TargetReferenceReq;
+  target: TargetReferenceRes;
   evaluationProfile: EvaluationProfileReq;
   createdAt: string;
 }

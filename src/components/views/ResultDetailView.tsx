@@ -96,7 +96,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
       setDetailError(null);
       setResultsError(null);
 
-      const cleanId = selectedRunId.replace('#', '');
+      const cleanId = selectedRunId;
 
       try {
         // 1단계: 먼저 상세 조회로 현재 상태 확인

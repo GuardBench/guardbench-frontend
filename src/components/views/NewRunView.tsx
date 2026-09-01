@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Play, ShieldCheck } from 'lucide-react';
 import { ApiError } from '../../services/apiClient';
 import {
@@ -44,6 +44,13 @@ function submitErrorMessage(error: unknown): string {
   return '테스트 실행 요청에 실패했습니다.';
 }
 
+function createIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `guardbench-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }) => {
   const [suites, setSuites] = useState<Array<{ id: number; name: string; caseCount: number }>>([]);
   const [suiteId, setSuiteId] = useState(0);
@@ -57,6 +64,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
   const [validation, setValidation] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<unknown>(null);
+  const idempotencyAttempt = useRef<{ fingerprint: string; key: string } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -85,8 +93,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
   const caseCount = selectedSuite?.caseCount ?? 0;
   const normalizedEndpoint = endpoint.trim();
   const normalizedRevision = revision.trim();
-  const canSubmit = !submitting && suiteId > 0 && caseCount > 0
-    && isHttpEndpoint(normalizedEndpoint) && checks.length > 0;
+  const canSubmit = !submitting && !suiteLoading && suites.length > 0;
 
   const toggleCheck = (check: EvaluationCheck) => {
     setChecks((current) => current.includes(check)
@@ -101,23 +108,31 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
     if (!suiteId) return setValidation('테스트 스위트를 선택해 주세요.');
     if (caseCount === 0) return setValidation('빈 Suite는 실행할 수 없습니다. TestCase를 먼저 추가해 주세요.');
     if (!isHttpEndpoint(normalizedEndpoint)) return setValidation('http:// 또는 https://로 시작하는 유효한 Application URL을 입력해 주세요.');
-    if (revision.length > 0 && !normalizedRevision) return setValidation('Revision은 공백만 입력할 수 없습니다.');
     if (checks.length === 0) return setValidation('평가할 보안 항목을 하나 이상 선택해 주세요.');
 
     setSubmitting(true);
+    const payload = {
+      testSuiteId: suiteId,
+      target: {
+        type: 'HTTP_ENDPOINT' as const,
+        identifier: normalizedEndpoint,
+        ...(normalizedRevision ? { revision: normalizedRevision } : {}),
+      },
+      evaluationProfile: { checks, strictness },
+    };
+    const fingerprint = JSON.stringify(payload);
+    if (idempotencyAttempt.current?.fingerprint !== fingerprint) {
+      idempotencyAttempt.current = { fingerprint, key: createIdempotencyKey() };
+    }
     try {
-      const response = await createTestRun({
-        testSuiteId: suiteId,
-        target: {
-          type: 'HTTP_ENDPOINT',
-          identifier: normalizedEndpoint,
-          ...(normalizedRevision ? { revision: normalizedRevision } : {}),
-        },
-        evaluationProfile: { checks, strictness },
-      }, crypto.randomUUID());
+      const response = await createTestRun(payload, idempotencyAttempt.current.key);
+      idempotencyAttempt.current = null;
       onNotify(`새 테스트 실행 #${response.id} 요청이 접수되었습니다. (${response.testCaseCount}개 케이스)`);
       onRunCreated?.(String(response.id));
     } catch (error) {
+      if (!(error instanceof ApiError) || error.code !== 'NETWORK_ERROR') {
+        idempotencyAttempt.current = null;
+      }
       setSubmitError(error);
       onNotify(`[실행 요청 실패] ${submitErrorMessage(error)}`);
     } finally {
@@ -195,9 +210,9 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
             <div className="py-3"><dt className="text-[#697586]">Evaluation Profile</dt><dd className="mt-1 font-bold">{checks.length ? CHECK_OPTIONS.filter((option) => checks.includes(option.value)).map((option) => option.label).join(', ') : '선택 필요'}</dd><dd className="mt-1 text-[10px] text-[#697586]">Strictness: {strictness}</dd></div>
           </dl>
           <div className="flex gap-2 rounded-xl bg-[#eef8f4] p-3.5 text-[11px] leading-relaxed text-[#27634f]"><ShieldCheck size={16} className="shrink-0" /><span>각 Snapshot은 Application에서 1회 실행됩니다. Evaluator 설정은 GuardBench가 내부에서 관리합니다.</span></div>
-          {validation && <div className="rounded-xl border border-[#e7c47f] bg-[#fff7e8] px-4 py-3 text-xs font-semibold text-[#78501b]">{validation}</div>}
+          {validation && <div id="run-validation-summary" className="rounded-xl border border-[#e7c47f] bg-[#fff7e8] px-4 py-3 text-xs font-semibold text-[#78501b]">{validation}</div>}
           {submitError !== null && <RequestErrorBanner error={submitError} fallbackMessage={submitErrorMessage(submitError)} />}
-          <button type="button" onClick={handleRun} disabled={!canSubmit} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a7f5a] py-3 text-sm font-bold text-white hover:bg-[#146648] disabled:cursor-not-allowed disabled:opacity-50"><Play size={16} />{submitting ? '실행 요청 중...' : '테스트 실행 요청'}</button>
+          <button type="button" onClick={handleRun} disabled={!canSubmit} aria-describedby={validation ? 'run-validation-summary' : undefined} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a7f5a] py-3 text-sm font-bold text-white hover:bg-[#146648] disabled:cursor-not-allowed disabled:opacity-50"><Play size={16} />{submitting ? '실행 요청 중...' : '테스트 실행 요청'}</button>
         </aside>
       </div>
     </section>
