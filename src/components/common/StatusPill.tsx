@@ -55,7 +55,7 @@ export const StatusPill: React.FC<StatusPillProps> = ({ kind = 'generic', status
   }
 
   // 2. 실행 결과 (Execution Result)
-  else if (kind === 'execution' || status === 'COMPLETED' || status === 'INCOMPLETE' || status === 'FAILED') {
+  else if (kind === 'execution' || status === 'COMPLETED' || status === 'INCOMPLETE' || status === 'ERROR') {
     switch (status) {
       case 'COMPLETED':
         label = '정상 완료';
@@ -65,7 +65,7 @@ export const StatusPill: React.FC<StatusPillProps> = ({ kind = 'generic', status
         label = '부분 완료';
         styleClasses = 'bg-[#fff7e8] text-[#a56512]';
         break;
-      case 'FAILED':
+      case 'ERROR':
         label = '실행 오류';
         styleClasses = 'bg-[#fff0ef] text-[#bd3b35]';
         break;

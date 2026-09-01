@@ -1,536 +1,150 @@
-import React, { useState, useEffect } from 'react';
-import { StatusPill } from '../common/StatusPill';
-import { SnapshotDiffModal } from '../common/SnapshotDiffModal';
-import { Download, RefreshCw, ArrowRight, Eye, Info, Loader2, AlertCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { AlertCircle, Eye, Loader2, RefreshCw, X } from 'lucide-react';
 import { ApiError } from '../../services/apiClient';
-import { RequestErrorBanner } from '../common/RequestErrorBanner';
 import {
   getTestRunDetail,
   getTestRunResults,
   type TestRunDetailRes,
   type TestRunResultListItemRes,
-  type TestExecutionResultRes,
+  type PageMetaRes,
 } from '../../services/testRunService';
-import type { SnapshotCase, TargetStatus, QualityGateState } from '../../types';
+import { RequestErrorBanner } from '../common/RequestErrorBanner';
+import { StatusPill } from '../common/StatusPill';
 
 interface ResultDetailViewProps {
   selectedRunId?: string;
   onGoNewRun: () => void;
-  onNotify: (msg: string) => void;
 }
 
-/**
- * 실행 상태(TestExecutionResultStatus)와 결과(actualAction)를
- * 기존 UI의 TargetStatus로 변환하는 헬퍼.
- *
- * OpenAPI에서 이 두 가지는 독립 필드입니다:
- *  - status: SUCCEEDED | FAILED | TIMED_OUT | NOT_STARTED
- *  - actualAction: ALLOW | BLOCK | null
- *
- * UI에서는 하나의 셀로 표현하므로 SUCCEEDED이면 actualAction을,
- * 그 외에는 실행 상태를 표시합니다.
- */
-function mapExecutionToTargetStatus(exec: TestExecutionResultRes): TargetStatus {
-  if (exec.status === 'SUCCEEDED' && exec.actualAction) {
-    return exec.actualAction; // 'ALLOW' | 'BLOCK'
-  }
-  if (exec.status === 'TIMED_OUT') return 'TIMEOUT';
-  if (exec.status === 'FAILED') return 'FAILED';
-  return 'NOT_STARTED';
-}
+const executionLabel = (status: TestRunResultListItemRes['executionStatus']) => ({
+  SUCCEEDED: '정상 처리', FAILED: '실패', TIMED_OUT: '시간 초과', NOT_STARTED: '미시작',
+}[status]);
 
-/**
- * API 결과 아이템을 UI의 SnapshotCase 타입으로 변환하는 헬퍼.
- */
-function mapResultToSnapshot(item: TestRunResultListItemRes): SnapshotCase {
-  return {
-    id: `#${item.snapshotId}`,
-    title: item.name,
-    category: item.category,
-    severity: item.severity,
-    expected: item.expectedAction,
-    baseline: {
-      status: mapExecutionToTargetStatus(item.baselineExecution),
-      errorCode: item.baselineExecution.error?.code,
-      errorMessage: item.baselineExecution.error?.message,
-    },
-    candidate: {
-      status: mapExecutionToTargetStatus(item.candidateExecution),
-      errorCode: item.candidateExecution.error?.code,
-      errorMessage: item.candidateExecution.error?.message,
-    },
-    // null → 'NONE' (생성 안 됨)
-    assertion: item.assertionStatus ?? 'NONE',
-    change: item.changeType ?? (item.comparabilityStatus === 'NOT_COMPARABLE' ? 'NOT_COMPARABLE' : 'NONE'),
-    inputPrompt: item.input,
-  };
-}
+const outcomeLabel = (outcome: TestRunResultListItemRes['evaluationOutcome']) => outcome
+  ? ({
+    TRUE_POSITIVE: 'True Positive', TRUE_NEGATIVE: 'True Negative',
+    FALSE_POSITIVE: 'False Positive', FALSE_NEGATIVE: 'False Negative',
+  }[outcome])
+  : '평가되지 않음';
 
-/** 숫자 비율(0~1)을 백분율 문자열로 변환 */
-function rateToPercent(rate: number | undefined | null): string | null {
-  if (rate == null) return null;
-  return `${(rate * 100).toFixed(1)}%`;
-}
+const errorStageLabel = (stage: NonNullable<TestRunResultListItemRes['error']>['stage']) => (
+  stage === 'APPLICATION_TARGET' ? 'Application 실행' : 'Evaluator 평가'
+);
 
-export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
-  selectedRunId,
-  onGoNewRun,
-  onNotify,
-}) => {
-  const [selectedSnapshot, setSelectedSnapshot] = useState<SnapshotCase | null>(null);
-  const [runDetail, setRunDetail] = useState<TestRunDetailRes | null>(null);
-  const [snapshots, setSnapshots] = useState<SnapshotCase[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [isNotFinished, setIsNotFinished] = useState<boolean>(false);
+export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunId, onGoNewRun }) => {
+  const [detail, setDetail] = useState<TestRunDetailRes | null>(null);
+  const [results, setResults] = useState<TestRunResultListItemRes[]>([]);
+  const [resultPage, setResultPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState<PageMetaRes | null>(null);
+  const [selected, setSelected] = useState<TestRunResultListItemRes | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [notFinished, setNotFinished] = useState(false);
   const [detailError, setDetailError] = useState<unknown>(null);
   const [resultsError, setResultsError] = useState<unknown>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
-    let isMounted = true;
-
-    const fetchData = async () => {
+    let active = true;
+    const load = async () => {
       if (!selectedRunId) return;
-      setIsLoading(true);
-      setIsNotFinished(false);
+      setLoading(true);
+      setNotFinished(false);
       setDetailError(null);
       setResultsError(null);
-
-      const cleanId = selectedRunId;
-
       try {
-        // 1단계: 먼저 상세 조회로 현재 상태 확인
-        const detail = await getTestRunDetail(cleanId);
-        if (!isMounted) return;
-        setRunDetail(detail);
-
-        // 2단계: FINISHED일 때만 결과 조회 시도
-        if (detail.status === 'FINISHED') {
-          try {
-            const results = await getTestRunResults(cleanId);
-            if (!isMounted) return;
-            setSnapshots(results.items.map(mapResultToSnapshot));
-          } catch (err) {
-            if (!isMounted) return;
-            // 409 TEST_RUN_NOT_FINISHED — race condition 대비
-            if (err instanceof ApiError && err.code === 'TEST_RUN_NOT_FINISHED') {
-              setIsNotFinished(true);
-              setSnapshots([]);
-            } else {
-              setResultsError(err);
-            }
+        const nextDetail = await getTestRunDetail(selectedRunId);
+        if (!active) return;
+        setDetail(nextDetail);
+        if (nextDetail.status !== 'FINISHED') {
+          setNotFinished(true);
+          setResults([]);
+          setPageMeta(null);
+          return;
+        }
+        try {
+          const nextResults = await getTestRunResults(selectedRunId, { page: resultPage, size: 100 });
+          if (active) {
+            setResults(nextResults.items);
+            setPageMeta(nextResults.page);
           }
-        } else {
-          // 아직 FINISHED가 아님
-          setIsNotFinished(true);
-          setSnapshots([]);
+        } catch (error) {
+          if (!active) return;
+          if (error instanceof ApiError && error.code === 'TEST_RUN_NOT_FINISHED') {
+            setNotFinished(true);
+            setResults([]);
+            setPageMeta(null);
+          } else {
+            setResultsError(error);
+          }
         }
       } catch (error) {
-        if (!isMounted) return;
-        setDetailError(error);
+        if (active) setDetailError(error);
       } finally {
-        if (isMounted) setIsLoading(false);
+        if (active) setLoading(false);
       }
     };
+    load();
+    return () => { active = false; };
+  }, [selectedRunId, reloadToken, resultPage]);
 
-    fetchData();
-    return () => { isMounted = false; };
-  }, [selectedRunId, reloadToken]);
-
-  // ── 표시용 값 계산 ──────────────────────────────────────────
-
-  const runId = runDetail?.id ? `#${runDetail.id}` : selectedRunId || '—';
-  const status = runDetail?.status ?? 'QUEUED';
-  const testCaseCount = runDetail?.testCaseCount ?? 0;
-  const progressPercent = runDetail?.progress?.percent ?? 0;
-
-  // Quality Gate 상태 분리:
-  // - qualityGate === null → 아직 평가 전 (진행 중)
-  // - qualityGate.status === 'NOT_EVALUATED' → 끝났지만 평가 불가
-  const qualityGate = runDetail?.qualityGate;
-  const gateStatus: QualityGateState = qualityGate
-    ? qualityGate.status
-    : 'NOT_EVALUATED_BEFORE_FINISH';
-
-  const metrics = qualityGate?.metrics;
-
-  // Gate 제목과 메시지
-  const gateTitle = (() => {
-    if (!qualityGate) return '평가 진행 중';
-    switch (qualityGate.status) {
-      case 'PASS': return '배포 가능 (Gate 통과)';
-      case 'FAIL': return '배포 차단';
-      case 'NOT_EVALUATED': return '평가 불가';
-      default: return '—';
-    }
-  })();
-
-  const gateMessage = (() => {
-    if (!qualityGate) return '실행이 아직 완료되지 않아 Quality Gate를 평가하기 전 상태입니다.';
-    switch (qualityGate.status) {
-      case 'PASS': return '모든 기준을 충족하여 Candidate 정책을 배포할 수 있습니다.';
-      case 'FAIL': return '하나 이상의 Quality Gate 기준을 충족하지 못해 배포할 수 없습니다.';
-      case 'NOT_EVALUATED': return '비교 가능한 실행 결과가 존재하지 않아 Quality Gate를 평가할 수 없습니다.';
-      default: return '';
-    }
-  })();
-
-  // Target 정보
-  const baselineVersion = runDetail?.targets
-    ? `Guardrail v${runDetail.targets.baseline.version}`
-    : '—';
-  const baselineHash = runDetail?.targets?.baseline.guardrailId ?? '—';
-  const candidateVersion = runDetail?.targets
-    ? `Draft → ${runDetail.targets.candidate.resolvedVersion ? `v${runDetail.targets.candidate.resolvedVersion}` : '준비 중'}`
-    : '—';
-  const candidateHash = runDetail?.targets?.candidate.guardrailId ?? '—';
-
-  // Metric 표시값
-  const candidateAssertionRate = rateToPercent(metrics?.candidateAssertionPassRate);
-  const securityRegressionText = metrics
-    ? `${metrics.securityRegressionCount}건 · ${rateToPercent(metrics.securityRegressionRate)}`
-    : null;
-  const usabilityRegressionText = metrics
-    ? rateToPercent(metrics.usabilityRegressionRate)
-    : null;
-  const executionSuccessRate = rateToPercent(metrics?.testExecutionSuccessRate);
-
-  // ── 렌더 헬퍼 ───────────────────────────────────────────────
-
-  const renderTargetText = (target: { status: TargetStatus }) => {
-    switch (target.status) {
-      case 'BLOCK':
-        return <span className="text-[#1a7f5a] font-bold font-mono">BLOCK</span>;
-      case 'ALLOW':
-        return <span className="text-[#246fa8] font-bold font-mono">ALLOW</span>;
-      case 'FAILED':
-        return <span className="text-[#bd3b35] font-bold">실패</span>;
-      case 'TIMEOUT':
-        return <span className="text-[#a56512] font-bold">시간 초과</span>;
-      case 'NOT_STARTED':
-      default:
-        return <span className="text-[#697586] font-bold">미시작</span>;
-    }
-  };
-
-  const executionOutcomeStatus = runDetail?.executionOutcome ?? null;
-
-  if (!isLoading && detailError && !runDetail) {
-    return (
-      <section className="space-y-6 animate-rise">
-        <div>
-          <div className="mb-1.5 text-xs font-black uppercase tracking-widest text-[#1a7f5a]">Run {selectedRunId || '—'}</div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-[#17202a] sm:text-3xl">테스트 결과 상세</h1>
-        </div>
-        <RequestErrorBanner
-          error={detailError}
-          fallbackMessage="테스트 실행 상세를 불러오지 못했습니다."
-          onRetry={() => setReloadToken((token) => token + 1)}
-        />
-      </section>
-    );
+  if (!loading && detailError && !detail) {
+    return <section className="space-y-6 animate-rise">
+      <h1 className="text-3xl font-extrabold text-[#17202a]">테스트 결과 상세</h1>
+      <RequestErrorBanner error={detailError} fallbackMessage="테스트 실행 상세를 불러오지 못했습니다." onRetry={() => setReloadToken((value) => value + 1)} />
+    </section>;
   }
 
-  return (
-    <section className="space-y-6 animate-rise">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div>
-          <div className="text-[#1a7f5a] text-xs font-black tracking-widest uppercase mb-1.5 flex items-center gap-2">
-            <span>Run {runId}</span>
-            <span>·</span>
-            <StatusPill kind="progress" status={status} />
-            {isLoading && <Loader2 size={13} className="animate-spin text-[#1a7f5a]" />}
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#17202a]">
-            테스트 결과 상세
-          </h1>
-          <p className="text-[#697586] text-sm mt-1.5 leading-relaxed">
-            Suite #{runDetail?.testSuiteId ?? '—'} · {runDetail?.createdAt ?? '—'} · {testCaseCount} snapshots
-          </p>
+  const gateStatus = detail?.qualityGate?.status ?? 'NOT_EVALUATED_BEFORE_FINISH';
+  const gateTitle = gateStatus === 'PASS' ? 'Quality Gate 통과'
+    : gateStatus === 'FAIL' ? 'Quality Gate 실패'
+      : gateStatus === 'NOT_EVALUATED' ? 'Quality Gate 평가 불가' : 'Quality Gate 평가 전';
+  const metrics = detail?.qualityGate?.metrics;
+
+  return <section className="space-y-6 animate-rise">
+    <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+      <div>
+        <div className="mb-1.5 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[#1a7f5a]">
+          <span>Run #{detail?.id ?? selectedRunId ?? '—'}</span><StatusPill kind="progress" status={detail?.status ?? 'QUEUED'} />
+          {loading && <Loader2 size={13} className="animate-spin" />}
         </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setReloadToken((token) => token + 1)}
-            disabled={isLoading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#e5e9ee] bg-white text-xs font-bold text-[#17202a] hover:bg-gray-50 disabled:opacity-50"
-          >
-            <RefreshCw size={14} /> 새로고침
-          </button>
-          <button
-            onClick={() => onNotify('리포트 내보내기는 아직 지원하지 않습니다.')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#e5e9ee] bg-white text-xs font-bold text-[#17202a] hover:bg-gray-50"
-          >
-            <Download size={14} /> 리포트
-          </button>
-          <button
-            onClick={onGoNewRun}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#17202a] text-white text-xs font-bold shadow-sm hover:bg-[#253545]"
-          >
-            <RefreshCw size={14} /> 다시 실행
-          </button>
-        </div>
+        <h1 className="text-2xl font-extrabold text-[#17202a] sm:text-3xl">테스트 결과 상세</h1>
+        <p className="mt-1.5 text-sm text-[#697586]">Suite #{detail?.testSuiteId ?? '—'} · {detail?.testCaseCount ?? 0} snapshots</p>
       </div>
-
-      {/* Not Finished Banner */}
-      {isNotFinished && !isLoading && (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-[#fff7e8] border border-[#f0ddb0] text-[#78501b] text-xs font-medium">
-          <AlertCircle size={14} />
-          <span>
-            실행이 아직 완료되지 않았습니다 ({status}, {progressPercent.toFixed(0)}%).
-            완료 후 결과를 확인할 수 있습니다.
-          </span>
-        </div>
-      )}
-
-      {detailError !== null && runDetail && !isLoading && (
-        <RequestErrorBanner
-          error={detailError}
-          fallbackMessage="최신 테스트 실행 상세를 불러오지 못했습니다."
-          stale
-          onRetry={() => setReloadToken((token) => token + 1)}
-        />
-      )}
-
-      {resultsError !== null && !isLoading && (
-        <RequestErrorBanner
-          error={resultsError}
-          fallbackMessage="Snapshot 결과를 불러오지 못했습니다."
-          stale={snapshots.length > 0}
-          onRetry={() => setReloadToken((token) => token + 1)}
-        />
-      )}
-
-      {/* Result Hero: Gate Card & Target Card */}
-      <div className="grid grid-cols-1 lg:grid-cols-[0.72fr_1.5fr] gap-5">
-        {/* Quality Gate Banner */}
-        <article
-          className={`relative overflow-hidden text-white rounded-2xl p-6 shadow-md flex flex-col justify-between ${
-            gateStatus === 'FAIL'
-              ? 'bg-gradient-to-br from-[#9f2f2b] to-[#ca4d45]'
-              : gateStatus === 'PASS'
-              ? 'bg-gradient-to-br from-[#1a7f5a] to-[#2cba83]'
-              : 'bg-gradient-to-br from-[#586473] to-[#8092a1]'
-          }`}
-        >
-          <div className="absolute -right-4 -bottom-6 text-7xl font-black opacity-10 pointer-events-none">
-            {gateStatus === 'NOT_EVALUATED_BEFORE_FINISH' ? 'PENDING' : gateStatus || 'GATE'}
-          </div>
-          <div>
-            <small className="opacity-80 font-bold text-xs">QUALITY GATE</small>
-            <div className="text-3xl font-black tracking-tight my-4">{gateTitle}</div>
-          </div>
-          <p className="text-xs opacity-95 leading-relaxed font-medium">{gateMessage}</p>
-        </article>
-
-        {/* Target Flow Card */}
-        <article className="bg-white border border-[#e5e9ee] rounded-2xl p-6 shadow-[0_3px_15px_rgba(17,31,44,0.025)] flex flex-col justify-between">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-sm font-bold text-[#17202a]">실행 대상</h2>
-            <div className="flex gap-2">
-              {executionOutcomeStatus && (
-                <StatusPill kind="execution" status={executionOutcomeStatus} />
-              )}
-              <StatusPill kind="gate" status={gateStatus} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-3">
-            <div className="border border-[#e5e9ee] rounded-xl p-4">
-              <span className="text-[10px] font-extrabold text-[#697586] tracking-wider block">BASELINE</span>
-              <b className="text-sm text-[#17202a] block my-1.5">{baselineVersion}</b>
-              <code className="text-[10px] text-[#697586] font-mono break-all">{baselineHash}</code>
-            </div>
-            <div className="text-center text-[#697586] flex justify-center">
-              <ArrowRight size={20} className="hidden sm:block" />
-              <span className="sm:hidden">↓</span>
-            </div>
-            <div className="border border-[#e5e9ee] rounded-xl p-4">
-              <span className="text-[10px] font-extrabold text-[#697586] tracking-wider block">CANDIDATE</span>
-              <b className="text-sm text-[#17202a] block my-1.5">{candidateVersion}</b>
-              <code className="text-[10px] text-[#697586] font-mono break-all">{candidateHash}</code>
-            </div>
-          </div>
-        </article>
+      <div className="flex gap-2">
+        <button type="button" onClick={() => setReloadToken((value) => value + 1)} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-[#e5e9ee] bg-white px-4 py-2 text-xs font-bold disabled:opacity-50"><RefreshCw size={14} />새로고침</button>
+        <button type="button" onClick={onGoNewRun} className="rounded-xl bg-[#17202a] px-4 py-2 text-xs font-bold text-white">다시 실행</button>
       </div>
+    </header>
 
-      {/* 4 Metrics Progress Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <article className="bg-white border border-[#e5e9ee] rounded-2xl p-4 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-[#697586] font-bold">Candidate Assertion</span>
-            <Info size={13} className="text-[#8fa0ad] cursor-pointer" />
-          </div>
-          <b className="text-lg text-[#17202a] block mt-1">
-            {candidateAssertionRate ?? '계산 불가'}
-          </b>
-          <div className="h-1.5 bg-[#edf0f2] rounded-full overflow-hidden mt-3">
-            <div
-              className="h-full bg-[#1a7f5a] rounded-full"
-              style={{ width: candidateAssertionRate || '0%' }}
-            />
-          </div>
-          <div className="text-[10px] text-[#697586] mt-2">Candidate 기대 결과 부합 비율 (≥ 95%)</div>
-        </article>
+    {notFinished && !loading && <div className="flex items-center gap-2 rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]"><AlertCircle size={14} />실행이 아직 완료되지 않았습니다 ({detail?.status}, {detail?.progress.percent.toFixed(0)}%).</div>}
+    {detailError !== null && detail && !loading && <RequestErrorBanner error={detailError} fallbackMessage="최신 실행 상세를 불러오지 못했습니다." stale onRetry={() => setReloadToken((value) => value + 1)} />}
+    {resultsError !== null && !loading && <RequestErrorBanner error={resultsError} fallbackMessage="Snapshot 결과를 불러오지 못했습니다." stale={results.length > 0} onRetry={() => setReloadToken((value) => value + 1)} />}
 
-        <article className="bg-white border border-[#e5e9ee] rounded-2xl p-4 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-[#697586] font-bold">Security Regression</span>
-            <Info size={13} className="text-[#8fa0ad] cursor-pointer" />
-          </div>
-          <b className="text-lg text-[#bd3b35] block mt-1">
-            {securityRegressionText ?? '계산 불가'}
-          </b>
-          <div className="h-1.5 bg-[#edf0f2] rounded-full overflow-hidden mt-3">
-            <div
-              className="h-full bg-[#bd3b35] rounded-full"
-              style={{ width: rateToPercent(metrics?.securityRegressionRate) || '0%' }}
-            />
-          </div>
-          <div className="text-[10px] text-[#697586] mt-2">Baseline 차단 → Candidate 허용 (0건 필수)</div>
-        </article>
-
-        <article className="bg-white border border-[#e5e9ee] rounded-2xl p-4 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-[#697586] font-bold">Usability Regression</span>
-            <Info size={13} className="text-[#8fa0ad] cursor-pointer" />
-          </div>
-          <b className="text-lg text-[#a56512] block mt-1">
-            {usabilityRegressionText ?? '계산 불가'}
-          </b>
-          <div className="h-1.5 bg-[#edf0f2] rounded-full overflow-hidden mt-3">
-            <div
-              className="h-full bg-[#a56512] rounded-full"
-              style={{ width: rateToPercent(metrics?.usabilityRegressionRate) || '0%' }}
-            />
-          </div>
-          <div className="text-[10px] text-[#697586] mt-2">Baseline 허용 → Candidate 오차단 비율 (≤ 5%)</div>
-        </article>
-
-        <article className="bg-white border border-[#e5e9ee] rounded-2xl p-4 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] text-[#697586] font-bold">Execution Success</span>
-            <Info size={13} className="text-[#8fa0ad] cursor-pointer" />
-          </div>
-          <b className="text-lg text-[#246fa8] block mt-1">
-            {executionSuccessRate ?? '계산 불가'}
-          </b>
-          <div className="h-1.5 bg-[#edf0f2] rounded-full overflow-hidden mt-3">
-            <div
-              className="h-full bg-[#246fa8] rounded-full"
-              style={{ width: executionSuccessRate || '0%' }}
-            />
-          </div>
-          <div className="text-[10px] text-[#697586] mt-2">오류 없이 실행을 마친 Snapshot 비율 (≥ 95%)</div>
-        </article>
-      </div>
-
-      {/* Snapshot Decision Table */}
-      <article className="bg-white border border-[#e5e9ee] rounded-2xl shadow-[0_3px_15px_rgba(17,31,44,0.025)] overflow-hidden">
-        <div className="p-5 border-b border-[#e5e9ee] flex justify-between items-center">
-          <div>
-            <h2 className="text-sm font-bold text-[#17202a]">Snapshot별 판정 (행을 클릭하여 상세 Diff 비교)</h2>
-            <p className="text-xs text-[#697586] mt-0.5">
-              Candidate Assertion과 Baseline 대비 Change를 함께 표시하며, 실패·시간초과·미시작 상태를 지원합니다.
-            </p>
-          </div>
-          <span className="px-2.5 py-1 rounded-full bg-[#f1f3f5] text-[#586473] text-[10px] font-extrabold">
-            {snapshots.length} snapshots
-          </span>
-        </div>
-
-        {snapshots.length === 0 ? (
-          <div className="p-8 text-center text-xs text-[#697586]">
-            {isNotFinished
-              ? '실행이 완료되면 Snapshot별 판정 결과가 표시됩니다.'
-              : resultsError
-              ? '결과 조회 오류를 해결한 뒤 다시 시도해 주세요.'
-              : '비교 가능한 Snapshot 데이터가 없습니다.'}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-xs min-w-[760px]">
-              <thead>
-                <tr className="bg-[#fafbfb] border-b border-[#e5e9ee] text-[#7a8592] uppercase font-bold tracking-wider text-[10px]">
-                  <th className="py-3 px-5">테스트 케이스</th>
-                  <th className="py-3 px-5">Expected</th>
-                  <th className="py-3 px-5">Baseline Target</th>
-                  <th className="py-3 px-5">Candidate Target</th>
-                  <th className="py-3 px-5">Assertion</th>
-                  <th className="py-3 px-5">Change</th>
-                  <th className="py-3 px-5 text-right">상세</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#e5e9ee]">
-                {snapshots.map((item) => {
-                  const getSeverityStyle = (s: string) => {
-                    if (s === 'CRITICAL') return 'bg-[#ffe6e4] text-[#a92e29]';
-                    if (s === 'HIGH') return 'bg-[#fff0d4] text-[#a56512]';
-                    return 'bg-[#eee9f8] text-[#675099]';
-                  };
-
-                  const getChangeBadge = (c: string) => {
-                    if (c === 'SECURITY_REGRESSION')
-                      return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#fff0ef] text-[#bd3b35]">SECURITY REGRESSION</span>;
-                    if (c === 'IMPROVEMENT')
-                      return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#e9f7f1] text-[#1a7f5a]">IMPROVEMENT</span>;
-                    if (c === 'USABILITY_REGRESSION')
-                      return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#fff0d4] text-[#a56512]">USABILITY REGRESSION</span>;
-                    if (c === 'NOT_COMPARABLE')
-                      return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#eef1f4] text-[#586473] border border-[#dce1e6]">비교 불가</span>;
-                    if (c === 'NONE')
-                      return <span className="text-xs font-semibold text-[#8fa0ad]">— 생성 안 됨</span>;
-                    return <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#f1f3f5] text-[#586473]">NO CHANGE</span>;
-                  };
-
-                  return (
-                    <tr
-                      key={item.id}
-                      onClick={() => setSelectedSnapshot(item)}
-                      className="hover:bg-[#f1faf6] transition-colors cursor-pointer group"
-                    >
-                      <td className="py-4 px-5">
-                        <div className="flex items-center gap-2">
-                          <span className={`px-1.5 py-0.5 rounded text-[9px] font-black ${getSeverityStyle(item.severity)}`}>
-                            {item.severity}
-                          </span>
-                          <div>
-                            <b className="block text-sm text-[#17202a] group-hover:text-[#1a7f5a]">{item.title}</b>
-                            <small className="text-[11px] text-[#697586]">
-                              {item.category} · {item.id}
-                            </small>
-                          </div>
-                        </div>
-                      </td>
-                      <td className={`py-4 px-5 font-mono font-bold ${item.expected === 'BLOCK' ? 'text-[#1a7f5a]' : 'text-[#246fa8]'}`}>
-                        {item.expected}
-                      </td>
-                      <td className="py-4 px-5">{renderTargetText(item.baseline)}</td>
-                      <td className="py-4 px-5">{renderTargetText(item.candidate)}</td>
-                      <td className="py-4 px-5">
-                        <StatusPill kind="assertion" status={item.assertion} />
-                      </td>
-                      <td className="py-4 px-5">{getChangeBadge(item.change)}</td>
-                      <td className="py-4 px-5 text-right">
-                        <button className="p-1.5 rounded-lg text-[#697586] hover:bg-white hover:text-[#1a7f5a]">
-                          <Eye size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+    <div className="grid gap-5 lg:grid-cols-[0.75fr_1.25fr]">
+      <article className={`rounded-2xl p-6 text-white ${gateStatus === 'PASS' ? 'bg-[#1a7f5a]' : gateStatus === 'FAIL' ? 'bg-[#a63b36]' : 'bg-[#687684]'}`}>
+        <small className="font-bold opacity-80">QUALITY GATE</small><h2 className="my-4 text-2xl font-black">{gateTitle}</h2>
+        <p className="text-xs opacity-90">{metrics ? '현재 Run의 Assertion 집계 지표가 저장돼 있습니다.' : '표시할 확정 지표가 없습니다.'}</p>
       </article>
+      <article className="rounded-2xl border border-[#e5e9ee] bg-white p-6">
+        <div className="mb-4 flex items-center justify-between"><h2 className="text-sm font-bold">실행 정보</h2><div className="flex gap-2">{detail?.executionOutcome ? <StatusPill kind="execution" status={detail.executionOutcome} /> : <span className="rounded-full bg-[#eef1f4] px-2.5 py-1 text-[10px] font-extrabold text-[#8fa0ad]">결정 전</span>}<StatusPill kind="gate" status={gateStatus} /></div></div>
+        <dl className="grid gap-4 text-xs sm:grid-cols-2">
+          <div><dt className="text-[#697586]">Application</dt><dd className="mt-1 break-all font-bold">{detail?.target.identifier ?? '—'}</dd><dd className="mt-1 text-[#697586]">Revision: {detail?.target.revision ?? '없음'}</dd></div>
+          <div><dt className="text-[#697586]">Evaluation Profile</dt><dd className="mt-1 font-bold">{detail?.evaluationProfile.checks.join(', ') ?? '—'}</dd><dd className="mt-1 text-[#697586]">Strictness: {detail?.evaluationProfile.strictness ?? '—'}</dd></div>
+        </dl>
+      </article>
+    </div>
 
-      {/* Snapshot Diff Modal */}
-      <SnapshotDiffModal
-        snapshot={selectedSnapshot}
-        onClose={() => setSelectedSnapshot(null)}
-      />
-    </section>
-  );
+    <article className="overflow-hidden rounded-2xl border border-[#e5e9ee] bg-white">
+      <div className="flex items-center justify-between border-b border-[#e5e9ee] p-5"><div><h2 className="text-sm font-bold">Snapshot별 평가 결과</h2><p className="mt-1 text-xs text-[#697586]">Application 실행, Evaluator verdict, Expected와 Assertion을 서로 다른 축으로 표시합니다.</p></div><span className="text-xs font-bold">현재 {results.length} / 전체 {pageMeta?.totalElements ?? 0}건</span></div>
+      {pageMeta && detail && pageMeta.totalElements !== detail.testCaseCount && <div className="border-b border-[#f0ddb0] bg-[#fff7e8] px-5 py-3 text-xs text-[#78501b]">고정 Snapshot 수({detail.testCaseCount})와 결과 수({pageMeta.totalElements})가 일치하지 않습니다. 정상 빈 결과로 처리하지 않습니다.</div>}
+      {results.length === 0 ? <div className="p-8 text-center text-sm text-[#697586]">{notFinished ? '실행 완료 후 결과가 표시됩니다.' : pageMeta && detail && pageMeta.totalElements !== detail.testCaseCount ? '결과 수 불일치를 확인해 주세요.' : '표시할 결과가 없습니다.'}</div> : <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-[#f8f9fa] text-[#697586]"><tr><th className="px-5 py-3">TestCase</th><th className="px-5 py-3">Application</th><th className="px-5 py-3">Evaluator Verdict</th><th className="px-5 py-3">Expected</th><th className="px-5 py-3">Assertion</th><th className="px-5 py-3">Outcome</th><th className="px-5 py-3">상세</th></tr></thead>
+        <tbody className="divide-y divide-[#e5e9ee]">{results.map((item) => <tr key={item.testCaseSnapshotId} className="hover:bg-[#f1faf6]"><td className="px-5 py-4"><b className="block text-sm">{item.name}</b><span className="text-[#697586]">{item.category} · #{item.testCaseSnapshotId} · {item.severity}</span></td><td className="px-5 py-4 font-bold">{executionLabel(item.executionStatus)}</td><td className="px-5 py-4 font-mono font-bold">{item.evaluatorVerdict ?? '없음'}</td><td className="px-5 py-4 font-mono font-bold">{item.expectedAction}</td><td className="px-5 py-4"><StatusPill kind="assertion" status={item.assertionStatus ?? 'NONE'} /></td><td className="px-5 py-4">{outcomeLabel(item.evaluationOutcome)}</td><td className="px-5 py-4"><button type="button" aria-label={`${item.name} 상세 보기`} onClick={() => setSelected(item)} className="rounded-lg p-2 text-[#697586] hover:bg-white"><Eye size={16} /></button></td></tr>)}</tbody>
+      </table></div>}
+      {pageMeta && pageMeta.totalPages > 1 && <div className="flex items-center justify-between border-t border-[#e5e9ee] p-4 text-xs"><button type="button" disabled={!pageMeta.hasPrevious || loading} onClick={() => setResultPage((page) => Math.max(1, page - 1))} className="rounded-lg border px-3 py-2 font-bold disabled:opacity-40">이전</button><span>{pageMeta.number} / {pageMeta.totalPages} 페이지</span><button type="button" disabled={!pageMeta.hasNext || loading} onClick={() => setResultPage((page) => page + 1)} className="rounded-lg border px-3 py-2 font-bold disabled:opacity-40">다음</button></div>}
+    </article>
+
+    {selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><section role="dialog" aria-modal="true" aria-labelledby="result-dialog-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"><div className="flex justify-between gap-4"><div><h2 id="result-dialog-title" className="text-lg font-bold">{selected.name}</h2><p className="text-xs text-[#697586]">Snapshot #{selected.testCaseSnapshotId}</p></div><button type="button" aria-label="닫기" onClick={() => setSelected(null)}><X size={20} /></button></div>
+      <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2"><div className="sm:col-span-2"><dt className="text-xs font-bold text-[#697586]">Input</dt><dd className="mt-1 rounded-xl bg-[#f6f8f9] p-3 whitespace-pre-wrap">{selected.input}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Application 실행</dt><dd className="mt-1">{executionLabel(selected.executionStatus)}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Evaluator Verdict</dt><dd className="mt-1 font-mono">{selected.evaluatorVerdict ?? '없음'}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Expected</dt><dd className="mt-1 font-mono">{selected.expectedAction}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Assertion / Outcome</dt><dd className="mt-1">{selected.assertionStatus ?? '평가되지 않음'} · {outcomeLabel(selected.evaluationOutcome)}</dd></div>{selected.error && <div className="sm:col-span-2 rounded-xl border border-[#f4c7c3] bg-[#fff0ef] p-3"><dt className="text-xs font-bold">{errorStageLabel(selected.error.stage)} 오류 · {selected.error.code}</dt><dd className="mt-1 text-xs">{selected.error.message}</dd></div>}</dl>
+      <p className="mt-6 text-xs text-[#697586]">Application 자연어 응답은 보안 정책에 따라 표시하지 않습니다.</p></section></div>}
+  </section>;
 };
