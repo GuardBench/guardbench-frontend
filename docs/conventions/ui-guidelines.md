@@ -183,7 +183,7 @@ filter/page의 URL 보존과 mobile table pattern은 `미결정`이다.
 - 열릴 때 의미 있는 첫 요소로 focus를 이동하고 닫힐 때 trigger로 돌려준다.
 - Tab focus를 modal 내부에 유지한다.
 - Escape와 명시적 닫기 button을 제공한다. 입력 손실 위험이 있으면 확인한다.
-- IME 조합 중 Escape는 조합 취소를 우선하고 Dialog를 닫지 않는다.
+- IME 조합 중 Escape는 조합 취소를 우선하고 Dialog를 닫지 않는다. 일부 browser가 Escape 전에 조합 종료를 알리므로 짧은 조합 종료 유예 구간도 같은 입력 동작으로 취급한다.
 - native select처럼 Escape를 자체 dismiss에 사용하는 control에 focus가 있으면 control 동작을 우선하고 Dialog를 닫지 않는다.
 - backdrop click만 유일한 닫기 방식으로 사용하지 않는다. 입력 form Dialog는 backdrop click으로 닫지 않고, 읽기 전용 상세 Dialog는 Escape와 닫기 button을 함께 제공할 때만 backdrop 닫기를 허용한다.
 - modal 내부 scroll과 배경 scroll을 구분한다.
