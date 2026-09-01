@@ -16,6 +16,7 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
   const [reloadToken, setReloadToken] = useState(0);
   const [suites, setSuites] = useState<TestSuite[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [hasLoadedSuites, setHasLoadedSuites] = useState(false);
   const [loadError, setLoadError] = useState<unknown>(null);
 
   useEffect(() => {
@@ -38,6 +39,7 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
             tintBg: ['#e9f7f1', '#eef5fc', '#f3eeed', '#f3effa', '#fff7e8'][idx % 5],
           }));
           setSuites(mappedSuites);
+          setHasLoadedSuites(true);
         }
       } catch (error) {
         if (isMounted) {
@@ -81,7 +83,7 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
         <RequestErrorBanner
           error={loadError}
           fallbackMessage="테스트 스위트 목록을 불러오지 못했습니다."
-          stale={suites.length > 0}
+          stale={hasLoadedSuites}
           onRetry={() => setReloadToken((token) => token + 1)}
         />
       )}
@@ -121,7 +123,7 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
               </div>
             </article>
           ))
-        ) : !isLoading && !loadError ? (
+        ) : hasLoadedSuites ? (
           <div className="col-span-full rounded-2xl border-2 border-dashed border-[#dce1e6] bg-[#fafbfc] px-6 py-12 text-center">
             <div className="mx-auto grid h-11 w-11 place-items-center rounded-xl bg-[#eef1f4] text-[#697586]">
               <Plus size={20} />

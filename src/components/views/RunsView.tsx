@@ -15,6 +15,7 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
   const [filter, setFilter] = useState('ALL');
   const [runs, setRuns] = useState<TestRunListItemRes[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [hasLoadedRuns, setHasLoadedRuns] = useState(false);
   const [loadError, setLoadError] = useState<unknown>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -27,6 +28,7 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
         const res = await listTestRuns();
         if (isMounted) {
           setRuns(res.items || []);
+          setHasLoadedRuns(true);
         }
       } catch (error) {
         if (isMounted) {
@@ -115,7 +117,7 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
         <RequestErrorBanner
           error={loadError}
           fallbackMessage="실행 이력을 불러오지 못했습니다."
-          stale={runs.length > 0}
+          stale={hasLoadedRuns}
           onRetry={() => setReloadToken((token) => token + 1)}
         />
       )}
@@ -196,7 +198,7 @@ export const RunsView: React.FC<RunsViewProps> = ({ onGoNewRun, onSelectRun }) =
                     <td className="py-4 px-5 text-[#697586]">{run.createdAt}</td>
                   </tr>
                 ))
-              ) : !isLoading && !loadError ? (
+              ) : hasLoadedRuns ? (
                 <tr>
                   <td colSpan={7} className="py-12 text-center text-xs text-[#697586]">
                     실행 이력이 없습니다.
