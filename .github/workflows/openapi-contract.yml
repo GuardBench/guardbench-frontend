@@ -1,0 +1,71 @@
+name: OpenAPI Contract
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths:
+      - 'docs/api/**'
+      - 'scripts/sync-openapi.mjs'
+      - 'package.json'
+      - '.github/workflows/openapi-contract.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '17 0 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-copy:
+    name: Verify OpenAPI Copy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Frontend
+        uses: actions/checkout@v5
+
+      - name: Read Source Commit
+        id: source
+        shell: bash
+        run: echo "commit=$(node -p \"require('./docs/api/openapi.source.json').commit\")" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Backend Source
+        uses: actions/checkout@v5
+        with:
+          repository: GuardBench/guardbench-backend
+          ref: ${{ steps.source.outputs.commit }}
+          path: .contract-source/guardbench-backend
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: '.node-version'
+
+      - name: Verify OpenAPI Copy
+        run: npm run openapi:verify -- --backend-path .contract-source/guardbench-backend
+
+  detect-latest:
+    name: Detect Backend OpenAPI Drift
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Frontend
+        uses: actions/checkout@v5
+
+      - name: Checkout Latest Backend Dev
+        uses: actions/checkout@v5
+        with:
+          repository: GuardBench/guardbench-backend
+          ref: dev
+          path: .contract-source/guardbench-backend
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: '.node-version'
+
+      - name: Detect OpenAPI Drift
+        run: npm run openapi:check-latest -- --backend-path .contract-source/guardbench-backend --ref HEAD
