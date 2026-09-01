@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import type { ViewType } from '../../types';
 import { LayoutDashboard, Layers, PlayCircle, History, CheckCircle2, Network, Shield, X } from 'lucide-react';
+import { LAYER_CLASS } from '../../config/layers';
 
 interface SidebarProps {
   currentView: ViewType;
@@ -32,7 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView, isO
     <>
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs lg:hidden transition-opacity"
+          className={`fixed inset-0 ${LAYER_CLASS.mobileSidebarBackdrop} bg-black/50 backdrop-blur-xs lg:hidden transition-opacity`}
           onClick={onClose}
           aria-hidden="true"
         />
@@ -40,7 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView, isO
 
       <aside
         id="sidebar-drawer"
-        className={`fixed lg:sticky top-0 left-0 h-screen w-[244px] z-50 p-6 flex flex-col bg-gradient-to-b from-[#101923] to-[#0c141c] text-[#dce5ec] transition-transform duration-200 ${
+        className={`fixed lg:sticky top-0 left-0 h-screen w-[244px] ${LAYER_CLASS.sidebar} p-6 flex flex-col bg-gradient-to-b from-[#101923] to-[#0c141c] text-[#dce5ec] transition-transform duration-200 ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >

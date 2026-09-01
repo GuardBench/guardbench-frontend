@@ -9,6 +9,7 @@ import { RunsView } from './components/views/RunsView';
 import { ResultDetailView } from './components/views/ResultDetailView';
 import { ArchitectureView } from './components/views/ArchitectureView';
 import { runtimeConfig } from './config/runtimeConfig';
+import { LAYER_CLASS } from './config/layers';
 
 export function App() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
@@ -98,7 +99,7 @@ export function App() {
 
       {/* Floating Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#14231d] text-white px-4 py-3 rounded-xl shadow-2xl text-xs font-semibold animate-rise flex items-center gap-2">
+        <div className={`fixed bottom-6 right-6 ${LAYER_CLASS.toast} bg-[#14231d] text-white px-4 py-3 rounded-xl shadow-2xl text-xs font-semibold animate-rise flex items-center gap-2`}>
           <span>✓</span>
           {toastMessage}
         </div>
