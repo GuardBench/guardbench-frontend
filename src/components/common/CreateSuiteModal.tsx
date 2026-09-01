@@ -122,8 +122,8 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
           </button>
         </header>
 
-        <div className="flex-1 space-y-6 overflow-y-auto p-6">
-          <div className="space-y-4">
+        <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-6 p-6">
+          <div className="shrink-0 space-y-4">
             <div>
               <label htmlFor="suite-name" className="mb-1 block text-xs font-bold text-[#4e5a68]">
                 스위트 이름 <span className="text-[#bd3b35]">*</span>
@@ -156,7 +156,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
             </div>
           </div>
 
-          <section className="rounded-xl border border-[#e5e9ee] bg-[#fafcfb] p-4">
+          <section className="min-h-0 overflow-y-auto rounded-xl border border-[#e5e9ee] bg-[#fafcfb] p-4">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-sm font-bold text-[#17202a]">초기 테스트 케이스 <span className="font-medium text-[#697586]">(선택)</span></h3>
@@ -235,14 +235,13 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                 </div>
               </div>
             )}
-          </section>
-
           {validationMessage && (
-            <div className="flex items-center gap-2 rounded-lg bg-[#fff5e8] px-3 py-2 text-xs text-[#805100]">
+            <div className="mt-4 flex items-center gap-2 rounded-lg bg-[#fff5e8] px-3 py-2 text-xs text-[#805100]">
               <AlertCircle size={16} className="shrink-0" />
               {validationMessage}
             </div>
           )}
+          </section>
         </div>
 
         <footer className="flex items-center justify-between gap-3 border-t border-[#e5e9ee] bg-[#fafbfb] p-4">
