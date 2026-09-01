@@ -3,6 +3,7 @@ import { AlertCircle, Plus, X } from 'lucide-react';
 import { ApiError } from '../../services/apiClient';
 import { createTestSuite } from '../../services/testSuiteService';
 import { useDialogFocus } from '../../hooks/useDialogFocus';
+import { LAYER_CLASS } from '../../config/layers';
 
 interface CreateSuiteModalProps {
   isOpen: boolean;
@@ -91,7 +92,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div className={`fixed inset-0 ${LAYER_CLASS.dialog} flex items-center justify-center p-4`}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" aria-hidden="true" />
 
       <section

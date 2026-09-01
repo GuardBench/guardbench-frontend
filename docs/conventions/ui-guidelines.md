@@ -183,9 +183,11 @@ filter/page의 URL 보존과 mobile table pattern은 `미결정`이다.
 - 열릴 때 의미 있는 첫 요소로 focus를 이동하고 닫힐 때 trigger로 돌려준다.
 - Tab focus를 modal 내부에 유지한다.
 - Escape와 명시적 닫기 button을 제공한다. 입력 손실 위험이 있으면 확인한다.
+- native select처럼 Escape를 자체 dismiss에 사용하는 control에 focus가 있으면 control 동작을 우선하고 Dialog를 닫지 않는다.
 - backdrop click만 유일한 닫기 방식으로 사용하지 않는다.
 - modal 내부 scroll과 배경 scroll을 구분한다.
 - 오류 후 modal을 닫지 않고 입력과 오류를 유지한다.
+- layer 순서는 공통 token을 사용하며 현재 Dialog는 `z-[60]`, toast는 `z-[70]`으로 둔다.
 
 Snapshot 상세 modal은 public result DTO만 사용한다. Application 자연어 응답, provider 원문과 내부 오류를 표시하는 영역을 만들지 않는다.
 
@@ -292,9 +294,9 @@ Application 자연어 응답은 Evaluator 내부 입력이며 public UI에 표�
 | `AS-IS` | StatCard | metric label, 값과 보조 설명 | metric 계산과 API 의미 추정 |
 | `TO-BE` | FormField | label, help, error와 control 연결 | OpenAPI 외 validation 규칙 |
 | `TO-BE` | Pagination | page 이동과 metadata | server collection 재계산 |
-| `TO-BE` | Dialog | focus, dismiss와 accessible structure | 특정 endpoint 호출 |
+| `AS-IS` | Dialog hook + layer config | focus, dismiss, 중첩 surface와 layer 순서 | 특정 endpoint 호출 |
 
-공통 component는 endpoint와 mock을 직접 알지 않는다. component library와 design token은 `미결정`이다.
+공통 component는 endpoint와 mock을 직접 알지 않는다. layer 순서를 제외한 component library와 전체 design token 체계는 `미결정`이다.
 
 ## 18. 접근성 검증 전략
 

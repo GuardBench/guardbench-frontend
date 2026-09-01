@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 
 const FOCUSABLE_SELECTOR = [
   'a[href]',
@@ -18,14 +18,36 @@ interface UseDialogFocusOptions {
   initialFocusRef?: RefObject<HTMLElement | null>;
 }
 
+const isVisible = (element: HTMLElement, dialog: HTMLElement) => {
+  let current: HTMLElement | null = element;
+  while (current && current !== dialog) {
+    const style = window.getComputedStyle(current);
+    if (
+      current.hidden
+      || current.getAttribute('aria-hidden') === 'true'
+      || style.display === 'none'
+      || style.visibility === 'hidden'
+      || style.visibility === 'collapse'
+    ) return false;
+    current = current.parentElement;
+  }
+  return true;
+};
+
 const focusableElements = (dialog: HTMLElement) => (
   Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-    .filter((element) => !element.hidden && element.getAttribute('aria-hidden') !== 'true')
+    .filter((element) => isVisible(element, dialog))
+);
+
+const preservesNativeEscape = (target: EventTarget | null) => (
+  target instanceof Element
+  && target.closest('select, [data-dialog-escape="preserve"]') !== null
 );
 
 export function useDialogFocus({ isOpen, onClose, initialFocusRef }: UseDialogFocusOptions) {
-  const dialogRef = useRef<HTMLElement>(null);
+  const [dialog, setDialog] = useState<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
+  const dialogRef = useCallback((node: HTMLElement | null) => setDialog(node), []);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -34,7 +56,6 @@ export function useDialogFocus({ isOpen, onClose, initialFocusRef }: UseDialogFo
   useEffect(() => {
     if (!isOpen || typeof document === 'undefined') return undefined;
 
-    const dialog = dialogRef.current;
     if (!dialog) return undefined;
 
     const returnFocusTarget = document.activeElement instanceof HTMLElement
@@ -53,6 +74,7 @@ export function useDialogFocus({ isOpen, onClose, initialFocusRef }: UseDialogFo
       if (openDialogs[openDialogs.length - 1] !== dialog) return;
 
       if (event.key === 'Escape') {
+        if (preservesNativeEscape(event.target)) return;
         event.preventDefault();
         onCloseRef.current();
         return;
@@ -90,7 +112,7 @@ export function useDialogFocus({ isOpen, onClose, initialFocusRef }: UseDialogFo
       // 닫기 trigger가 DOM에 남아 있을 때만 focus를 복귀한다.
       if (returnFocusTarget?.isConnected) returnFocusTarget.focus();
     };
-  }, [initialFocusRef, isOpen]);
+  }, [dialog, initialFocusRef, isOpen]);
 
   return dialogRef;
 }
