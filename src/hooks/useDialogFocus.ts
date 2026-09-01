@@ -11,6 +11,7 @@ const FOCUSABLE_SELECTOR = [
 
 const openDialogs: HTMLElement[] = [];
 let bodyOverflowBeforeDialogs = '';
+const COMPOSITION_ESCAPE_GRACE_MS = 100;
 
 interface UseDialogFocusOptions {
   isOpen: boolean;
@@ -60,11 +61,23 @@ export function useDialogFocus({ isOpen, onClose, initialFocusRef }: UseDialogFo
       target.focus();
     });
 
+    let compositionActive = false;
+    let compositionResetTimer: ReturnType<typeof setTimeout> | undefined;
+    const handleCompositionStart = () => {
+      if (compositionResetTimer) clearTimeout(compositionResetTimer);
+      compositionActive = true;
+    };
+    const handleCompositionEnd = () => {
+      compositionResetTimer = setTimeout(() => {
+        compositionActive = false;
+      }, COMPOSITION_ESCAPE_GRACE_MS);
+    };
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (openDialogs[openDialogs.length - 1] !== dialog) return;
 
       if (event.key === 'Escape') {
-        if (event.isComposing || event.keyCode === 229) return;
+        if (compositionActive || event.isComposing || event.keyCode === 229) return;
         if (preservesNativeEscape(event.target)) return;
         event.preventDefault();
         onCloseRef.current();
@@ -93,9 +106,14 @@ export function useDialogFocus({ isOpen, onClose, initialFocusRef }: UseDialogFo
       }
     };
 
+    dialog.addEventListener('compositionstart', handleCompositionStart);
+    dialog.addEventListener('compositionend', handleCompositionEnd);
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       cancelAnimationFrame(focusFrame);
+      if (compositionResetTimer) clearTimeout(compositionResetTimer);
+      dialog.removeEventListener('compositionstart', handleCompositionStart);
+      dialog.removeEventListener('compositionend', handleCompositionEnd);
       document.removeEventListener('keydown', handleKeyDown);
       const dialogIndex = openDialogs.lastIndexOf(dialog);
       if (dialogIndex >= 0) openDialogs.splice(dialogIndex, 1);
