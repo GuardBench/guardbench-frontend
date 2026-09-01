@@ -11,6 +11,8 @@
 
 이 문서는 현재 프론트엔드의 구조와 최신 OpenAPI를 소비하기 위한 목표 책임 경계를 구분한다. 특정 library 도입이나 대규모 폴더 이동을 승인하지 않으며, API schema와 backend의 evaluation·comparability 규칙을 프론트에서 다시 정의하지 않는다.
 
+API 요청·응답의 의미와 우선순위는 OpenAPI를 최우선으로 하고, 프론트엔드 소비 규칙은 [API 연동 계약](../contracts/api-integration.md)을 따른다. 이 문서는 해당 계약을 구현하기 위한 상태 소유권, 의존 방향과 계층 경계만 소유한다.
+
 ## 1. 구조 개요
 
 ```mermaid
@@ -84,7 +86,7 @@ production mock 허용 여부, 설정 누락 시 fail-fast와 runtime config 전
 
 - 화면 identity와 resource identity를 local modal/form state와 분리한다.
 - Run 상세와 Regression 비교 진입에는 실제 Run ID를 보존한다.
-- `#901` 같은 장식 문자열을 API ID나 cache identity로 사용하지 않는다.
+- `#5001` 같은 화면 장식 문자열을 API ID나 cache identity로 사용하지 않는다.
 - 잘못된 route/ID, resource 404와 정상 빈 collection을 구분한다.
 - navigation으로 Run이 바뀌면 이전 Run의 request와 Polling을 정리한다.
 
@@ -99,12 +101,13 @@ router 도입, canonical URL, filter/page query 보존과 form draft 복원은 `
 | Suite 목록 | `GET /test-suites` | query + items/page/filter | 선택 card, 생성 modal |
 | Suite 상세 | `GET /test-suites/{id}` | Suite ID별 query | 편집 form draft |
 | TestCase 목록 | `GET /test-suites/{id}/test-cases` | Suite ID + page/filter | 선택 row, create/edit form |
+| TestCase 상세 | `GET /test-cases/{testCaseId}` | TestCase ID별 query | edit form draft |
 | Run 목록 | `GET /test-runs` | page/filter/sort별 query | 검색 input draft, 선택 Run |
 | Run 상세 | `GET /test-runs/{id}` | Run ID별 query/Polling | tab, 펼침 상태 |
 | Run 결과 | `GET /test-runs/{id}/results` | Run ID + page/filter/sort | 선택 result row |
 | Evaluator metrics | `GET /test-runs/{id}/evaluator-metrics` | Run ID별 독립 query | chart/table 표현 선택 |
 | Comparable Runs | `GET /test-runs/{id}/comparable-runs` | current Run ID + page | 선택 comparison Run |
-| Run comparison | `GET /test-runs/{current}/comparisons/{comparison}` | 두 Run ID 조합 | changed-only 등 UI filter |
+| Run comparison | `GET /test-runs/{currentRunId}/comparisons/{comparisonRunId}` | 두 Run ID 조합 | changed-only 등 UI filter |
 
 ### 5.1 Query identity
 
@@ -166,7 +169,9 @@ flowchart LR
 - 하나의 Profile strictness를 선택된 모든 checks에 공통 적용한다.
 - 같은 논리적 재전송은 같은 key와 body를 사용하고 다른 body에 key를 재사용하지 않는다.
 - `202`를 실행 완료로 처리하지 않는다.
-- mutation 성공 후 Run detail identity로 이동한다.
+- response의 Run ID와 `Location` header를 보존하고 Run detail identity로 이동한다.
+- `TEST_SUITE_EMPTY`는 활성 TestCase 준비 흐름으로 연결한다.
+- `IDEMPOTENCY_KEY_CONFLICT`는 같은 key를 다른 body에 사용한 충돌이므로 자동 재전송을 중단한다.
 - network/timeout은 접수 여부가 불명일 수 있으므로 명시적 validation/API 거부와 구분한다.
 
 Idempotency-Key의 생성·보존·폐기 구현은 `미결정`이다.
@@ -183,11 +188,15 @@ stateDiagram-v2
     InFlight --> Scheduled: 진행 상태
     ImmediateFetch --> Finished: FINISHED
     InFlight --> Finished: FINISHED
-    ImmediateFetch --> Error: 조회 오류
-    InFlight --> Error: 조회 오류
+    ImmediateFetch --> TransientError: 일시 transport 오류
+    InFlight --> TransientError: 일시 transport 오류
+    TransientError --> Scheduled: stale 표시 후 재시도
+    ImmediateFetch --> TerminalError: TEST_RUN_NOT_FOUND
+    InFlight --> TerminalError: TEST_RUN_NOT_FOUND
     Scheduled --> Cancelled: Run 변경 / unmount
     InFlight --> Cancelled: abort
     Finished --> [*]
+    TerminalError --> [*]
     Cancelled --> [*]
 ```
 
@@ -197,6 +206,7 @@ stateDiagram-v2
 - FINISHED에서 중단하고 results와 metrics query를 활성화한다.
 - 일시 오류 후 이전 detail을 유지하면 stale로 표시한다.
 - `TEST_RUN_NOT_FOUND` 같은 terminal API 오류와 일시 transport 오류를 분리한다.
+- results, evaluator-metrics 또는 비교 조회에서 `TEST_RUN_NOT_FINISHED`가 발생하면 terminal 오류나 empty로 확정하지 않고 Run detail을 다시 확인한다.
 
 interval, backoff, jitter, background tab과 최대 지속 시간은 `미결정`이다.
 
@@ -219,6 +229,7 @@ RunDetail
 - `evaluationOutcome`의 TP/TN/FP/FN 분류는 서버 결과를 보존하며 verdict가 없으면 추정하지 않는다.
 - `APPLICATION_TARGET` 또는 `EVALUATOR` failure stage는 assertion과 다른 축으로 표시한다.
 - 원문 Application response는 frontend state, modal과 export에 포함하지 않는다.
+- results 또는 evaluator-metrics가 `TEST_RUN_NOT_FINISHED`를 반환하면 detail 상태를 다시 조회하고 진행 흐름으로 복귀한다.
 
 Quality Gate metrics의 구체 field가 확정되면 detail mapper와 표시 model을 별도로 갱신한다.
 
@@ -231,6 +242,8 @@ Regression은 현재 Run 자체의 Quality Gate와 독립적인 조회 기능이
 3. current/comparison Run ID 조합으로 comparison을 조회한다.
 4. Run을 바꾸면 후보, 선택과 comparison state를 함께 무효화한다.
 5. 비교 API는 저장 결과만 사용하며 Application/Evaluator를 재호출하지 않는다.
+6. `TEST_RUN_NOT_FINISHED`이면 관련 Run detail을 다시 확인한다.
+7. `TEST_RUNS_NOT_COMPARABLE`이면 comparison state를 비우고 comparable-runs를 재조회하거나 다른 후보를 선택하게 한다.
 
 comparability 규칙을 프론트에서 복제하거나 같은 Suite라는 이유로 후보를 추가하지 않는다. 현재 comparison response는 ID만 확정됐으므로 case-level result state와 UI mapper는 backend #119의 OpenAPI 확정 후 추가한다.
 
@@ -333,8 +346,9 @@ feature-based 폴더, query library와 generated API package 도입은 이 문�
 
 ### 현재 (`AS-IS`)
 
-- package script는 build와 lint만 제공한다.
-- Playwright dependency와 `test_playwright.cjs`가 있지만 표준 test/CI 계약은 없다.
+- package script는 `dev`, `build`, `lint`, `preview`를 제공하지만 자동화된 `test` script는 없다.
+- Playwright dependency와 `test_playwright.cjs`가 있지만 표준 test 실행 계약은 없다.
+- 현재 workflow는 `main` 대상 PR/push에서 build를 실행하고 `docs/**` 변경은 제외한다. `dev` 대상 문서 PR에는 CI check가 생성되지 않는다.
 - 자동화된 unit/component/contract/E2E 기반은 없다.
 
 ### 목표 검증 경계
