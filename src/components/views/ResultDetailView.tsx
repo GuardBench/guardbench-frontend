@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, Eye, Loader2, RefreshCw, X } from 'lucide-react';
 import { ApiError } from '../../services/apiClient';
 import {
@@ -45,6 +45,17 @@ const OUTCOME_FILTERS: Array<{ value: OutcomeFilter; label: string }> = [
 
 const rateLabel = (rate: number | null) => rate === null ? '분모 없음' : `${(rate * 100).toFixed(1)}%`;
 
+const runStatusLabel = (status: string | undefined) => status ? ({
+  QUEUED: '대기 중',
+  PREPARING: '대상 준비 중',
+  RUNNING: '실행 중',
+  FINISHED: '완료',
+}[status] ?? status) : '상태 확인 중';
+
+const updatedAtLabel = (updatedAt: string | undefined) => updatedAt
+  ? new Intl.DateTimeFormat('ko-KR', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(updatedAt))
+  : '확인 중';
+
 export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunId, onGoNewRun }) => {
   const [results, setResults] = useState<TestRunResultListItemRes[]>([]);
   const [resultPage, setResultPage] = useState(1);
@@ -54,10 +65,12 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
   const [selected, setSelected] = useState<TestRunResultListItemRes | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [metricsLoading, setMetricsLoading] = useState(false);
-  const [notFinishedRace, setNotFinishedRace] = useState(false);
+  const [notFinishedRaceRunId, setNotFinishedRaceRunId] = useState<string | null>(null);
   const [resultsError, setResultsError] = useState<unknown>(null);
   const [metricsError, setMetricsError] = useState<unknown>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const raceRetryCountRef = useRef(0);
+  const raceRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     detail,
     error: detailError,
@@ -65,9 +78,36 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     isLoading: detailLoading,
     refresh: refreshDetail,
   } = useLiveRunProgress({ runId: selectedRunId ?? null });
+  const notFinishedRace = notFinishedRaceRunId === selectedRunId;
+
+  const recoverNotFinishedRace = useCallback(() => {
+    if (!selectedRunId) return;
+    setNotFinishedRaceRunId(selectedRunId);
+    if (raceRetryTimerRef.current || raceRetryCountRef.current >= 3) return;
+    raceRetryCountRef.current += 1;
+    raceRetryTimerRef.current = setTimeout(() => {
+      raceRetryTimerRef.current = null;
+      setNotFinishedRaceRunId(null);
+      refreshDetail();
+      setReloadToken((value) => value + 1);
+    }, 1000);
+  }, [refreshDetail, selectedRunId]);
+
+  useEffect(() => {
+    raceRetryCountRef.current = 0;
+    if (raceRetryTimerRef.current) clearTimeout(raceRetryTimerRef.current);
+    raceRetryTimerRef.current = null;
+    return () => {
+      if (raceRetryTimerRef.current) clearTimeout(raceRetryTimerRef.current);
+      raceRetryTimerRef.current = null;
+    };
+  }, [selectedRunId]);
 
   const refreshAll = () => {
-    setNotFinishedRace(false);
+    raceRetryCountRef.current = 0;
+    if (raceRetryTimerRef.current) clearTimeout(raceRetryTimerRef.current);
+    raceRetryTimerRef.current = null;
+    setNotFinishedRaceRunId(null);
     refreshDetail();
     setReloadToken((value) => value + 1);
   };
@@ -91,7 +131,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
       } catch (error) {
         if (!active) return;
         if (error instanceof ApiError && error.code === 'TEST_RUN_NOT_FINISHED') {
-          setNotFinishedRace(true);
+          recoverNotFinishedRace();
           setResults([]);
           setPageMeta(null);
         } else {
@@ -103,7 +143,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     };
     loadResults();
     return () => { active = false; };
-  }, [selectedRunId, reloadToken, detail?.status, resultPage, outcomeFilter]);
+  }, [selectedRunId, reloadToken, detail?.status, resultPage, outcomeFilter, recoverNotFinishedRace]);
 
   useEffect(() => {
     if (!selectedRunId || detail?.status !== 'FINISHED') return;
@@ -117,7 +157,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
       } catch (error) {
         if (!active) return;
         if (error instanceof ApiError && error.code === 'TEST_RUN_NOT_FINISHED') {
-          setNotFinishedRace(true);
+          recoverNotFinishedRace();
         } else {
           setMetricsError(error);
         }
@@ -127,7 +167,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     };
     loadMetrics();
     return () => { active = false; };
-  }, [selectedRunId, reloadToken, detail?.status]);
+  }, [selectedRunId, reloadToken, detail?.status, recoverNotFinishedRace]);
 
   const notFinished = detail?.status !== 'FINISHED' || notFinishedRace;
 
@@ -163,7 +203,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
       </div>
     </header>
 
-    {notFinished && !detailLoading && <div className="flex items-center gap-2 rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]"><AlertCircle size={14} />실행이 아직 완료되지 않았습니다 ({detail?.status}, {detail?.progress.percent.toFixed(0)}%).</div>}
+    {notFinished && !detailLoading && <div className="flex items-center gap-2 rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]"><AlertCircle size={14} />{runStatusLabel(detail?.status)} · {detail?.progress.processedTestCaseCount ?? 0}/{detail?.testCaseCount ?? 0}건 처리 · {detail?.progress.percent.toFixed(0) ?? 0}% · 마지막 갱신 {updatedAtLabel(detail?.updatedAt)}</div>}
     {detailError !== null && detail && !detailLoading && <RequestErrorBanner error={detailError} fallbackMessage="최신 실행 상세를 불러오지 못했습니다." stale={detailStale} onRetry={refreshAll} />}
     {resultsError !== null && !resultsLoading && <RequestErrorBanner error={resultsError} fallbackMessage="Snapshot 결과를 불러오지 못했습니다." stale={results.length > 0} onRetry={refreshAll} />}
     {metricsError !== null && !metricsLoading && <RequestErrorBanner error={metricsError} fallbackMessage="Evaluator 지표를 불러오지 못했습니다." stale={evaluatorMetrics !== null} onRetry={refreshAll} />}

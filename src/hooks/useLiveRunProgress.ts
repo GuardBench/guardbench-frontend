@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '../services/apiClient';
 import { getTestRunDetail, type TestRunDetailRes } from '../services/testRunService';
 
@@ -7,28 +7,27 @@ export type PollingState = 'IDLE' | 'IN_FLIGHT' | 'SCHEDULED' | 'TRANSIENT_ERROR
 interface UseLiveRunProgressOptions {
   runId: string | null;
   pollIntervalMs?: number;
-  onFinished?: (detail: TestRunDetailRes) => void;
 }
 
+const MAX_TRANSIENT_FAILURES = 5;
+
 const isTerminalError = (error: unknown) => error instanceof ApiError
-  && error.httpStatus >= 400
-  && error.httpStatus < 500
-  && error.httpStatus !== 408
-  && error.httpStatus !== 429;
+  && (error.code === 'INVALID_RESPONSE'
+    || (error.httpStatus >= 400
+      && error.httpStatus < 500
+      && error.httpStatus !== 408
+      && error.httpStatus !== 429));
 
 export function useLiveRunProgress({
   runId,
   pollIntervalMs = 3000,
-  onFinished,
 }: UseLiveRunProgressOptions) {
   const [detail, setDetail] = useState<TestRunDetailRes | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [pollingState, setPollingState] = useState<PollingState>('IDLE');
   const [stale, setStale] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
-  const onFinishedRef = useRef(onFinished);
 
-  useEffect(() => { onFinishedRef.current = onFinished; }, [onFinished]);
   const refresh = useCallback(() => setRefreshToken((value) => value + 1), []);
 
   useEffect(() => {
@@ -36,6 +35,8 @@ export function useLiveRunProgress({
     let active = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let controller: AbortController | undefined;
+    let inFlight = false;
+    let transientFailures = 0;
 
     const schedule = () => {
       if (!active) return;
@@ -48,17 +49,19 @@ export function useLiveRunProgress({
 
     const fetchNext = async () => {
       if (!active) return;
+      timer = undefined;
+      inFlight = true;
       controller = new AbortController();
       setPollingState('IN_FLIGHT');
       try {
         const nextDetail = await getTestRunDetail(runId, controller.signal);
         if (!active) return;
+        transientFailures = 0;
         setDetail(nextDetail);
         setError(null);
         setStale(false);
         if (nextDetail.status === 'FINISHED') {
           setPollingState('FINISHED');
-          onFinishedRef.current?.(nextDetail);
           return;
         }
         schedule();
@@ -71,15 +74,32 @@ export function useLiveRunProgress({
         }
         setStale(true);
         setPollingState('TRANSIENT_ERROR');
+        transientFailures += 1;
+        if (transientFailures >= MAX_TRANSIENT_FAILURES) {
+          setPollingState('TERMINAL_ERROR');
+          return;
+        }
         schedule();
+      } finally {
+        inFlight = false;
       }
     };
 
+    const handleVisibilityChange = () => {
+      if (!active || inFlight || typeof document === 'undefined') return;
+      if (timer) clearTimeout(timer);
+      timer = undefined;
+      if (document.hidden) schedule();
+      else fetchNext();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     fetchNext();
     return () => {
       active = false;
       if (timer) clearTimeout(timer);
       controller?.abort();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [runId, pollIntervalMs, refreshToken]);
 
@@ -87,9 +107,7 @@ export function useLiveRunProgress({
     detail,
     error,
     stale,
-    pollingState,
-    isLoading: detail === null && pollingState === 'IN_FLIGHT',
-    isPolling: pollingState === 'IN_FLIGHT' || pollingState === 'SCHEDULED' || pollingState === 'TRANSIENT_ERROR',
+    isLoading: Boolean(runId) && detail === null && pollingState !== 'TERMINAL_ERROR',
     refresh,
   };
 }
