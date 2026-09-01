@@ -2,15 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { AlertCircle, Eye, Loader2, RefreshCw, X } from 'lucide-react';
 import { ApiError } from '../../services/apiClient';
 import {
-  getTestRunDetail,
   getTestRunEvaluatorMetrics,
   getTestRunResults,
   type EvaluationOutcome,
   type EvaluatorMetricsRes,
-  type TestRunDetailRes,
   type TestRunResultListItemRes,
   type PageMetaRes,
 } from '../../services/testRunService';
+import { useLiveRunProgress } from '../../hooks/useLiveRunProgress';
 import { RequestErrorBanner } from '../common/RequestErrorBanner';
 import { StatusPill } from '../common/StatusPill';
 
@@ -47,47 +46,31 @@ const OUTCOME_FILTERS: Array<{ value: OutcomeFilter; label: string }> = [
 const rateLabel = (rate: number | null) => rate === null ? '분모 없음' : `${(rate * 100).toFixed(1)}%`;
 
 export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunId, onGoNewRun }) => {
-  const [detail, setDetail] = useState<TestRunDetailRes | null>(null);
   const [results, setResults] = useState<TestRunResultListItemRes[]>([]);
   const [resultPage, setResultPage] = useState(1);
   const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>('ALL');
   const [pageMeta, setPageMeta] = useState<PageMetaRes | null>(null);
   const [evaluatorMetrics, setEvaluatorMetrics] = useState<EvaluatorMetricsRes | null>(null);
   const [selected, setSelected] = useState<TestRunResultListItemRes | null>(null);
-  const [detailLoading, setDetailLoading] = useState(true);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [notFinishedRace, setNotFinishedRace] = useState(false);
-  const [detailError, setDetailError] = useState<unknown>(null);
   const [resultsError, setResultsError] = useState<unknown>(null);
   const [metricsError, setMetricsError] = useState<unknown>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const {
+    detail,
+    error: detailError,
+    stale: detailStale,
+    isLoading: detailLoading,
+    refresh: refreshDetail,
+  } = useLiveRunProgress({ runId: selectedRunId ?? null });
 
-  useEffect(() => {
-    let active = true;
-    const loadDetail = async () => {
-      if (!selectedRunId) return;
-      setDetailLoading(true);
-      setNotFinishedRace(false);
-      setDetailError(null);
-      try {
-        const nextDetail = await getTestRunDetail(selectedRunId);
-        if (!active) return;
-        setDetail(nextDetail);
-        if (nextDetail.status !== 'FINISHED') {
-          setResults([]);
-          setPageMeta(null);
-          setEvaluatorMetrics(null);
-        }
-      } catch (error) {
-        if (active) setDetailError(error);
-      } finally {
-        if (active) setDetailLoading(false);
-      }
-    };
-    loadDetail();
-    return () => { active = false; };
-  }, [selectedRunId, reloadToken]);
+  const refreshAll = () => {
+    setNotFinishedRace(false);
+    refreshDetail();
+    setReloadToken((value) => value + 1);
+  };
 
   useEffect(() => {
     if (!selectedRunId || detail?.status !== 'FINISHED') return;
@@ -151,7 +134,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
   if (!detailLoading && detailError && !detail) {
     return <section className="space-y-6 animate-rise">
       <h1 className="text-3xl font-extrabold text-[#17202a]">테스트 결과 상세</h1>
-      <RequestErrorBanner error={detailError} fallbackMessage="테스트 실행 상세를 불러오지 못했습니다." onRetry={() => setReloadToken((value) => value + 1)} />
+      <RequestErrorBanner error={detailError} fallbackMessage="테스트 실행 상세를 불러오지 못했습니다." onRetry={refreshAll} />
     </section>;
   }
 
@@ -175,15 +158,15 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
         <p className="mt-1.5 text-sm text-[#697586]">Suite #{detail?.testSuiteId ?? '—'} · {detail?.testCaseCount ?? 0} snapshots</p>
       </div>
       <div className="flex gap-2">
-        <button type="button" onClick={() => setReloadToken((value) => value + 1)} disabled={detailLoading} className="inline-flex items-center gap-2 rounded-xl border border-[#e5e9ee] bg-white px-4 py-2 text-xs font-bold disabled:opacity-50"><RefreshCw size={14} />새로고침</button>
+        <button type="button" onClick={refreshAll} disabled={detailLoading} className="inline-flex items-center gap-2 rounded-xl border border-[#e5e9ee] bg-white px-4 py-2 text-xs font-bold disabled:opacity-50"><RefreshCw size={14} />새로고침</button>
         <button type="button" onClick={onGoNewRun} className="rounded-xl bg-[#17202a] px-4 py-2 text-xs font-bold text-white">다시 실행</button>
       </div>
     </header>
 
     {notFinished && !detailLoading && <div className="flex items-center gap-2 rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]"><AlertCircle size={14} />실행이 아직 완료되지 않았습니다 ({detail?.status}, {detail?.progress.percent.toFixed(0)}%).</div>}
-    {detailError !== null && detail && !detailLoading && <RequestErrorBanner error={detailError} fallbackMessage="최신 실행 상세를 불러오지 못했습니다." stale onRetry={() => setReloadToken((value) => value + 1)} />}
-    {resultsError !== null && !resultsLoading && <RequestErrorBanner error={resultsError} fallbackMessage="Snapshot 결과를 불러오지 못했습니다." stale={results.length > 0} onRetry={() => setReloadToken((value) => value + 1)} />}
-    {metricsError !== null && !metricsLoading && <RequestErrorBanner error={metricsError} fallbackMessage="Evaluator 지표를 불러오지 못했습니다." stale={evaluatorMetrics !== null} onRetry={() => setReloadToken((value) => value + 1)} />}
+    {detailError !== null && detail && !detailLoading && <RequestErrorBanner error={detailError} fallbackMessage="최신 실행 상세를 불러오지 못했습니다." stale={detailStale} onRetry={refreshAll} />}
+    {resultsError !== null && !resultsLoading && <RequestErrorBanner error={resultsError} fallbackMessage="Snapshot 결과를 불러오지 못했습니다." stale={results.length > 0} onRetry={refreshAll} />}
+    {metricsError !== null && !metricsLoading && <RequestErrorBanner error={metricsError} fallbackMessage="Evaluator 지표를 불러오지 못했습니다." stale={evaluatorMetrics !== null} onRetry={refreshAll} />}
 
     <div className="grid gap-5 lg:grid-cols-[0.75fr_1.25fr]">
       <article className={`rounded-2xl p-6 text-white ${gateStatus === 'PASS' ? 'bg-[#1a7f5a]' : gateStatus === 'FAIL' ? 'bg-[#a63b36]' : 'bg-[#687684]'}`}>

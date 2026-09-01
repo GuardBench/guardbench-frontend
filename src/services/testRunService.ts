@@ -196,8 +196,9 @@ export async function listTestRuns(params?: {
  */
 export async function getTestRunDetail(
   testRunId: number | string,
+  signal?: AbortSignal,
 ): Promise<TestRunDetailRes> {
-  return apiRequest<TestRunDetailRes>(`/test-runs/${testRunId}`);
+  return apiRequest<TestRunDetailRes>(`/test-runs/${testRunId}`, { signal });
 }
 
 /**
