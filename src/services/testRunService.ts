@@ -53,33 +53,9 @@ export interface TestRunProgressRes {
   percent: number; // 0 ~ 100
 }
 
-export interface BaselineExecutionTargetRes {
-  guardrailId: string;
-  version: string;
-}
-
-export interface CandidateExecutionTargetRes {
-  guardrailId: string;
-  requestedSource: 'DRAFT';
-  resolvedVersion: string | null;
-}
-
-export interface TestRunTargetsRes {
-  baseline: BaselineExecutionTargetRes;
-  candidate: CandidateExecutionTargetRes;
-}
-
-export interface QualityGateMetricsRes {
-  candidateAssertionPassRate: number;
-  securityRegressionCount: number;
-  securityRegressionRate: number;
-  usabilityRegressionRate: number;
-  testExecutionSuccessRate: number;
-}
-
 export interface QualityGateRes {
   status: QualityGateStatus;
-  metrics: QualityGateMetricsRes | null;
+  metrics: Record<string, unknown> | null;
 }
 
 export interface TestRunDetailRes {
@@ -88,7 +64,8 @@ export interface TestRunDetailRes {
   status: TestRunStatus;
   testCaseCount: number;
   progress: TestRunProgressRes;
-  targets: TestRunTargetsRes;
+  target: TargetReferenceRes;
+  evaluationProfile: EvaluationProfileReq;
   executionOutcome: ExecutionOutcome | null;
   qualityGate: QualityGateRes | null;
   createdAt: string;
@@ -132,34 +109,28 @@ export interface TestRunListApiResponse {
 export type TestExecutionResultStatus = 'SUCCEEDED' | 'FAILED' | 'TIMED_OUT' | 'NOT_STARTED';
 export type Action = 'ALLOW' | 'BLOCK';
 export type AssertionStatus = 'PASS' | 'FAIL';
-export type ComparabilityStatus = 'COMPARABLE' | 'NOT_COMPARABLE';
-export type ChangeType = 'NO_CHANGE' | 'SECURITY_REGRESSION' | 'USABILITY_REGRESSION' | 'IMPROVEMENT' | 'POLICY_BEHAVIOR_CHANGED';
+export type EvaluationOutcome = 'TRUE_POSITIVE' | 'TRUE_NEGATIVE' | 'FALSE_POSITIVE' | 'FALSE_NEGATIVE';
 export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+export type ExecutionFailureStage = 'APPLICATION_TARGET' | 'EVALUATOR';
 
 export interface ExecutionErrorDetailRes {
+  stage: ExecutionFailureStage;
   code: string;
   message: string;
 }
 
-export interface TestExecutionResultRes {
-  status: TestExecutionResultStatus;
-  actualAction: Action | null;
-  error: ExecutionErrorDetailRes | null;
-}
-
 export interface TestRunResultListItemRes {
-  snapshotId: number;
-  testCaseId: number;
+  testCaseSnapshotId: number;
   name: string;
   input: string;
   expectedAction: Action;
   severity: Severity;
   category: string;
-  baselineExecution: TestExecutionResultRes;
-  candidateExecution: TestExecutionResultRes;
+  executionStatus: TestExecutionResultStatus;
+  evaluatorVerdict: Action | null;
   assertionStatus: AssertionStatus | null;
-  comparabilityStatus: ComparabilityStatus | null;
-  changeType: ChangeType | null;
+  evaluationOutcome: EvaluationOutcome | null;
+  error: ExecutionErrorDetailRes | null;
 }
 
 export interface TestRunResultListApiResponse {
