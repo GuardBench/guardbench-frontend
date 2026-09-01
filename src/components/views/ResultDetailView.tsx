@@ -12,6 +12,7 @@ import {
 import { useLiveRunProgress } from '../../hooks/useLiveRunProgress';
 import { RequestErrorBanner } from '../common/RequestErrorBanner';
 import { StatusPill } from '../common/StatusPill';
+import { progressStatusLabel } from '../common/statusLabels';
 
 interface ResultDetailViewProps {
   selectedRunId?: string;
@@ -45,13 +46,6 @@ const OUTCOME_FILTERS: Array<{ value: OutcomeFilter; label: string }> = [
 
 const rateLabel = (rate: number | null) => rate === null ? '분모 없음' : `${(rate * 100).toFixed(1)}%`;
 
-const runStatusLabel = (status: string | undefined) => status ? ({
-  QUEUED: '대기 중',
-  PREPARING: '대상 준비 중',
-  RUNNING: '실행 중',
-  FINISHED: '완료',
-}[status] ?? status) : '상태 확인 중';
-
 const updatedAtLabel = (updatedAt: string | undefined) => updatedAt
   ? new Intl.DateTimeFormat('ko-KR', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(updatedAt))
   : '확인 중';
@@ -66,6 +60,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
   const [resultsLoading, setResultsLoading] = useState(false);
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [notFinishedRaceRunId, setNotFinishedRaceRunId] = useState<string | null>(null);
+  const [raceRecoveryExhaustedRunId, setRaceRecoveryExhaustedRunId] = useState<string | null>(null);
   const [resultsError, setResultsError] = useState<unknown>(null);
   const [metricsError, setMetricsError] = useState<unknown>(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -75,19 +70,26 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     detail,
     error: detailError,
     stale: detailStale,
+    autoRefreshStopped,
     isLoading: detailLoading,
     refresh: refreshDetail,
   } = useLiveRunProgress({ runId: selectedRunId ?? null });
   const notFinishedRace = notFinishedRaceRunId === selectedRunId;
+  const raceRecoveryExhausted = raceRecoveryExhaustedRunId === selectedRunId;
 
   const recoverNotFinishedRace = useCallback(() => {
     if (!selectedRunId) return;
     setNotFinishedRaceRunId(selectedRunId);
-    if (raceRetryTimerRef.current || raceRetryCountRef.current >= 3) return;
+    if (raceRetryTimerRef.current) return;
+    if (raceRetryCountRef.current >= 3) {
+      setRaceRecoveryExhaustedRunId(selectedRunId);
+      return;
+    }
     raceRetryCountRef.current += 1;
     raceRetryTimerRef.current = setTimeout(() => {
       raceRetryTimerRef.current = null;
       setNotFinishedRaceRunId(null);
+      setRaceRecoveryExhaustedRunId(null);
       refreshDetail();
       setReloadToken((value) => value + 1);
     }, 1000);
@@ -108,6 +110,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     if (raceRetryTimerRef.current) clearTimeout(raceRetryTimerRef.current);
     raceRetryTimerRef.current = null;
     setNotFinishedRaceRunId(null);
+    setRaceRecoveryExhaustedRunId(null);
     refreshDetail();
     setReloadToken((value) => value + 1);
   };
@@ -174,6 +177,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
   if (!detailLoading && detailError && !detail) {
     return <section className="space-y-6 animate-rise">
       <h1 className="text-3xl font-extrabold text-[#17202a]">테스트 결과 상세</h1>
+      {autoRefreshStopped && <div className="rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs font-bold text-[#78501b]">자동 갱신이 중단됐습니다. 다시 시도를 눌러주세요.</div>}
       <RequestErrorBanner error={detailError} fallbackMessage="테스트 실행 상세를 불러오지 못했습니다." onRetry={refreshAll} />
     </section>;
   }
@@ -203,7 +207,10 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
       </div>
     </header>
 
-    {notFinished && !detailLoading && <div className="flex items-center gap-2 rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]"><AlertCircle size={14} />{runStatusLabel(detail?.status)} · {detail?.progress.processedTestCaseCount ?? 0}/{detail?.testCaseCount ?? 0}건 처리 · {detail?.progress.percent.toFixed(0) ?? 0}% · 마지막 갱신 {updatedAtLabel(detail?.updatedAt)}</div>}
+    {notFinishedRace && !detailLoading
+      ? <div className="flex items-center gap-2 rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]"><AlertCircle size={14} />{raceRecoveryExhausted ? '결과 준비 상태를 확인하지 못했습니다. 다시 시도해 주세요.' : '실행은 종료됐지만 결과가 아직 준비되지 않았습니다. 자동으로 다시 확인하고 있습니다.'}</div>
+      : notFinished && !detailLoading && <div className="flex items-center gap-2 rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]"><AlertCircle size={14} />{detail?.status ? progressStatusLabel(detail.status) : '상태 확인 중'} · {detail?.progress.processedTestCaseCount ?? 0}/{detail?.testCaseCount ?? 0}건 처리 · {detail?.progress.percent.toFixed(0) ?? 0}% · 마지막 갱신 {updatedAtLabel(detail?.updatedAt)}</div>}
+    {autoRefreshStopped && detail && !detailLoading && <div className="rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs font-bold text-[#78501b]">자동 갱신이 중단됐습니다. 다시 시도를 눌러주세요.</div>}
     {detailError !== null && detail && !detailLoading && <RequestErrorBanner error={detailError} fallbackMessage="최신 실행 상세를 불러오지 못했습니다." stale={detailStale} onRetry={refreshAll} />}
     {resultsError !== null && !resultsLoading && <RequestErrorBanner error={resultsError} fallbackMessage="Snapshot 결과를 불러오지 못했습니다." stale={results.length > 0} onRetry={refreshAll} />}
     {metricsError !== null && !metricsLoading && <RequestErrorBanner error={metricsError} fallbackMessage="Evaluator 지표를 불러오지 못했습니다." stale={evaluatorMetrics !== null} onRetry={refreshAll} />}

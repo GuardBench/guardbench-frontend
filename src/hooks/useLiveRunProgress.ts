@@ -31,24 +31,26 @@ export function useLiveRunProgress({
   const refresh = useCallback(() => setRefreshToken((value) => value + 1), []);
 
   useEffect(() => {
-    if (!runId) return;
+    if (!runId || typeof document === 'undefined') return;
     let active = true;
+    // visibility handler가 최신 종료 상태를 읽도록 effect 지역 변수로 관리한다.
+    let pollingStopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let controller: AbortController | undefined;
     let inFlight = false;
     let transientFailures = 0;
 
     const schedule = () => {
-      if (!active) return;
+      if (!active || pollingStopped) return;
       setPollingState('SCHEDULED');
-      const delay = typeof document !== 'undefined' && document.hidden
+      const delay = document.hidden
         ? Math.max(pollIntervalMs, 10_000)
         : pollIntervalMs;
       timer = setTimeout(fetchNext, delay);
     };
 
     const fetchNext = async () => {
-      if (!active) return;
+      if (!active || pollingStopped) return;
       timer = undefined;
       inFlight = true;
       controller = new AbortController();
@@ -61,6 +63,7 @@ export function useLiveRunProgress({
         setError(null);
         setStale(false);
         if (nextDetail.status === 'FINISHED') {
+          pollingStopped = true;
           setPollingState('FINISHED');
           return;
         }
@@ -69,6 +72,7 @@ export function useLiveRunProgress({
         if (!active || controller.signal.aborted) return;
         setError(nextError);
         if (isTerminalError(nextError)) {
+          pollingStopped = true;
           setPollingState('TERMINAL_ERROR');
           return;
         }
@@ -76,6 +80,7 @@ export function useLiveRunProgress({
         setPollingState('TRANSIENT_ERROR');
         transientFailures += 1;
         if (transientFailures >= MAX_TRANSIENT_FAILURES) {
+          pollingStopped = true;
           setPollingState('TERMINAL_ERROR');
           return;
         }
@@ -86,7 +91,7 @@ export function useLiveRunProgress({
     };
 
     const handleVisibilityChange = () => {
-      if (!active || inFlight || typeof document === 'undefined') return;
+      if (!active || pollingStopped || inFlight) return;
       if (timer) clearTimeout(timer);
       timer = undefined;
       if (document.hidden) schedule();
@@ -107,6 +112,7 @@ export function useLiveRunProgress({
     detail,
     error,
     stale,
+    autoRefreshStopped: pollingState === 'TERMINAL_ERROR',
     isLoading: Boolean(runId) && detail === null && pollingState !== 'TERMINAL_ERROR',
     refresh,
   };
