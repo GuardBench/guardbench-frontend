@@ -166,7 +166,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             <RequestErrorBanner
               error={loadError}
               fallbackMessage="테스트 케이스 목록을 불러오지 못했습니다."
-              stale={visibleCases.length > 0}
+              stale={isCurrentSuiteLoaded}
               onRetry={() => setReloadToken((token) => token + 1)}
             />
           )}
@@ -303,7 +303,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                     </td>
                   </tr>
                 ))}
-                {!isLoading && !loadError && isCurrentSuiteLoaded && visibleCases.length === 0 && (
+                {isCurrentSuiteLoaded && visibleCases.length === 0 && (
                   <tr>
                     <td colSpan={5} className="p-8 text-center text-[#697586]">
                       등록된 테스트 케이스가 없습니다.

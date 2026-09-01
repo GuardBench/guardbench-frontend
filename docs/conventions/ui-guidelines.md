@@ -26,7 +26,7 @@
 
 | 영역 | 현재 지원 | 주요 차이 |
 | --- | --- | --- |
-| loading | 최초 loading과 data 유지 중 갱신을 구분 | 화면별 skeleton 형태는 미통일 |
+| loading | 주요 목록·Dashboard에서 최초 loading과 data 유지 중 갱신을 구분 | 화면별 skeleton 형태는 미통일 |
 | empty | 실제 API empty와 filter empty 전용 표현 | CTA와 mobile 표현 보완 가능 |
 | error | 지속 banner, code, field error, stale, retry | endpoint별 사용자 행동 문구 보완 가능 |
 | status | lifecycle, outcome, Gate, assertion 축별 pill과 text | 공통 label 확장 시 중복 방지 필요 |

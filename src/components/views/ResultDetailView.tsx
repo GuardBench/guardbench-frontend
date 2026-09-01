@@ -60,6 +60,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
   const [evaluatorMetrics, setEvaluatorMetrics] = useState<EvaluatorMetricsRes | null>(null);
   const [selected, setSelected] = useState<TestRunResultListItemRes | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
+  const [loadedResultsQueryKey, setLoadedResultsQueryKey] = useState<string | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [notFinishedRaceRunId, setNotFinishedRaceRunId] = useState<string | null>(null);
   const [raceRecoveryExhaustedRunId, setRaceRecoveryExhaustedRunId] = useState<string | null>(null);
@@ -80,6 +81,10 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
   const resultDialogRef = useDialogFocus({ isOpen: selected !== null, onClose: closeResultDialog });
   const notFinishedRace = notFinishedRaceRunId === selectedRunId;
   const raceRecoveryExhausted = raceRecoveryExhaustedRunId === selectedRunId;
+  const resultQueryKey = `${selectedRunId ?? ''}:${resultPage}:${outcomeFilter}`;
+  const hasLoadedResults = loadedResultsQueryKey === resultQueryKey;
+  const visibleResults = hasLoadedResults ? results : [];
+  const visiblePageMeta = hasLoadedResults ? pageMeta : null;
 
   const recoverNotFinishedRace = useCallback(() => {
     if (!selectedRunId) return;
@@ -134,6 +139,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
         if (active) {
           setResults(nextResults.items);
           setPageMeta(nextResults.page);
+          setLoadedResultsQueryKey(resultQueryKey);
         }
       } catch (error) {
         if (!active) return;
@@ -141,6 +147,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
           recoverNotFinishedRace();
           setResults([]);
           setPageMeta(null);
+          setLoadedResultsQueryKey(null);
         } else {
           setResultsError(error);
         }
@@ -150,7 +157,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     };
     loadResults();
     return () => { active = false; };
-  }, [selectedRunId, reloadToken, detail?.status, resultPage, outcomeFilter, recoverNotFinishedRace]);
+  }, [selectedRunId, reloadToken, detail?.status, resultPage, outcomeFilter, recoverNotFinishedRace, resultQueryKey]);
 
   useEffect(() => {
     if (!selectedRunId || detail?.status !== 'FINISHED') return;
@@ -216,7 +223,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
       : notFinished && !detailLoading && <div className="flex items-center gap-2 rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]"><AlertCircle size={14} />{detail?.status ? progressStatusLabel(detail.status) : '상태 확인 중'} · {detail?.progress.processedTestCaseCount ?? 0}/{detail?.testCaseCount ?? 0}건 처리 · {detail?.progress.percent.toFixed(0) ?? 0}% · 마지막 갱신 {updatedAtLabel(detail?.updatedAt)}</div>}
     {autoRefreshStopped && detail && !detailLoading && <div className="rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs font-bold text-[#78501b]">자동 갱신이 중단됐습니다. 다시 시도를 눌러주세요.</div>}
     {detailError !== null && detail && !detailLoading && <RequestErrorBanner error={detailError} fallbackMessage="최신 실행 상세를 불러오지 못했습니다." stale={detailStale} onRetry={refreshAll} />}
-    {resultsError !== null && !resultsLoading && <RequestErrorBanner error={resultsError} fallbackMessage="Snapshot 결과를 불러오지 못했습니다." stale={results.length > 0} onRetry={refreshAll} />}
+    {resultsError !== null && !resultsLoading && <RequestErrorBanner error={resultsError} fallbackMessage="Snapshot 결과를 불러오지 못했습니다." stale={hasLoadedResults} onRetry={refreshAll} />}
     {metricsError !== null && !metricsLoading && <RequestErrorBanner error={metricsError} fallbackMessage="Evaluator 지표를 불러오지 못했습니다." stale={evaluatorMetrics !== null} onRetry={refreshAll} />}
 
     <div className="grid gap-5 lg:grid-cols-[0.75fr_1.25fr]">
@@ -245,12 +252,12 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     </article>
 
     <article className="overflow-hidden rounded-2xl border border-[#e5e9ee] bg-white">
-      <div className="border-b border-[#e5e9ee] p-5"><div className="flex items-center justify-between gap-4"><div><h2 className="text-sm font-bold">Snapshot별 평가 결과</h2><p className="mt-1 text-xs text-[#697586]">Application 실행, Evaluator verdict, Expected와 Assertion을 서로 다른 축으로 표시합니다.</p></div><span className="text-xs font-bold">현재 {results.length} / 필터 결과 {pageMeta?.totalElements ?? 0}건 {resultsLoading && '· 불러오는 중'}</span></div><div className="mt-4 flex flex-wrap gap-2">{OUTCOME_FILTERS.map((filter) => <button key={filter.value} type="button" aria-pressed={outcomeFilter === filter.value} onClick={() => { setOutcomeFilter(filter.value); setResultPage(1); }} className={`rounded-full px-3 py-1.5 text-[11px] font-bold ${outcomeFilter === filter.value ? 'bg-[#17202a] text-white' : 'bg-[#eef1f4] text-[#586473]'}`}>{filter.label}</button>)}</div></div>
-      {outcomeFilter === 'ALL' && pageMeta && detail && pageMeta.totalElements !== detail.testCaseCount && <div className="border-b border-[#f0ddb0] bg-[#fff7e8] px-5 py-3 text-xs text-[#78501b]">고정 Snapshot 수({detail.testCaseCount})와 결과 수({pageMeta.totalElements})가 일치하지 않습니다. 정상 빈 결과로 처리하지 않습니다.</div>}
-      {results.length === 0 ? <div className="p-8 text-center text-sm text-[#697586]">{notFinished ? '실행 완료 후 결과가 표시됩니다.' : outcomeFilter !== 'ALL' ? '이 분류에 해당하는 결과가 없습니다.' : pageMeta && detail && pageMeta.totalElements !== detail.testCaseCount ? '결과 수 불일치를 확인해 주세요.' : '표시할 결과가 없습니다.'}</div> : <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-[#f8f9fa] text-[#697586]"><tr><th className="px-5 py-3">TestCase</th><th className="px-5 py-3">Application</th><th className="px-5 py-3">Evaluator Verdict</th><th className="px-5 py-3">Expected</th><th className="px-5 py-3">Assertion</th><th className="px-5 py-3">Outcome</th><th className="px-5 py-3">상세</th></tr></thead>
-        <tbody className="divide-y divide-[#e5e9ee]">{results.map((item) => <tr key={item.testCaseSnapshotId} className="hover:bg-[#f1faf6]"><td className="px-5 py-4"><b className="block text-sm">{item.name}</b><span className="text-[#697586]">{item.category} · #{item.testCaseSnapshotId} · {item.severity}</span></td><td className="px-5 py-4 font-bold">{executionLabel(item.executionStatus)}</td><td className="px-5 py-4 font-mono font-bold">{item.evaluatorVerdict ?? '없음'}</td><td className="px-5 py-4 font-mono font-bold">{item.expectedAction}</td><td className="px-5 py-4"><StatusPill kind="assertion" status={item.assertionStatus ?? 'NONE'} /></td><td className="px-5 py-4">{outcomeLabel(item.evaluationOutcome)}</td><td className="px-5 py-4"><button type="button" aria-label={`${item.name} 상세 보기`} onClick={() => setSelected(item)} className="rounded-lg p-2 text-[#697586] hover:bg-white"><Eye size={16} /></button></td></tr>)}</tbody>
+      <div className="border-b border-[#e5e9ee] p-5"><div className="flex items-center justify-between gap-4"><div><h2 className="text-sm font-bold">Snapshot별 평가 결과</h2><p className="mt-1 text-xs text-[#697586]">Application 실행, Evaluator verdict, Expected와 Assertion을 서로 다른 축으로 표시합니다.</p></div><span className="text-xs font-bold">현재 {visibleResults.length} / 필터 결과 {visiblePageMeta?.totalElements ?? 0}건 {resultsLoading && '· 불러오는 중'}</span></div><div className="mt-4 flex flex-wrap gap-2">{OUTCOME_FILTERS.map((filter) => <button key={filter.value} type="button" aria-pressed={outcomeFilter === filter.value} onClick={() => { setOutcomeFilter(filter.value); setResultPage(1); }} className={`rounded-full px-3 py-1.5 text-[11px] font-bold ${outcomeFilter === filter.value ? 'bg-[#17202a] text-white' : 'bg-[#eef1f4] text-[#586473]'}`}>{filter.label}</button>)}</div></div>
+      {outcomeFilter === 'ALL' && visiblePageMeta && detail && visiblePageMeta.totalElements !== detail.testCaseCount && <div className="border-b border-[#f0ddb0] bg-[#fff7e8] px-5 py-3 text-xs text-[#78501b]">고정 Snapshot 수({detail.testCaseCount})와 결과 수({visiblePageMeta.totalElements})가 일치하지 않습니다. 정상 빈 결과로 처리하지 않습니다.</div>}
+      {notFinished ? <div className="p-8 text-center text-sm text-[#697586]">실행 완료 후 결과가 표시됩니다.</div> : !hasLoadedResults ? (resultsLoading ? <div className="p-8 text-center text-sm text-[#697586]">결과를 불러오는 중입니다.</div> : null) : visibleResults.length === 0 ? <div className="p-8 text-center text-sm text-[#697586]">{outcomeFilter !== 'ALL' ? '이 분류에 해당하는 결과가 없습니다.' : visiblePageMeta && detail && visiblePageMeta.totalElements !== detail.testCaseCount ? '결과 수 불일치를 확인해 주세요.' : '표시할 결과가 없습니다.'}</div> : <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-[#f8f9fa] text-[#697586]"><tr><th className="px-5 py-3">TestCase</th><th className="px-5 py-3">Application</th><th className="px-5 py-3">Evaluator Verdict</th><th className="px-5 py-3">Expected</th><th className="px-5 py-3">Assertion</th><th className="px-5 py-3">Outcome</th><th className="px-5 py-3">상세</th></tr></thead>
+        <tbody className="divide-y divide-[#e5e9ee]">{visibleResults.map((item) => <tr key={item.testCaseSnapshotId} className="hover:bg-[#f1faf6]"><td className="px-5 py-4"><b className="block text-sm">{item.name}</b><span className="text-[#697586]">{item.category} · #{item.testCaseSnapshotId} · {item.severity}</span></td><td className="px-5 py-4 font-bold">{executionLabel(item.executionStatus)}</td><td className="px-5 py-4 font-mono font-bold">{item.evaluatorVerdict ?? '없음'}</td><td className="px-5 py-4 font-mono font-bold">{item.expectedAction}</td><td className="px-5 py-4"><StatusPill kind="assertion" status={item.assertionStatus ?? 'NONE'} /></td><td className="px-5 py-4">{outcomeLabel(item.evaluationOutcome)}</td><td className="px-5 py-4"><button type="button" aria-label={`${item.name} 상세 보기`} onClick={() => setSelected(item)} className="rounded-lg p-2 text-[#697586] hover:bg-white"><Eye size={16} /></button></td></tr>)}</tbody>
       </table></div>}
-      {pageMeta && pageMeta.totalPages > 1 && <div className="flex items-center justify-between border-t border-[#e5e9ee] p-4 text-xs"><button type="button" disabled={!pageMeta.hasPrevious || resultsLoading} onClick={() => setResultPage((page) => Math.max(1, page - 1))} className="rounded-lg border px-3 py-2 font-bold disabled:opacity-40">이전</button><span>{pageMeta.number} / {pageMeta.totalPages} 페이지</span><button type="button" disabled={!pageMeta.hasNext || resultsLoading} onClick={() => setResultPage((page) => page + 1)} className="rounded-lg border px-3 py-2 font-bold disabled:opacity-40">다음</button></div>}
+      {visiblePageMeta && visiblePageMeta.totalPages > 1 && <div className="flex items-center justify-between border-t border-[#e5e9ee] p-4 text-xs"><button type="button" disabled={!visiblePageMeta.hasPrevious || resultsLoading} onClick={() => setResultPage((page) => Math.max(1, page - 1))} className="rounded-lg border px-3 py-2 font-bold disabled:opacity-40">이전</button><span>{visiblePageMeta.number} / {visiblePageMeta.totalPages} 페이지</span><button type="button" disabled={!visiblePageMeta.hasNext || resultsLoading} onClick={() => setResultPage((page) => page + 1)} className="rounded-lg border px-3 py-2 font-bold disabled:opacity-40">다음</button></div>}
     </article>
 
     {selected && <div className={`fixed inset-0 ${LAYER_CLASS.dialog} flex items-center justify-center bg-black/40 p-4`}><button type="button" className="absolute inset-0 cursor-default" tabIndex={-1} aria-hidden="true" onClick={closeResultDialog} /><section ref={resultDialogRef} role="dialog" aria-modal="true" aria-labelledby="result-dialog-title" tabIndex={-1} className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"><div className="flex justify-between gap-4"><div><h2 id="result-dialog-title" className="text-lg font-bold">{selected.name}</h2><p className="text-xs text-[#697586]">Snapshot #{selected.testCaseSnapshotId}</p></div><button type="button" aria-label="Snapshot 결과 상세 창 닫기" onClick={closeResultDialog}><X size={20} /></button></div>

@@ -55,6 +55,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
   const [suites, setSuites] = useState<Array<{ id: number; name: string; caseCount: number }>>([]);
   const [suiteId, setSuiteId] = useState(0);
   const [suiteLoading, setSuiteLoading] = useState(true);
+  const [hasLoadedSuites, setHasLoadedSuites] = useState(false);
   const [suiteError, setSuiteError] = useState<unknown>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [endpoint, setEndpoint] = useState('');
@@ -78,6 +79,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
           id: Number(item.id), name: item.name, caseCount: item.testCaseCount ?? 0,
         }));
         setSuites(options);
+        setHasLoadedSuites(true);
         setSuiteId((current) => options.some((option) => option.id === current) ? current : (options[0]?.id ?? 0));
       } catch (error) {
         if (active) setSuiteError(error);
@@ -155,10 +157,10 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
           <div>
             <h2 className="text-base font-bold text-[#17202a]">1. 테스트 범위</h2>
             <p className="mb-4 mt-1 text-xs text-[#697586]">활성 TestCase가 실행 시점에 Snapshot으로 고정됩니다.</p>
-            {suiteError !== null && <div className="mb-3"><RequestErrorBanner error={suiteError} fallbackMessage="테스트 스위트 목록을 불러오지 못했습니다." stale={suites.length > 0} onRetry={() => setReloadToken((value) => value + 1)} /></div>}
+            {suiteError !== null && <div className="mb-3"><RequestErrorBanner error={suiteError} fallbackMessage="테스트 스위트 목록을 불러오지 못했습니다." stale={hasLoadedSuites} onRetry={() => setReloadToken((value) => value + 1)} /></div>}
             <label htmlFor="run-suite" className="mb-2 block text-xs font-bold text-[#4e5a68]">테스트 스위트</label>
-            {suiteLoading ? <p className="text-xs text-[#697586]">스위트 목록을 불러오는 중...</p> : suites.length === 0
-              ? suiteError === null && <p className="text-xs text-[#697586]">등록된 테스트 스위트가 없습니다. 먼저 스위트를 생성해 주세요.</p>
+            {suiteLoading && !hasLoadedSuites ? <p className="text-xs text-[#697586]">스위트 목록을 불러오는 중...</p> : suites.length === 0
+              ? hasLoadedSuites && <p className="text-xs text-[#697586]">등록된 테스트 스위트가 없습니다. 먼저 스위트를 생성해 주세요.</p>
               : <select id="run-suite" value={suiteId} onChange={(event) => { setSuiteId(Number(event.target.value)); setValidation(null); }} className={fieldClass}>
                 {suites.map((suite) => <option key={suite.id} value={suite.id}>{suite.name} · {suite.caseCount} cases</option>)}
               </select>}

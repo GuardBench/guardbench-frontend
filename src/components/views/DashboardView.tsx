@@ -66,7 +66,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onGoNewRun, onGoRu
         <RequestErrorBanner
           error={loadError}
           fallbackMessage="대시보드 데이터를 불러오지 못했습니다."
-          stale={runs.length > 0 || suiteTotal > 0 || testCaseTotal > 0}
+          stale={hasLoadedData}
           onRetry={() => setReloadToken((token) => token + 1)}
         />
       )}
@@ -75,9 +75,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onGoNewRun, onGoRu
           대시보드 데이터를 불러오는 중입니다.
         </div>
       )}
-      {hasLoadedData && <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">{stats.map((stat) => <StatCard key={stat.label} {...stat} />)}</div>
-      <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_0.85fr] gap-5">
+      {hasLoadedData && (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">{stats.map((stat) => <StatCard key={stat.label} {...stat} />)}</div>
+          <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_0.85fr] gap-5">
         <article className="bg-white border border-[#e5e9ee] rounded-2xl p-6 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
           <div className="flex items-center justify-between mb-6"><div><h2 className="text-base font-bold text-[#17202a]">최근 실행 결과</h2><p className="text-xs text-[#697586] mt-1">최근 조회된 실행의 Quality Gate 상태</p></div><span className="px-2.5 py-1 rounded-full bg-[#f1f3f5] text-[#586473] text-[10px] font-extrabold">최대 7건</span></div>
           {chartRuns.length > 0 ? <div className="h-48 flex items-end gap-3 sm:gap-4 border-b border-[#e5e9ee] px-2 pb-1">{chartRuns.map((run) => { const color = run.qualityGateStatus === 'PASS' ? 'bg-[#40ad83]' : run.qualityGateStatus === 'FAIL' ? 'bg-[#e3736d]' : 'bg-[#b7c1ca]'; return <div key={run.id} className="flex-1 flex items-end justify-center h-full relative"><div className={`w-full max-w-[28px] rounded-t-md ${color}`} style={{ height: '100%' }} title={`#${run.id}: ${run.qualityGateStatus ?? '평가 전'}`} /><span className="absolute -bottom-6 text-[10px] text-[#697586] whitespace-nowrap">#{run.id}</span></div>; })}</div> : <div className="h-48 grid place-items-center border-b border-[#e5e9ee] text-xs text-[#697586]">표시할 실행 이력이 없습니다.</div>}
@@ -85,10 +86,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onGoNewRun, onGoRu
         </article>
         <article className="bg-white border border-[#e5e9ee] rounded-2xl p-6 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
           <div className="flex items-center justify-between mb-4"><div><h2 className="text-base font-bold text-[#17202a]">최근 활동</h2><p className="text-xs text-[#697586] mt-1">최근 조회된 TestRun</p></div><button onClick={onGoRuns} className="text-xs font-bold text-[#697586] hover:text-[#17202a]">전체 보기 →</button></div>
-          <div className="divide-y divide-[#e5e9ee]">{runs.slice(0, 5).map((run) => <div key={run.id} className="py-3.5 flex items-center justify-between gap-3"><div><b className="block text-xs text-[#17202a]">실행 #{run.id}</b><small className="text-[11px] text-[#697586]">Suite #{run.testSuiteId} · {run.testCaseCount} snapshots</small></div><StatusPill kind={run.qualityGateStatus ? 'gate' : 'progress'} status={run.qualityGateStatus ?? run.status} /></div>)}{!isLoading && runs.length === 0 && <div className="py-8 text-center text-xs text-[#697586]">최근 실행 이력이 없습니다.</div>}</div>
+          <div className="divide-y divide-[#e5e9ee]">{runs.slice(0, 5).map((run) => <div key={run.id} className="py-3.5 flex items-center justify-between gap-3"><div><b className="block text-xs text-[#17202a]">실행 #{run.id}</b><small className="text-[11px] text-[#697586]">Suite #{run.testSuiteId} · {run.testCaseCount} snapshots</small></div><StatusPill kind={run.qualityGateStatus ? 'gate' : 'progress'} status={run.qualityGateStatus ?? run.status} /></div>)}{runs.length === 0 && <div className="py-8 text-center text-xs text-[#697586]">최근 실행 이력이 없습니다.</div>}</div>
         </article>
-      </div>
-      </>}
+          </div>
+        </>
+      )}
     </section>
   );
 };
