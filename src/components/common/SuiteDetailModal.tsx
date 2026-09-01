@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { Severity, TestCase, TestSuite } from '../../types';
 import { X, Plus, Trash2, Edit2, AlertCircle, Loader2 } from 'lucide-react';
 import { getTestCases, createTestCase, deleteTestCase } from '../../services/testCaseService';
@@ -122,7 +123,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     }
   };
 
-  return (
+  return createPortal(
     <div className={`fixed inset-0 ${LAYER_CLASS.dialog} flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-rise`}>
       <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="suite-detail-title" tabIndex={-1} className="relative z-10 w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#e5e9ee] flex flex-col max-h-[90vh]">
         {/* Header */}
@@ -325,6 +326,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
           </button>
         </div>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 };
