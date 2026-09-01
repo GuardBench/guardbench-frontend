@@ -322,6 +322,7 @@ src/
 │  ├─ views/
 │  └─ common/
 ├─ config/
+├─ contracts/
 ├─ hooks/
 ├─ services/
 ├─ mocks/
@@ -349,7 +350,8 @@ feature-based 폴더, query library와 generated API package 도입은 이 문�
 - package script는 `dev`, `build`, `lint`, `preview`를 제공하지만 자동화된 `test` script는 없다.
 - Playwright dependency와 `test_playwright.cjs`가 있지만 표준 test 실행 계약은 없다.
 - 현재 workflow는 `main` 대상 PR/push에서 build를 실행하고 `docs/**` 변경은 제외한다. `dev` 대상 문서 PR에는 CI check가 생성되지 않는다.
-- 자동화된 unit/component/contract/E2E 기반은 없다.
+- `src/contracts/openapiNullability.contract.ts`는 `tsc -b`에서 OpenAPI의 대표 required + nullable DTO 조합을 compile-time contract로 검증한다.
+- 자동화된 unit/component/E2E 기반과 OpenAPI fixture 기반 contract test는 없다.
 
 ### 목표 검증 경계
 

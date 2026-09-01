@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { TestCase, TestSuite } from '../../types';
+import type { Severity, TestCase, TestSuite } from '../../types';
 import { X, Plus, Trash2, Edit2, AlertCircle, Loader2 } from 'lucide-react';
 import { getTestCases, createTestCase, deleteTestCase } from '../../services/testCaseService';
 import { presentApiError } from '../../services/apiClient';
@@ -235,7 +235,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                   <label className="block text-[11px] font-bold text-[#4e5a68] mb-1">Severity (심각도)</label>
                   <select
                     value={newCase.severity}
-                    onChange={(e) => setNewCase({ ...newCase, severity: e.target.value as any })}
+                    onChange={(e) => setNewCase({ ...newCase, severity: e.target.value as Severity })}
                     className="w-full p-2.5 rounded-lg border border-[#dce1e6] bg-white outline-none"
                   >
                     <option value="CRITICAL">CRITICAL</option>
