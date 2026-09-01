@@ -93,7 +93,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
   };
 
   return createPortal(
-    <div className={`fixed inset-0 ${LAYER_CLASS.dialog} flex items-center justify-center p-4`}>
+    <div className={`fixed inset-0 ${LAYER_CLASS.dialog} flex items-start justify-center overflow-y-auto px-4 py-[5vh]`}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" aria-hidden="true" />
 
       <section
@@ -102,7 +102,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
         aria-modal="true"
         aria-labelledby="create-suite-title"
         tabIndex={-1}
-        className="relative z-10 flex h-[90vh] max-h-[760px] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#e5e9ee] bg-white shadow-2xl animate-rise"
+        className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#e5e9ee] bg-white shadow-2xl animate-rise"
       >
         <header className="flex items-start justify-between border-b border-[#e5e9ee] bg-[#fafbfb] p-6">
           <div>
@@ -122,7 +122,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
           </button>
         </header>
 
-        <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-6 p-6">
+        <div className="flex min-h-0 flex-1 flex-col gap-6 p-6">
           <div className="shrink-0 space-y-4">
             <div>
               <label htmlFor="suite-name" className="mb-1 block text-xs font-bold text-[#4e5a68]">
@@ -156,7 +156,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
             </div>
           </div>
 
-          <section className="min-h-0 overflow-y-auto rounded-xl border border-[#e5e9ee] bg-[#fafcfb] p-4">
+          <section className={`rounded-xl border border-[#e5e9ee] bg-[#fafcfb] p-4 ${isInitialCaseOpen ? 'min-h-0 flex-1 overflow-y-auto' : 'shrink-0'}`}>
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-sm font-bold text-[#17202a]">초기 테스트 케이스 <span className="font-medium text-[#697586]">(선택)</span></h3>
@@ -235,13 +235,17 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                 </div>
               </div>
             )}
+          </section>
+
           {validationMessage && (
-            <div className="mt-4 flex items-center gap-2 rounded-lg bg-[#fff5e8] px-3 py-2 text-xs text-[#805100]">
-              <AlertCircle size={16} className="shrink-0" />
-              {validationMessage}
+            <div className="shrink-0 rounded-xl border border-[#f0ddb0] bg-[#fff5e8] px-4 py-3 text-xs text-[#805100]">
+              <p className="mb-1 font-bold">입력 또는 요청을 확인해 주세요.</p>
+              <div className="flex items-center gap-2">
+                <AlertCircle size={16} className="shrink-0" />
+                {validationMessage}
+              </div>
             </div>
           )}
-          </section>
         </div>
 
         <footer className="flex items-center justify-between gap-3 border-t border-[#e5e9ee] bg-[#fafbfb] p-4">
