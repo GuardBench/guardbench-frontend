@@ -4,6 +4,7 @@ import { X, Plus, Trash2, Edit2, AlertCircle, Loader2 } from 'lucide-react';
 import { getTestCases, createTestCase, deleteTestCase } from '../../services/testCaseService';
 import { presentApiError } from '../../services/apiClient';
 import { RequestErrorBanner } from './RequestErrorBanner';
+import { useDialogFocus } from '../../hooks/useDialogFocus';
 
 interface SuiteDetailModalProps {
   suite: TestSuite | null;
@@ -25,6 +26,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     severity: 'HIGH',
     category: 'PII',
   });
+  const dialogRef = useDialogFocus({ isOpen: suite !== null, onClose });
 
   useEffect(() => {
     if (!suite) return undefined;
@@ -121,9 +123,9 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-rise">
-      <div className="absolute inset-0" onClick={onClose} />
+      <div className="absolute inset-0" aria-hidden="true" />
 
-      <div className="relative z-10 w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#e5e9ee] flex flex-col max-h-[90vh]">
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="suite-detail-title" tabIndex={-1} className="relative z-10 w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#e5e9ee] flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="p-6 border-b border-[#e5e9ee] flex justify-between items-start bg-[#fafbfb]">
           <div className="flex items-center gap-3">
@@ -135,14 +137,16 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             </div>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <h2 className="text-xl font-extrabold text-[#17202a]">{suite.name}</h2>
+                <h2 id="suite-detail-title" className="text-xl font-extrabold text-[#17202a]">{suite.name}</h2>
                 {isLoading && <Loader2 size={14} className="animate-spin text-[#1a7f5a]" />}
               </div>
               <p className="text-xs text-[#697586]">{suite.description}</p>
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="테스트 스위트 상세 창 닫기"
             className="p-2 rounded-xl text-[#697586] hover:bg-gray-200 transition-colors"
           >
             <X size={20} />
@@ -321,7 +325,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             닫기
           </button>
         </div>
-      </div>
+      </section>
     </div>
   );
 };

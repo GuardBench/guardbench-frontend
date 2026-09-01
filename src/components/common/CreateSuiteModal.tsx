@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { AlertCircle, Plus, X } from 'lucide-react';
 import { ApiError } from '../../services/apiClient';
 import { createTestSuite } from '../../services/testSuiteService';
+import { useDialogFocus } from '../../hooks/useDialogFocus';
 
 interface CreateSuiteModalProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
   const [initialCase, setInitialCase] = useState<InitialCase>(emptyInitialCase);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const close = useCallback(() => {
     setName('');
@@ -42,16 +44,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
     onClose();
   }, [onClose]);
 
-  useEffect(() => {
-    if (!isOpen) return undefined;
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') close();
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [close, isOpen]);
+  const dialogRef = useDialogFocus({ isOpen, onClose: close, initialFocusRef: nameInputRef });
 
   if (!isOpen) return null;
 
@@ -99,17 +92,14 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default bg-black/40 backdrop-blur-xs"
-        aria-label="새 테스트 스위트 생성 창 닫기"
-        onClick={close}
-      />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" aria-hidden="true" />
 
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-suite-title"
+        tabIndex={-1}
         className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#e5e9ee] bg-white shadow-2xl animate-rise"
       >
         <header className="flex items-start justify-between border-b border-[#e5e9ee] bg-[#fafbfb] p-6">
@@ -137,8 +127,8 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                 스위트 이름 <span className="text-[#bd3b35]">*</span>
               </label>
               <input
+                ref={nameInputRef}
                 id="suite-name"
-                autoFocus
                 type="text"
                 value={name}
                 onChange={(event) => {

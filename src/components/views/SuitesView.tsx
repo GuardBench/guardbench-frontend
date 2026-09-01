@@ -92,7 +92,15 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
           suites.map((suite) => (
             <article
               key={suite.id}
+              role="button"
+              tabIndex={0}
               onClick={() => setSelectedSuite(suite)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  setSelectedSuite(suite);
+                }
+              }}
               className="bg-white border border-[#e5e9ee] rounded-2xl p-5 shadow-[0_3px_15px_rgba(17,31,44,0.025)] hover:-translate-y-0.5 hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between group"
             >
               <div>
