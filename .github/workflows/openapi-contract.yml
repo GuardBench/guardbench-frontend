@@ -29,7 +29,7 @@ jobs:
       - name: Read Source Commit
         id: source
         shell: bash
-        run: echo "commit=$(node -p \"require('./docs/api/openapi.source.json').commit\")" >> "$GITHUB_OUTPUT"
+        run: node -e "console.log('commit=' + require('./docs/api/openapi.source.json').commit)" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Backend Source
         uses: actions/checkout@v5
