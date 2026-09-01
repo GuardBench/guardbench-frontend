@@ -18,30 +18,20 @@ interface UseDialogFocusOptions {
   initialFocusRef?: RefObject<HTMLElement | null>;
 }
 
-const isVisible = (element: HTMLElement, dialog: HTMLElement) => {
-  let current: HTMLElement | null = element;
-  while (current && current !== dialog) {
-    const style = window.getComputedStyle(current);
-    if (
-      current.hidden
-      || current.getAttribute('aria-hidden') === 'true'
-      || style.display === 'none'
-      || style.visibility === 'hidden'
-      || style.visibility === 'collapse'
-    ) return false;
-    current = current.parentElement;
-  }
-  return true;
-};
+const isVisible = (element: HTMLElement) => (
+  element.getClientRects().length > 0
+  && window.getComputedStyle(element).visibility === 'visible'
+  && element.closest('[hidden], [aria-hidden="true"]') === null
+);
 
 const focusableElements = (dialog: HTMLElement) => (
   Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-    .filter((element) => isVisible(element, dialog))
+    .filter(isVisible)
 );
 
 const preservesNativeEscape = (target: EventTarget | null) => (
   target instanceof Element
-  && target.closest('select, [data-dialog-escape="preserve"]') !== null
+  && target.closest('select') !== null
 );
 
 export function useDialogFocus({ isOpen, onClose, initialFocusRef }: UseDialogFocusOptions) {
@@ -74,6 +64,7 @@ export function useDialogFocus({ isOpen, onClose, initialFocusRef }: UseDialogFo
       if (openDialogs[openDialogs.length - 1] !== dialog) return;
 
       if (event.key === 'Escape') {
+        if (event.isComposing || event.keyCode === 229) return;
         if (preservesNativeEscape(event.target)) return;
         event.preventDefault();
         onCloseRef.current();

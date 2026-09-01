@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ViewType } from '../../types';
 import { Menu } from 'lucide-react';
+import { LAYER_CLASS } from '../../config/layers';
 
 interface TopbarProps {
   currentView: ViewType;
@@ -20,7 +21,7 @@ const titleMap: Record<ViewType, string> = {
 
 export const Topbar: React.FC<TopbarProps> = ({ currentView, isMobileMenuOpen, onToggleMobileMenu, onHelpClick }) => {
   return (
-    <header className="sticky top-0 z-40 h-[72px] px-6 lg:px-8 bg-white/85 backdrop-blur-md border-b border-[#e5e9ee] flex items-center justify-between">
+    <header className={`sticky top-0 ${LAYER_CLASS.topbar} h-[72px] px-6 lg:px-8 bg-white/85 backdrop-blur-md border-b border-[#e5e9ee] flex items-center justify-between`}>
       <div className="flex items-center gap-3">
         {/* P2. aria-expanded 및 aria-controls 추가 */}
         <button

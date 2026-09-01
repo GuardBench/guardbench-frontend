@@ -124,8 +124,6 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
 
   return (
     <div className={`fixed inset-0 ${LAYER_CLASS.dialog} flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-rise`}>
-      <div className="absolute inset-0" aria-hidden="true" />
-
       <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="suite-detail-title" tabIndex={-1} className="relative z-10 w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#e5e9ee] flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="p-6 border-b border-[#e5e9ee] flex justify-between items-start bg-[#fafbfb]">
