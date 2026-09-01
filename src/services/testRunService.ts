@@ -3,20 +3,30 @@ import { apiRequest } from './apiClient';
 // ─── OpenAPI 계약 기준 요청/응답 DTO ─────────────────────────────
 
 // POST /test-runs  요청 (TestRunCreateReq)
-export interface BaselineTargetReq {
-  guardrailId: string;
-  version: string; // numbered version만 허용 (^[0-9]+$, DRAFT 불허)
+export type EvaluationCheck = 'PROMPT_INJECTION' | 'PII_LEAKAGE' | 'HARMFUL_CONTENT';
+export type EvaluationStrictness = 'RELAXED' | 'STANDARD' | 'STRICT';
+
+export interface TargetReferenceReq {
+  type: 'HTTP_ENDPOINT';
+  identifier: string;
+  revision?: string;
 }
 
-export interface CandidateTargetReq {
-  guardrailId: string;
-  source: 'DRAFT'; // MVP에서는 DRAFT만 허용
+export interface TargetReferenceRes {
+  type: 'HTTP_ENDPOINT';
+  identifier: string;
+  revision: string | null;
+}
+
+export interface EvaluationProfileReq {
+  checks: EvaluationCheck[];
+  strictness: EvaluationStrictness;
 }
 
 export interface CreateTestRunPayload {
   testSuiteId: number;
-  baseline: BaselineTargetReq;
-  candidate: CandidateTargetReq;
+  target: TargetReferenceReq;
+  evaluationProfile: EvaluationProfileReq;
 }
 
 // POST /test-runs  응답 (TestRunCreateRes)
@@ -25,6 +35,8 @@ export interface CreateTestRunResponse {
   testSuiteId: number;
   status: TestRunStatus;
   testCaseCount: number;
+  target: TargetReferenceRes;
+  evaluationProfile: EvaluationProfileReq;
   createdAt: string;
 }
 
