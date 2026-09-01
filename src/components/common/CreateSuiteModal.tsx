@@ -1,4 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertCircle, Plus, X } from 'lucide-react';
 import { ApiError } from '../../services/apiClient';
 import { createTestSuite } from '../../services/testSuiteService';
@@ -91,7 +92,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
     }
   };
 
-  return (
+  return createPortal(
     <div className={`fixed inset-0 ${LAYER_CLASS.dialog} flex items-center justify-center p-4`}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" aria-hidden="true" />
 
@@ -101,7 +102,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
         aria-modal="true"
         aria-labelledby="create-suite-title"
         tabIndex={-1}
-        className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#e5e9ee] bg-white shadow-2xl animate-rise"
+        className="relative z-10 flex h-[90vh] max-h-[760px] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#e5e9ee] bg-white shadow-2xl animate-rise"
       >
         <header className="flex items-start justify-between border-b border-[#e5e9ee] bg-[#fafbfb] p-6">
           <div>
@@ -109,7 +110,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
             <h2 id="create-suite-title" className="text-xl font-extrabold text-[#17202a]">
               새 테스트 스위트 만들기
             </h2>
-            <p className="mt-1 text-xs text-[#697586]">검증 목적과 초기 테스트 케이스를 등록합니다.</p>
+            <p className="mt-1 text-xs text-[#697586]">검증 목적을 등록하고, 필요하면 초기 테스트 케이스를 함께 추가합니다.</p>
           </div>
           <button
             type="button"
@@ -121,8 +122,8 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
           </button>
         </header>
 
-        <div className="flex-1 space-y-6 overflow-y-auto p-6">
-          <div className="space-y-4">
+        <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-6 p-6">
+          <div className="shrink-0 space-y-4">
             <div>
               <label htmlFor="suite-name" className="mb-1 block text-xs font-bold text-[#4e5a68]">
                 스위트 이름 <span className="text-[#bd3b35]">*</span>
@@ -155,11 +156,11 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
             </div>
           </div>
 
-          <section className="rounded-xl border border-[#e5e9ee] bg-[#fafcfb] p-4">
+          <section className="min-h-0 overflow-y-auto rounded-xl border border-[#e5e9ee] bg-[#fafcfb] p-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h3 className="text-sm font-bold text-[#17202a]">초기 테스트 케이스</h3>
-                <p className="mt-0.5 text-xs text-[#697586]">선택하면 스위트와 함께 첫 케이스를 등록합니다.</p>
+                <h3 className="text-sm font-bold text-[#17202a]">초기 테스트 케이스 <span className="font-medium text-[#697586]">(선택)</span></h3>
+                <p className="mt-0.5 text-xs text-[#697586]">생략하면 빈 Suite가 생성되며 TestCase는 나중에 추가할 수 있습니다.</p>
               </div>
               <button
                 type="button"
@@ -234,14 +235,13 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                 </div>
               </div>
             )}
-          </section>
-
           {validationMessage && (
-            <div className="flex items-center gap-2 rounded-lg bg-[#fff5e8] px-3 py-2 text-xs text-[#805100]">
+            <div className="mt-4 flex items-center gap-2 rounded-lg bg-[#fff5e8] px-3 py-2 text-xs text-[#805100]">
               <AlertCircle size={16} className="shrink-0" />
               {validationMessage}
             </div>
           )}
+          </section>
         </div>
 
         <footer className="flex items-center justify-between gap-3 border-t border-[#e5e9ee] bg-[#fafbfb] p-4">
@@ -256,6 +256,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
           </div>
         </footer>
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 };
