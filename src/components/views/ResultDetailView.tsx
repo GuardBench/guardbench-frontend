@@ -6,6 +6,7 @@ import {
   getTestRunResults,
   type TestRunDetailRes,
   type TestRunResultListItemRes,
+  type PageMetaRes,
 } from '../../services/testRunService';
 import { RequestErrorBanner } from '../common/RequestErrorBanner';
 import { StatusPill } from '../common/StatusPill';
@@ -13,7 +14,6 @@ import { StatusPill } from '../common/StatusPill';
 interface ResultDetailViewProps {
   selectedRunId?: string;
   onGoNewRun: () => void;
-  onNotify: (msg: string) => void;
 }
 
 const executionLabel = (status: TestRunResultListItemRes['executionStatus']) => ({
@@ -27,9 +27,15 @@ const outcomeLabel = (outcome: TestRunResultListItemRes['evaluationOutcome']) =>
   }[outcome])
   : '평가되지 않음';
 
+const errorStageLabel = (stage: NonNullable<TestRunResultListItemRes['error']>['stage']) => (
+  stage === 'APPLICATION_TARGET' ? 'Application 실행' : 'Evaluator 평가'
+);
+
 export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunId, onGoNewRun }) => {
   const [detail, setDetail] = useState<TestRunDetailRes | null>(null);
   const [results, setResults] = useState<TestRunResultListItemRes[]>([]);
+  const [resultPage, setResultPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState<PageMetaRes | null>(null);
   const [selected, setSelected] = useState<TestRunResultListItemRes | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFinished, setNotFinished] = useState(false);
@@ -52,16 +58,21 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
         if (nextDetail.status !== 'FINISHED') {
           setNotFinished(true);
           setResults([]);
+          setPageMeta(null);
           return;
         }
         try {
-          const nextResults = await getTestRunResults(selectedRunId, { size: 100 });
-          if (active) setResults(nextResults.items);
+          const nextResults = await getTestRunResults(selectedRunId, { page: resultPage, size: 100 });
+          if (active) {
+            setResults(nextResults.items);
+            setPageMeta(nextResults.page);
+          }
         } catch (error) {
           if (!active) return;
           if (error instanceof ApiError && error.code === 'TEST_RUN_NOT_FINISHED') {
             setNotFinished(true);
             setResults([]);
+            setPageMeta(null);
           } else {
             setResultsError(error);
           }
@@ -74,7 +85,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     };
     load();
     return () => { active = false; };
-  }, [selectedRunId, reloadToken]);
+  }, [selectedRunId, reloadToken, resultPage]);
 
   if (!loading && detailError && !detail) {
     return <section className="space-y-6 animate-rise">
@@ -115,7 +126,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
         <p className="text-xs opacity-90">{metrics ? '현재 Run의 Assertion 집계 지표가 저장돼 있습니다.' : '표시할 확정 지표가 없습니다.'}</p>
       </article>
       <article className="rounded-2xl border border-[#e5e9ee] bg-white p-6">
-        <div className="mb-4 flex items-center justify-between"><h2 className="text-sm font-bold">실행 정보</h2><div className="flex gap-2"><StatusPill kind="execution" status={detail?.executionOutcome ?? null} /><StatusPill kind="gate" status={gateStatus} /></div></div>
+        <div className="mb-4 flex items-center justify-between"><h2 className="text-sm font-bold">실행 정보</h2><div className="flex gap-2">{detail?.executionOutcome ? <StatusPill kind="execution" status={detail.executionOutcome} /> : <span className="rounded-full bg-[#eef1f4] px-2.5 py-1 text-[10px] font-extrabold text-[#8fa0ad]">결정 전</span>}<StatusPill kind="gate" status={gateStatus} /></div></div>
         <dl className="grid gap-4 text-xs sm:grid-cols-2">
           <div><dt className="text-[#697586]">Application</dt><dd className="mt-1 break-all font-bold">{detail?.target.identifier ?? '—'}</dd><dd className="mt-1 text-[#697586]">Revision: {detail?.target.revision ?? '없음'}</dd></div>
           <div><dt className="text-[#697586]">Evaluation Profile</dt><dd className="mt-1 font-bold">{detail?.evaluationProfile.checks.join(', ') ?? '—'}</dd><dd className="mt-1 text-[#697586]">Strictness: {detail?.evaluationProfile.strictness ?? '—'}</dd></div>
@@ -124,14 +135,16 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     </div>
 
     <article className="overflow-hidden rounded-2xl border border-[#e5e9ee] bg-white">
-      <div className="flex items-center justify-between border-b border-[#e5e9ee] p-5"><div><h2 className="text-sm font-bold">Snapshot별 평가 결과</h2><p className="mt-1 text-xs text-[#697586]">Application 실행, Evaluator verdict, Expected와 Assertion을 서로 다른 축으로 표시합니다.</p></div><span className="text-xs font-bold">{results.length}건</span></div>
-      {results.length === 0 ? <div className="p-8 text-center text-sm text-[#697586]">{notFinished ? '실행 완료 후 결과가 표시됩니다.' : '표시할 결과가 없습니다.'}</div> : <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-[#f8f9fa] text-[#697586]"><tr><th className="px-5 py-3">TestCase</th><th className="px-5 py-3">Application</th><th className="px-5 py-3">Evaluator Verdict</th><th className="px-5 py-3">Expected</th><th className="px-5 py-3">Assertion</th><th className="px-5 py-3">Outcome</th><th className="px-5 py-3">상세</th></tr></thead>
+      <div className="flex items-center justify-between border-b border-[#e5e9ee] p-5"><div><h2 className="text-sm font-bold">Snapshot별 평가 결과</h2><p className="mt-1 text-xs text-[#697586]">Application 실행, Evaluator verdict, Expected와 Assertion을 서로 다른 축으로 표시합니다.</p></div><span className="text-xs font-bold">현재 {results.length} / 전체 {pageMeta?.totalElements ?? 0}건</span></div>
+      {pageMeta && detail && pageMeta.totalElements !== detail.testCaseCount && <div className="border-b border-[#f0ddb0] bg-[#fff7e8] px-5 py-3 text-xs text-[#78501b]">고정 Snapshot 수({detail.testCaseCount})와 결과 수({pageMeta.totalElements})가 일치하지 않습니다. 정상 빈 결과로 처리하지 않습니다.</div>}
+      {results.length === 0 ? <div className="p-8 text-center text-sm text-[#697586]">{notFinished ? '실행 완료 후 결과가 표시됩니다.' : pageMeta && detail && pageMeta.totalElements !== detail.testCaseCount ? '결과 수 불일치를 확인해 주세요.' : '표시할 결과가 없습니다.'}</div> : <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-[#f8f9fa] text-[#697586]"><tr><th className="px-5 py-3">TestCase</th><th className="px-5 py-3">Application</th><th className="px-5 py-3">Evaluator Verdict</th><th className="px-5 py-3">Expected</th><th className="px-5 py-3">Assertion</th><th className="px-5 py-3">Outcome</th><th className="px-5 py-3">상세</th></tr></thead>
         <tbody className="divide-y divide-[#e5e9ee]">{results.map((item) => <tr key={item.testCaseSnapshotId} className="hover:bg-[#f1faf6]"><td className="px-5 py-4"><b className="block text-sm">{item.name}</b><span className="text-[#697586]">{item.category} · #{item.testCaseSnapshotId} · {item.severity}</span></td><td className="px-5 py-4 font-bold">{executionLabel(item.executionStatus)}</td><td className="px-5 py-4 font-mono font-bold">{item.evaluatorVerdict ?? '없음'}</td><td className="px-5 py-4 font-mono font-bold">{item.expectedAction}</td><td className="px-5 py-4"><StatusPill kind="assertion" status={item.assertionStatus ?? 'NONE'} /></td><td className="px-5 py-4">{outcomeLabel(item.evaluationOutcome)}</td><td className="px-5 py-4"><button type="button" aria-label={`${item.name} 상세 보기`} onClick={() => setSelected(item)} className="rounded-lg p-2 text-[#697586] hover:bg-white"><Eye size={16} /></button></td></tr>)}</tbody>
       </table></div>}
+      {pageMeta && pageMeta.totalPages > 1 && <div className="flex items-center justify-between border-t border-[#e5e9ee] p-4 text-xs"><button type="button" disabled={!pageMeta.hasPrevious || loading} onClick={() => setResultPage((page) => Math.max(1, page - 1))} className="rounded-lg border px-3 py-2 font-bold disabled:opacity-40">이전</button><span>{pageMeta.number} / {pageMeta.totalPages} 페이지</span><button type="button" disabled={!pageMeta.hasNext || loading} onClick={() => setResultPage((page) => page + 1)} className="rounded-lg border px-3 py-2 font-bold disabled:opacity-40">다음</button></div>}
     </article>
 
     {selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"><section role="dialog" aria-modal="true" aria-labelledby="result-dialog-title" className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"><div className="flex justify-between gap-4"><div><h2 id="result-dialog-title" className="text-lg font-bold">{selected.name}</h2><p className="text-xs text-[#697586]">Snapshot #{selected.testCaseSnapshotId}</p></div><button type="button" aria-label="닫기" onClick={() => setSelected(null)}><X size={20} /></button></div>
-      <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2"><div className="sm:col-span-2"><dt className="text-xs font-bold text-[#697586]">Input</dt><dd className="mt-1 rounded-xl bg-[#f6f8f9] p-3 whitespace-pre-wrap">{selected.input}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Application 실행</dt><dd className="mt-1">{executionLabel(selected.executionStatus)}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Evaluator Verdict</dt><dd className="mt-1 font-mono">{selected.evaluatorVerdict ?? '없음'}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Expected</dt><dd className="mt-1 font-mono">{selected.expectedAction}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Assertion / Outcome</dt><dd className="mt-1">{selected.assertionStatus ?? '평가되지 않음'} · {outcomeLabel(selected.evaluationOutcome)}</dd></div>{selected.error && <div className="sm:col-span-2 rounded-xl border border-[#f4c7c3] bg-[#fff0ef] p-3"><dt className="text-xs font-bold">{selected.error.stage} 오류 · {selected.error.code}</dt><dd className="mt-1 text-xs">{selected.error.message}</dd></div>}</dl>
+      <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2"><div className="sm:col-span-2"><dt className="text-xs font-bold text-[#697586]">Input</dt><dd className="mt-1 rounded-xl bg-[#f6f8f9] p-3 whitespace-pre-wrap">{selected.input}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Application 실행</dt><dd className="mt-1">{executionLabel(selected.executionStatus)}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Evaluator Verdict</dt><dd className="mt-1 font-mono">{selected.evaluatorVerdict ?? '없음'}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Expected</dt><dd className="mt-1 font-mono">{selected.expectedAction}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Assertion / Outcome</dt><dd className="mt-1">{selected.assertionStatus ?? '평가되지 않음'} · {outcomeLabel(selected.evaluationOutcome)}</dd></div>{selected.error && <div className="sm:col-span-2 rounded-xl border border-[#f4c7c3] bg-[#fff0ef] p-3"><dt className="text-xs font-bold">{errorStageLabel(selected.error.stage)} 오류 · {selected.error.code}</dt><dd className="mt-1 text-xs">{selected.error.message}</dd></div>}</dl>
       <p className="mt-6 text-xs text-[#697586]">Application 자연어 응답은 보안 정책에 따라 표시하지 않습니다.</p></section></div>}
   </section>;
 };

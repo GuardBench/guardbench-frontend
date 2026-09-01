@@ -90,7 +90,6 @@ export function App() {
               key={selectedRunId}
               selectedRunId={selectedRunId}
               onGoNewRun={() => handleSelectView('new-run')}
-              onNotify={showToast}
             />
           )}
           {currentView === 'architecture' && <ArchitectureView />}
