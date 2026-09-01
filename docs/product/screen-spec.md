@@ -61,14 +61,15 @@ GuardBench의 핵심 개념과 최근 활동 형태를 시각적으로 소개한
 
 ### 현재 동작 (`AS-IS`)
 
-- 통계, 최근 활동과 regression 표현은 `mockData` 기반이다.
-- 실제 대시보드 집계 endpoint는 호출하지 않는다.
+- TestSuite와 TestRun 목록 API의 page metadata와 items로 통계, 최근 활동과 Quality Gate 분포를 표시한다.
+- 대시보드 전용 집계 endpoint는 호출하지 않으며, 조회 범위 기반 수치를 전체 집계처럼 표현하지 않는다.
+- 최초 loading, 최초 오류, 성공 후 실제 empty와 이전 data를 유지한 갱신 오류를 구분한다.
 - 일부 card와 action은 다른 local view로 이동한다.
 
 ### 목표 경계 (`TO-BE`)
 
 - OpenAPI에는 대시보드 전용 집계 endpoint가 없다.
-- 정적 자료를 실제 최근 Run, 실제 Quality Gate 또는 실제 보안 회귀 집계처럼 표현하지 않는다.
+- 목록 API의 조회 범위를 실제 전체 집계나 Regression 결과처럼 표현하지 않는다.
 - demo 화면으로 유지하면 명시적인 demo 표식을 제공한다.
 
 실제 대시보드의 지표, 기간과 endpoint 도입 여부는 `미결정`이다.

@@ -26,15 +26,15 @@
 
 | 영역 | 현재 지원 | 주요 차이 |
 | --- | --- | --- |
-| loading | spinner, text, button disabled | 일부 화면별 표현 불일치 |
-| empty | 실제 API empty 전용 표현 | 최초 empty와 filter empty 세분화 필요 |
-| error | 지속 banner, code, stale, retry | abort/timeout과 endpoint code별 표현 미완성 |
-| status | pill, text, color | legacy Baseline/Candidate 결과 의미 잔존 |
-| form | label, required marker, client validation | 새 Target/Profile field 미구현 |
-| modal | 3개 중 `CreateSuiteModal`만 dialog semantics와 초기 `autoFocus` 일부 지원 | 나머지 2개는 dialog semantics가 없고 focus trap·복귀는 미구현 |
-| demo | 상단 data mode 표식 일부 | 정적 dashboard/architecture 범위 명확화 필요 |
+| loading | 최초 loading과 data 유지 중 갱신을 구분 | 화면별 skeleton 형태는 미통일 |
+| empty | 실제 API empty와 filter empty 전용 표현 | CTA와 mobile 표현 보완 가능 |
+| error | 지속 banner, code, field error, stale, retry | endpoint별 사용자 행동 문구 보완 가능 |
+| status | lifecycle, outcome, Gate, assertion 축별 pill과 text | 공통 label 확장 시 중복 방지 필요 |
+| form | Target/Profile field, label, required marker, client/server validation | 접근 가능한 error summary 보완 가능 |
+| modal | 공통 focus trap, Escape, trigger 복귀와 layer 정책 | native widget과 입력 손실 정책 지속 검증 |
+| demo | 상단 data mode 표식 | 정적 Architecture 자료 범위를 더 명확히 할 수 있음 |
 
-현재 UI는 최신 TestRun 생성·결과 DTO와 일치하지 않는다. 이 가이드의 TO-BE를 현재 구현 완료 상태로 간주하지 않는다.
+현재 UI는 최신 TestRun 생성·결과 DTO를 사용한다. comparison case-level DTO처럼 OpenAPI에서 미확정인 영역은 구현 완료 상태로 간주하지 않는다.
 
 ## 3. Loading과 진행 상태
 

@@ -16,6 +16,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onGoNewRun, onGoRu
   const [suiteTotal, setSuiteTotal] = useState(0);
   const [testCaseTotal, setTestCaseTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadedData, setHasLoadedData] = useState(false);
   const [loadError, setLoadError] = useState<unknown>(null);
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -30,6 +31,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onGoNewRun, onGoRu
         setSuiteTotal(suiteResponse.page.totalElements);
         setTestCaseTotal(suiteResponse.items.reduce((sum, suite) => sum + suite.testCaseCount, 0));
         setRuns(runResponse.items);
+        setHasLoadedData(true);
       } catch (error) {
         if (isMounted) {
           setLoadError(error);
@@ -68,6 +70,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onGoNewRun, onGoRu
           onRetry={() => setReloadToken((token) => token + 1)}
         />
       )}
+      {!hasLoadedData && isLoading && (
+        <div className="rounded-2xl border border-[#e5e9ee] bg-white px-6 py-12 text-center text-sm text-[#697586]" role="status">
+          대시보드 데이터를 불러오는 중입니다.
+        </div>
+      )}
+      {hasLoadedData && <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">{stats.map((stat) => <StatCard key={stat.label} {...stat} />)}</div>
       <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_0.85fr] gap-5">
         <article className="bg-white border border-[#e5e9ee] rounded-2xl p-6 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
@@ -80,6 +88,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onGoNewRun, onGoRu
           <div className="divide-y divide-[#e5e9ee]">{runs.slice(0, 5).map((run) => <div key={run.id} className="py-3.5 flex items-center justify-between gap-3"><div><b className="block text-xs text-[#17202a]">실행 #{run.id}</b><small className="text-[11px] text-[#697586]">Suite #{run.testSuiteId} · {run.testCaseCount} snapshots</small></div><StatusPill kind={run.qualityGateStatus ? 'gate' : 'progress'} status={run.qualityGateStatus ?? run.status} /></div>)}{!isLoading && runs.length === 0 && <div className="py-8 text-center text-xs text-[#697586]">최근 실행 이력이 없습니다.</div>}</div>
         </article>
       </div>
+      </>}
     </section>
   );
 };

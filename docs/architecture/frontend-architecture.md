@@ -50,11 +50,11 @@ View / Form
 - router, 전역 server-state 계층과 전역 React error boundary는 없다.
 - `views`와 data-aware modal이 API 호출, loading/error, DTO 변환과 사용자 표현을 함께 담당한다.
 - `services`가 endpoint 함수와 수동 DTO를 소유하고 `apiClient`가 base URL, fetch와 envelope unwrap을 담당한다.
-- `useLiveRunProgress`가 Polling을 구현하지만 화면 연결과 abort 처리가 불완전하다.
-- Suite/TestCase와 Run 목록의 API 빈 결과·오류 처리는 개선됐지만 TestRun 생성·상세·결과 DTO는 legacy Baseline/Candidate 모델이다.
-- `mockData`는 대시보드·아키텍처와 legacy 결과 표현에 남아 있다. API 화면은 실패를 mock 성공으로 대체하지 않는다.
+- `useLiveRunProgress`가 Run 상세 Polling, abort, transient/terminal 오류와 자동 재시도 상한을 처리한다.
+- Suite/TestCase, Run 생성·목록·상세·결과·metrics 화면은 API의 data/empty/error/stale 상태를 구분한다.
+- `mockData`는 Architecture의 정적 설명 자료에만 남아 있다. API 화면은 실패를 mock 성공으로 대체하지 않는다.
 
-현재 코드는 최신 OpenAPI의 단일 Application Target, Evaluation Profile, Evaluator 결과, metrics와 comparison 상태를 아직 표현하지 못한다. 이 불일치를 목표 아키텍처의 근거로 삼되 현재 구현을 승인된 구조로 간주하지 않는다.
+현재 코드는 최신 OpenAPI의 단일 Application Target, Evaluation Profile, Evaluator 결과와 metrics를 사용한다. comparison 응답은 ID 외 case-level 필드가 미확정이므로 별도 선택 구현으로 남긴다.
 
 ## 3. 실행과 환경 경계
 
