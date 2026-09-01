@@ -2,419 +2,371 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-08-30
-> Scope: GitHub Issue #11
-> Canonical product scope: `guardbench-backend/docs/product/mvp-scope.md` (`APPROVED`)
-> Canonical API: `guardbench-backend/docs/api/openapi.yaml` (`APPROVED`)
+> Last reviewed: 2026-09-01
+> Scope: GitHub Issue #33
+> AS-IS baseline: `dev@9c99a4e4943412537b9c15238a353af143b9289c`
+> Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
+> Screen specification: [`screen-spec.md`](screen-spec.md)
+> API consumption contract: [`../contracts/api-integration.md`](../contracts/api-integration.md)
 
-이 문서는 GuardBench 사용자가 테스트 자산을 관리하고 TestRun을 요청한 뒤 결과를 분석하기까지의 흐름을 연결한다. 현재 코드에서 관찰되는 동작과 승인된 백엔드 계약이 요구하는 목표 동작을 구분하며, 근거가 없는 제품 정책은 확정하지 않는다.
+이 문서는 TestSuite 준비부터 Application TestRun 실행, Evaluator 결과 검토와 선택적 Regression 비교까지 사용자의 목표와 상태 전이를 연결한다. API schema를 복제하지 않고 최신 OpenAPI의 endpoint와 schema를 참조한다.
 
 ## 1. 읽는 방법
 
-### 상태 표기
-
-| 상태 | 의미 |
+| 표기 | 의미 |
 | --- | --- |
-| `AS-IS` | 현재 프론트엔드 코드에서 실제로 관찰되는 동작이다. 목표 동작이라는 의미는 아니다. |
-| `TO-BE` | 승인된 MVP 범위와 OpenAPI에서 직접 도출되는 목표 동작이다. |
-| `미결정` | 제품 또는 프론트엔드 정책 결정이 필요하며 구현 기준으로 사용할 수 없다. |
+| `AS-IS` | 기준 commit에서 관찰되는 현재 흐름 |
+| `TO-BE` | OpenAPI에서 직접 도출되는 승인된 목표 흐름 |
+| `미결정` | 별도 제품·UI Decision이 필요한 흐름 |
 
-### 흐름 단계의 데이터 출처
+각 단계의 data 출처는 실제 `API`, 명시적 `demo/mock`, `local UI state`로 구분한다. API 실패 또는 실제 빈 결과를 mock 성공으로 바꾸지 않는다.
 
-- `API`: 현재 코드가 백엔드 endpoint를 호출한다.
-- `mock`: `src/mocks/mockData.ts`의 정적 데이터를 사용한다.
-- `로컬`: React 메모리 상태만 변경하며 새로고침하면 사라진다.
-- `데모`: 사용자에게 동작처럼 보이지만 API 호출이나 영속 변경이 없다.
-- `미구현`: 승인된 계약에는 있으나 현재 UI 흐름이 없다.
-
-화면 이름은 [화면 및 기능 명세](screen-spec.md)의 명칭을 따른다. 요청·응답 필드는 이 문서에서 다시 정의하지 않고 승인된 OpenAPI를 참조한다.
-
-## 2. 전체 여정
-
-```mermaid
-flowchart LR
-    A[TestSuite 목록 조회] --> B[TestSuite와 TestCase 관리]
-    B --> C[TestRun 실행 조건 입력]
-    C --> D[TestRun 생성 요청]
-    D -->|202 Accepted| E[QUEUED 접수]
-    E --> F[TestRun 상세 조회와 Polling]
-    F --> G{TestRun status}
-    G -->|QUEUED / PREPARING / RUNNING| F
-    G -->|FINISHED| H[실행 결과와 Quality Gate 확인]
-    H --> I[Snapshot 결과 목록 조회와 분석]
-    D -->|요청 실패| C
-    F -->|조회 실패| J[오류 안내와 재시도]
-```
-
-승인된 MVP 여정은 TestSuite와 TestCase 관리, Baseline numbered version과 Candidate DRAFT를 이용한 TestRun 생성 요청, 비동기 접수 이후의 진행 확인, 완료된 결과와 Snapshot 분석 순서다. 생성 API는 `202 Accepted`와 `QUEUED` TestRun을 반환하며, 프론트엔드는 접수 직후부터 상세 조회로 상태를 확인할 수 있다. Snapshot 결과 목록은 `FINISHED` 이후에 조회한다. 현재 프론트엔드는 이 여정의 일부만 API와 연결되어 있고, TestRun 진행 확인과 결과 분석은 mock 또는 미사용 코드에 의존한다.
-
-| 구간 | 관련 화면 | 현재 상태 | 핵심 차이 |
-| --- | --- | --- | --- |
-| TestSuite 목록 확인 | 테스트 스위트 | 부분 구현 | API 실패·빈 결과를 mock으로 대체한다. |
-| TestSuite 생성·수정 | 테스트 스위트 | 데모·미구현 | 서비스 함수은 있으나 연결된 UI가 없다. |
-| TestCase 조회·생성·삭제 | TestCase 관리 modal | 부분 구현 | 수정은 데모이며 삭제·재동기화와 오류 처리가 불완전하다. |
-| TestRun 생성 | 새 테스트 실행 | 부분 구현 | 요청과 응답 타입이 승인된 OpenAPI와 일치하지 않는다. |
-| 진행 확인 | 실행 이력, 결과 상세 | 미구현 | Polling 훅은 어떤 화면에서도 사용하지 않는다. |
-| 결과 요약 | 결과 상세 | mock 중심 | API 응답 계약과 UI mapping이 일치하지 않는다. |
-| Snapshot 분석 | Snapshot diff modal | mock | 실제 Snapshot 결과를 표시하지 않는다. |
-
-## 3. TestSuite 및 TestCase 관리
-
-### 사용자 목표
-
-재사용할 정책 테스트 묶음과 개별 기대 동작을 조회하고 관리한다.
-
-### 시작 조건과 진입점
-
-- 사용자가 사이드바에서 `테스트 스위트`를 선택한다.
-- 별도 URL routing이 없으므로 직접 링크와 새로고침 복원은 지원하지 않는다. (`AS-IS`)
-
-### 3.1 TestSuite 목록 확인
+## 2. 전체 사용자 여정
 
 ```mermaid
 flowchart TD
-    A[테스트 스위트 진입] --> B[mock 목록 즉시 표시]
-    B --> C[GET /api/v1/test-suites]
-    C -->|items 있음| D[API 목록으로 교체]
-    C -->|빈 목록| E[mock 목록 유지]
-    C -->|오류| E
-    D --> F[Suite 카드 선택]
-    E --> F
-    F --> G[TestCase 관리 modal]
+    A[TestSuite 확인] --> B[TestCase 준비]
+    B --> C[새 테스트 실행]
+    C --> D[Application HTTP Target 입력]
+    D --> E[Evaluation Profile 선택]
+    E --> F[POST TestRun]
+    F -->|202 Accepted| G[Run 상세 즉시 조회]
+    G -->|QUEUED / PREPARING / RUNNING| H[진행률 Polling]
+    H --> G
+    G -->|FINISHED| I[Outcome과 Quality Gate 확인]
+    I --> J[개별 Evaluator 결과 조회]
+    J --> K[TP/TN/FP/FN metrics 검토]
+    I --> L{과거 Run 비교?}
+    L -->|선택| M[Comparable Runs 조회]
+    M --> N[저장 결과 비교]
+    L -->|아니오| O[현재 Run 검토 종료]
 ```
 
-1. 화면은 `mockSuites`를 먼저 표시한다. (`AS-IS`, mock)
-2. `GET /api/v1/test-suites`를 호출하며 제목 옆에 작은 spinner를 표시한다. (`AS-IS`, API)
-3. 응답에 항목이 있으면 API 결과를 카드 형식으로 변환한다. (`AS-IS`)
-4. 빈 목록이거나 요청에 실패하면 오류 안내 없이 mock 목록을 유지한다. (`AS-IS`)
-5. 사용자가 카드를 선택하면 TestCase 관리 modal을 연다. (`AS-IS`, 로컬)
+필수 핵심 흐름은 하나의 Application Target을 실행하고 Evaluation Profile에 따른 Evaluator verdict와 assertion을 확인하는 것이다. Regression은 현재 Run의 Quality Gate 입력이 아니며, 사용자가 원할 때 과거 comparable Run과 별도로 비교한다.
 
-성공 종료 조건은 사용자가 실제 TestSuite 목록을 확인하고 원하는 Suite의 TestCase 관리로 진입하는 것이다. 다만 현재 화면은 API와 mock을 구분하지 않으므로 이 조건이 충족됐는지 사용자가 판단할 수 없다.
+현재 구현은 Suite/TestCase 관리와 Run 목록의 일부를 API에 연결했지만 Run 생성 및 결과 DTO는 이전 Baseline/Candidate 모델이라 최신 backend와 일치하지 않는다. (`AS-IS`)
 
-`TO-BE`에서는 승인된 목록 API의 빈 응답을 실제 빈 상태로 표시하고, 조회 실패를 mock 데이터로 숨기지 않아야 한다. 구체적인 빈 화면 CTA와 재시도 표현은 UI 가이드에서 결정한다.
+## 3. TestSuite와 TestCase 준비
 
-### 3.2 TestSuite 생성·수정
+### 사용자 목표
 
-| 동작 | 현재 흐름 | 승인된 계약에서 확인되는 목표 |
+실행할 TestSuite를 선택할 수 있고, 해당 Suite에 최소 한 개의 활성 TestCase가 있도록 준비한다.
+
+### 3.1 Suite 목록 확인
+
+```mermaid
+flowchart TD
+    A[테스트 스위트 진입] --> B[GET test-suites]
+    B -->|items 있음| C[Suite card와 page 표시]
+    B -->|items 비어 있음| D[실제 빈 상태와 생성 action]
+    B -->|오류| E[오류와 재시도]
+    C --> F[Suite 선택]
+    F --> G[TestCase 관리 진입]
+```
+
+- API 성공의 빈 `items`는 등록된 Suite가 없는 상태다.
+- 이전 data를 보여주며 갱신이 실패하면 stale임을 함께 표시한다.
+- API에 없는 pass rate, status와 last run을 서버 값처럼 만들지 않는다.
+
+### 3.2 Suite 생성·수정
+
+| action | 정상 종료 | 오류 분기 |
 | --- | --- | --- |
-| 생성 | 만들기 버튼은 안내 toast만 표시한다. (`AS-IS`, 데모) | `POST /api/v1/test-suites`로 Suite와 선택적 초기 TestCase를 원자적으로 생성한다. (`TO-BE`) |
-| 수정 | 연결된 UI가 없다. (`AS-IS`, 미구현) | `PATCH /api/v1/test-suites/{suiteId}`로 이름과 설명을 부분 수정한다. (`TO-BE`) |
-| 삭제 | UI와 endpoint가 없다. (`AS-IS`) | 승인된 OpenAPI에도 TestSuite 삭제 endpoint가 없으므로 MVP 목표로 확정하지 않는다. |
+| 생성 | POST 성공 data를 목록에 반영하거나 재조회 | validation field, network/API 오류를 form에 유지 |
+| 상세 | GET 성공 data 표시 | 미존재와 일시 오류 구분 |
+| 수정 | PATCH 성공 후 변경된 field 반영 | validation 실패 시 원래 server state를 성공으로 덮지 않음 |
 
-생성·수정 폼의 진입 위치, 취소 시 작성값 보존, 성공 후 이동 위치는 `미결정`이다. 프론트엔드 서비스에 함수가 있다는 사실만으로 사용자 흐름이 구현된 것으로 보지 않는다.
+Suite 삭제 endpoint는 OpenAPI에 없으므로 목표 사용자 흐름에 포함하지 않는다.
 
-### 3.3 TestCase 조회
+Suite 생성은 다음 두 정상 흐름을 지원한다.
 
-1. Suite 카드 선택 시 TestCase 관리 modal을 연다. (`AS-IS`)
-2. 화면은 `suite-` 접두사를 제거한 값을 ID로 사용해 `GET /api/v1/test-suites/{suiteId}/test-cases`를 호출한다. (`AS-IS`)
-3. 조회 중 제목 옆 spinner를 표시한다. (`AS-IS`)
-4. 성공하면 API 항목을 표시한다. 실패하면 선택한 mock Suite의 TestCase를 표시한다. (`AS-IS`)
-5. 결과가 비어 있으면 설명이나 CTA 없이 빈 table을 표시한다. (`AS-IS`)
+1. `testCases`를 생략하거나 `null`, 빈 배열로 보내 빈 Suite를 먼저 생성한다.
+2. 초기 TestCase를 함께 보내 Suite와 원자적으로 생성한다. 초기 TestCase 하나라도 validation에 실패하면 부분 생성 없이 전체 요청이 실패한다.
 
-`TO-BE`에서는 실제 빈 결과, TestSuite 미존재, validation 오류와 일시적 네트워크 오류를 구분할 수 있어야 한다. Pagination의 page 기준과 UI 이동 방식은 API 연동 계약 문서에서 정한다.
+현재 MVP 화면에서는 Suite 이름만으로 생성할 수 있고, 사용자가 초기 TestCase 추가를 선택한 경우 한 건을 같은 요청에 포함한다. OpenAPI는 최대 100건까지 허용하지만 UI가 한 번에 몇 건을 받는지는 별도 제품 범위다. 생성 후 TestCase 추가·수정은 공통 TestCase 관리 흐름을 사용한다.
 
-### 3.4 TestCase 생성
+### 3.3 TestCase 조회·변경
 
-1. 사용자가 modal 안에서 TestCase 추가 영역을 연다. (`AS-IS`)
-2. 이름, input, category, expected action, severity를 입력한다. (`AS-IS`)
-3. 현재 클라이언트는 이름과 input의 빈 문자열만 검사하며 공백 문자열과 나머지 field 오류는 서버에 맡긴다. (`AS-IS`)
-4. `POST /api/v1/test-suites/{suiteId}/test-cases`를 호출한다. (`AS-IS`, API)
-5. 성공 응답의 서버 ID와 값을 사용해 로컬 목록 끝에 항목을 추가한다. (`AS-IS`, API 응답)
-6. 실패하면 `ApiError` code를 포함한 toast를 표시하고 입력 화면에 남는다. (`AS-IS`)
+1. Suite를 선택하면 TestCase 목록을 조회한다.
+2. 존재하는 Suite가 `200`과 빈 `items`를 반환한 상태, `404 TEST_SUITE_NOT_FOUND`, 그 밖의 조회 오류를 구분한다.
+3. 생성·수정 validation detail을 관련 field에 표시한다.
+4. 삭제는 `204 No Content`가 확인된 뒤 현재 목록에서 제거하거나 재조회한다.
+5. 삭제 실패 시 성공 toast를 표시하거나 항목 제거를 확정하지 않는다.
+6. 현재 TestCase 변경과 무관하게 과거 Run의 TestCaseSnapshot 결과는 유지된다.
 
-성공 종료 조건은 서버가 생성한 TestCase가 서버 ID로 목록에 반영되는 것이다. 전체 pagination 재조회 정책은 아직 없다.
+### 실행 가능 조건
 
-중복 제출 방지, field별 validation 표시, 생성 성공 후 페이지 위치는 `미결정`이다.
-
-### 3.5 TestCase 수정·삭제
-
-#### 수정
-
-- 편집 아이콘은 편집 폼을 열거나 API를 호출하지 않고 안내 toast만 표시한다. (`AS-IS`, 데모)
-- `TO-BE`에서는 `PATCH /api/v1/test-cases/{testCaseId}`로 하나 이상의 허용 field를 원자적으로 수정한다.
-- 과거 TestRun의 Snapshot은 현재 TestCase 수정과 무관하게 유지된다. (`TO-BE`, 승인된 계약)
-
-#### 삭제
-
-1. 사용자가 삭제 아이콘을 선택한다. (`AS-IS`)
-2. 확인 절차 없이 `DELETE /api/v1/test-cases/{testCaseId}`를 호출한다. (`AS-IS`)
-3. 현재 구현은 요청 결과와 무관하게 로컬 목록에서 항목을 제거하고 성공 toast를 표시한다. (`AS-IS`)
-4. API는 성공 시 body 없는 `204`를 반환하지만 공통 client는 JSON parsing을 시도할 수 있다. (`AS-IS`, 계약 불일치 가능)
-5. `TO-BE`에서 삭제된 TestCase는 현재 조회와 이후 TestRun에서 제외되며 과거 Snapshot과 결과는 유지된다.
-
-삭제 확인 방식과 실패 후 UI 복원 방식은 `미결정`이다. 실패를 성공으로 표시하는 현재 동작은 별도 구현 이슈 대상이다.
-
-### 관리 흐름의 오류·취소 분기
-
-| 상황 | AS-IS | TO-BE 또는 미결정 |
-| --- | --- | --- |
-| 목록 조회 실패 | code, stale 상태와 재시도 표시 | 오류 code별 문구 세분화 |
-| 빈 Suite/TestCase 목록 | 실제 0건 전용 empty UI | 화면별 CTA 정교화 |
-| 잘못된 ID / 404 | 구조화된 오류로 표시 | 리소스 미존재 전용 이동 경로 필요 (`TO-BE`) |
-| 생성 validation 실패 | code와 field details를 form에 유지 | field별 control 연결 (`미결정`) |
-| modal 취소 | 닫으면 로컬 입력 상태 소멸 가능 | 작성값 보존 정책 (`미결정`) |
-| 삭제 실패 | 로컬 항목을 유지하고 code 포함 실패 안내 | 필요 시 서버 재동기화 정책 |
+활성 TestCase가 없는 Suite로 Run을 만들면 서버는 `TEST_SUITE_EMPTY`로 접수를 거부한다. 프론트는 이 응답을 network 실패와 구분하고 TestCase 준비 흐름으로 돌아갈 수 있게 한다.
 
 ## 4. TestRun 생성
 
-### 사용자 목표
+### 사용자 목표 (`TO-BE`)
 
-하나의 TestSuite Snapshot을 동일 Guardrail의 Baseline numbered version과 Candidate DRAFT에 실행하도록 요청한다.
+TestSuite, 테스트할 Application과 평가 정책을 선택하고 실행 요청을 중복 없이 접수한다.
 
-### 시작 조건과 진입점
-
-- 사이드바 또는 다른 화면의 `새 테스트 실행` 동작으로 진입한다.
-- 인증이나 권한 선행 조건은 현재 MVP 계약에 정의되어 있지 않다.
-
-### 현재 흐름 (`AS-IS`)
+### 4.1 입력 흐름
 
 ```mermaid
 flowchart TD
-    A[새 테스트 실행 진입] --> B[고정 Suite와 Target 초기값 표시]
-    B --> C[Suite와 Target 입력 변경]
-    C --> D[테스트 실행 요청]
-    D --> E[POST /api/v1/test-runs]
-    E -->|성공| F[성공 toast]
-    F --> G[결과 상세로 로컬 이동]
-    E -->|실패| H[실패 toast]
-    H --> C
+    A[새 테스트 실행 진입] --> B[TestSuite 목록 조회]
+    B -->|없음| C[Suite 준비 안내]
+    B -->|오류| D[오류와 재시도]
+    B -->|선택 가능| E[Suite 선택]
+    E --> F[Application URL 입력]
+    F --> G[선택 revision 입력]
+    G --> H[Evaluation checks 선택]
+    H --> I[Strictness 선택]
+    I --> J[실행 요약 확인]
+    J --> K{client validation}
+    K -->|실패| L[관련 control 오류]
+    K -->|통과| M[POST test-runs]
 ```
 
-1. 화면은 API 조회 없이 세 개의 고정 Suite option과 Target 초기값을 표시한다.
-2. 사용자가 Suite, Baseline ID/version, Candidate ID/version을 입력한다.
-3. 버튼을 선택하면 제출 중 버튼을 비활성화하고 문구를 변경한다.
-4. 프론트엔드 전용 payload로 `POST /api/v1/test-runs`를 호출한다.
-5. 성공하면 응답의 `runId`를 사용해 toast를 표시하고 결과 상세로 이동한다.
-6. 실패하면 오류 message를 toast로 표시하고 같은 화면에 남는다.
+사용자 언어는 다음 의미를 유지한다.
 
-현재 요청·응답 형식은 승인된 OpenAPI와 일치하지 않으므로 API를 호출한다는 사실만으로 성공 가능한 흐름으로 간주하지 않는다.
+- **Application**: 테스트할 AI 애플리케이션
+- **Application URL**: GuardBench가 호출할 HTTP/HTTPS endpoint
+- **Revision**: 사용자가 배포·모델·commit을 구분하기 위한 선택 정보
+- **Evaluation Profile**: checks와 strictness로 구성된 이번 Run의 평가 정책
 
-### 승인된 목표 흐름 (`TO-BE`)
+`checks`는 Profile 안에서 하나 이상 복수 선택할 수 있지만 `strictness`는 Profile 전체에 하나만 선택한다. 하나의 strictness가 선택된 모든 checks에 공통 적용되며 현재 OpenAPI에는 check별 strictness가 없다.
 
-1. 사용자가 실제 TestSuite 목록에서 실행 대상을 선택한다.
-2. 같은 Guardrail ID에 대해 Baseline numbered version과 Candidate `DRAFT`를 지정한다.
-3. 프론트엔드는 필수값과 동일 Guardrail ID 조건을 검증한다.
-4. 각 논리적 생성 시도에 `Idempotency-Key`를 부여해 승인된 형식으로 요청한다.
-5. 서버는 Candidate DRAFT를 불변 numbered version으로 materialize하고 활성 TestCaseSnapshot을 고정한 뒤 비동기 TestRun을 접수한다.
-6. 프론트엔드는 생성 응답의 TestRun ID와 상태를 보존하고 진행 상태를 확인할 화면으로 이동한다.
+사용자가 Evaluator provider/type, Guardrail identifier/version이나 Snapshot ID를 직접 입력하지 않는다.
 
-서버가 DRAFT materialization 또는 Snapshot 고정에 실패했을 때 생성 요청 단계에서 실패하는지, 접수 후 `FINISHED`와 오류 결과로 귀결되는지는 OpenAPI와 백엔드 도메인 계약에 따라 처리하고 프론트엔드에서 추측하지 않는다.
+### 4.2 현재 흐름 (`AS-IS 불일치`)
 
-### 중복·오류·취소 분기
+현재 화면은 Suite 목록을 API로 조회하지만 Guardrail ID, Baseline numbered version과 Candidate DRAFT를 입력받아 이전 request를 보낸다. 이는 최신 `TestRunCreateReq`와 일치하지 않으므로 성공 가능한 목표 흐름이 아니다. #27에서 수정한다.
 
-| 상황 | 처리 상태 |
-| --- | --- |
-| 연속 클릭 | 버튼 비활성화로 같은 화면 인스턴스의 연속 클릭은 제한한다. (`AS-IS`) |
-| 네트워크 timeout 후 결과 불명 | 멱등 key와 재조회 정책이 없다. (`AS-IS`, 미결정) |
-| 같은 논리 요청 재시도 | `Idempotency-Key`를 사용해야 한다. key 생성·보존 수명은 API 연동 문서에서 결정한다. (`TO-BE`) |
-| validation 오류 | 현재 일반 toast만 표시한다. field mapping은 미결정이다. |
-| 서로 다른 Guardrail ID | 현재 허용하지만 승인된 계약은 허용하지 않는다. |
-| 사용자가 화면을 떠남 | 확인이나 draft 보존 없이 로컬 입력이 사라진다. (`AS-IS`) |
+### 4.3 접수와 멱등성 (`TO-BE`)
 
-생성 성공 후 기본 이동 대상을 실행 이력으로 할지 결과 상세로 할지는 `미결정`이다. 어느 쪽이든 생성된 ID를 잃지 않고 진행 확인으로 이어져야 한다.
+1. 한 논리적 제출 시도에 하나의 Idempotency-Key를 연결한다.
+2. 사용자가 제출하면 같은 key와 request body로 한 번 접수한다.
+3. `202 Accepted`를 받으면 실행 완료가 아니라 안전한 접수 성공으로 표시한다.
+4. response의 Run ID와 Location을 사용해 상세 조회로 이동한다.
+5. 응답을 받지 못해 결과가 불명확한 경우 동일 body 재전송에 같은 key를 사용한다.
+6. 다른 body에 같은 key를 재사용하지 않는다.
 
-## 5. 실행 진행 상태 확인
+key 생성, 저장, 화면 이탈 후 복원과 폐기 시점은 `미결정`이다.
+
+### 4.4 생성 오류 분기
+
+| 상황 | 의미 | 다음 행동 |
+| --- | --- | --- |
+| validation | URL, checks, strictness 또는 다른 request field 오류 | 관련 control에 detail 표시 |
+| `TEST_SUITE_NOT_FOUND` | 선택 Suite가 더 이상 존재하지 않음 | Suite 목록 재조회 |
+| `TEST_SUITE_EMPTY` | 활성 TestCase가 없음 | TestCase 준비로 이동 |
+| `IDEMPOTENCY_KEY_CONFLICT` | 같은 key를 다른 body에 재사용 | 자동 재시도 중단, 새 논리 시도 안내 |
+| network/timeout | 접수 여부가 불명확할 수 있음 | 같은 key 재사용 정책에 따라 확인·재시도 |
+
+취소 전송의 보장, timeout 값과 자동 retry는 OpenAPI만으로 정하지 않는다.
+
+## 5. Run 진행 확인
 
 ### 사용자 목표
 
-접수된 TestRun이 어느 단계인지 확인하고, 실행이 끝나면 결과 분석으로 이동한다.
+접수된 Run이 어느 단계인지 확인하고 완료 또는 오류 종료까지 상태를 잃지 않는다.
 
-### 승인된 상태 흐름 (`TO-BE`)
+### 상태 축
+
+| 축 | 값 | 흐름에서의 역할 |
+| --- | --- | --- |
+| lifecycle `status` | QUEUED, PREPARING, RUNNING, FINISHED | Polling 지속·종료 |
+| `executionOutcome` | COMPLETED, ERROR, INCOMPLETE, null | 처리 종료 결과 |
+| Quality Gate | PASS, FAIL, NOT_EVALUATED, null | 현재 Run assertion 집계 판정 |
+
+`FINISHED`는 성공만을 의미하지 않는다. ERROR 또는 INCOMPLETE로 종료될 수 있으며 Gate FAIL도 HTTP 조회 실패가 아니다.
+
+### Polling 흐름 (`TO-BE`)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> QUEUED
-    QUEUED --> PREPARING
-    PREPARING --> RUNNING
-    RUNNING --> FINISHED
-    FINISHED --> [*]
+    [*] --> ImmediateFetch
+    ImmediateFetch --> Polling: QUEUED / PREPARING / RUNNING
+    Polling --> Polling: detail 갱신
+    Polling --> Finished: status = FINISHED
+    ImmediateFetch --> Finished: status = FINISHED
+    ImmediateFetch --> RecoverableError: 일시 조회 오류
+    Polling --> RecoverableError: 일시 조회 오류
+    RecoverableError --> ImmediateFetch: 사용자 또는 정책상 재시도
+    ImmediateFetch --> NotFound: TEST_RUN_NOT_FOUND
+    Finished --> [*]
+    NotFound --> [*]
 ```
 
-- TestRun의 실행 상태는 `QUEUED`, `PREPARING`, `RUNNING`, `FINISHED`다.
-- `COMPLETED`, `ERROR`, `INCOMPLETE`는 `FINISHED` 이후에 전이하는 상태가 아니라, 완료된 TestRun의 별도 `executionOutcome` 값이다.
-- Quality Gate는 실행 결과와 별도 축이며 `PASS`, `FAIL`, `NOT_EVALUATED`다.
-- 실행 중 `qualityGate = null`은 아직 평가 전이라는 뜻이고, 완료 후 `qualityGate.status = NOT_EVALUATED`는 평가할 수 없다는 뜻이다.
-- 오류를 별도 TestRun 상태 `FAILED`로 만들지 않는다.
-- 처리 진행률은 완료된 TestCase 수와 percent를 기준으로 한다. 실패와 timeout도 더 재시도하지 않는 터미널 결과이면 처리 완료 수에 포함된다.
+1. 생성 또는 Run 선택 직후 상세를 한 번 조회한다.
+2. 진행 상태이면 processed count, percent와 updatedAt을 표시한다.
+3. 같은 Run의 다음 조회를 예약한다.
+4. Run 변경 또는 화면 이탈 시 이전 timer/request를 취소한다.
+5. 늦게 도착한 이전 응답을 현재 Run에 적용하지 않는다.
+6. FINISHED에서 Polling을 중단한다.
 
-| 완료 시 별도 결과 축 | 값 | 의미 |
-| --- | --- | --- |
-| `executionOutcome` | `COMPLETED`, `ERROR`, `INCOMPLETE` | 실행 처리의 완료 결과이며 TestRun status가 아니다. |
-| `qualityGate.status` | `PASS`, `FAIL`, `NOT_EVALUATED` | 정책 Gate 판정이며 실행 결과와 별도로 해석한다. |
+일시 오류 허용 횟수, backoff, background tab, 최대 대기와 수동 재시도 배치는 `미결정`이다.
 
-### 현재 진입점과 동작 (`AS-IS`)
-
-- 실행 생성 성공 시 결과 상세로 이동한다.
-- 실행 이력 화면은 mount 시 한 번 목록 API를 호출하고 이후 자동 갱신하지 않는다.
-- 결과 상세는 선택한 Run의 results endpoint를 한 번 호출한다.
-- `useLiveRunProgress`는 2초 간격 조회를 의도하지만 어떤 화면에서도 사용하지 않는다.
-- 훅은 승인된 `status` 대신 `executionStatus`와 존재하지 않는 `FAILED` 상태를 기대한다.
-- 새로고침하면 현재 화면과 선택 Run ID를 복원하지 못한다.
-
-따라서 현재 UI에는 실제 Polling 기반 진행 확인 흐름이 없다.
-
-### 목표 Polling 흐름 (`TO-BE`)
-
-1. 생성 응답 또는 실행 이력 선택으로 TestRun ID를 확보한다.
-2. `GET /api/v1/test-runs/{runId}`를 즉시 한 번 호출한다.
-3. 상태가 `QUEUED`, `PREPARING`, `RUNNING`이면 진행률과 마지막 갱신 시각을 표시하고 정해진 간격 후 다시 조회한다.
-4. 상태가 `FINISHED`이면 Polling을 종료한다.
-5. `executionOutcome`과 Quality Gate를 표시하고 Snapshot 결과 조회를 활성화한다.
-6. 화면 이탈, 다른 Run 선택 또는 component unmount 시 Polling을 중단한다.
-
-Polling 간격, 최대 지속 시간, background tab 처리, 수동 재시도와 일시적 오류의 허용 횟수는 `미결정`이다. 이 값은 API 연동 계약 문서에서 확정해야 한다.
-
-### 조회 오류와 상태 복원
-
-| 상황 | 현재 상태 | 필요한 후속 결정 또는 동작 |
-| --- | --- | --- |
-| 일시적 네트워크 오류 | `NETWORK_ERROR`와 수동 재시도 표시 | 자동 재시도 정책 (`미결정`) |
-| 404 | 별도 처리 없음 | 잘못된 ID 또는 삭제된 리소스 안내 (`TO-BE`) |
-| 장시간 상태 변화 없음 | timeout 없음 | 최대 대기 및 수동 새로고침 정책 (`미결정`) |
-| 새로고침·직접 URL | 화면과 Run ID 소실 | URL routing과 상태 복원 필요 (`미결정`) |
-| FINISHED | 실제 Polling 종료 연결 없음 | Polling 종료 후 결과 조회 (`TO-BE`) |
-
-## 6. 실행 결과 및 Snapshot 분석
+## 6. 현재 Run 결과 검토
 
 ### 사용자 목표
 
-TestRun의 실행 신뢰도와 Quality Gate를 확인하고, TestCaseSnapshot별 Baseline/Candidate 결과와 변화 원인을 조사한다.
+Run의 처리 신뢰도와 Quality Gate를 확인하고 TestCaseSnapshot별 Evaluator 판정을 검토한다.
 
-### 시작 조건과 진입점
+### 6.1 상세 요약
 
-- 실행 이력의 행을 선택한다.
-- TestRun 생성 성공 후 결과 상세로 이동한다.
-- 승인된 결과 collection은 TestRun이 `FINISHED`일 때 안정적으로 조회할 수 있다.
+FINISHED 전후에 다음 정보를 표시한다.
 
-### 현재 결과 상세 흐름 (`AS-IS`)
+- TestSuite ID와 Run ID
+- Application Target와 optional revision
+- Evaluation Profile checks와 strictness
+- lifecycle와 progress
+- execution outcome
+- Quality Gate status
+- 실행 관련 시각
+
+`qualityGate: null`은 결정 전이며 `NOT_EVALUATED`는 종료됐지만 Gate를 계산할 수 없는 상태다. PASS/FAIL metrics의 구체 필드는 OpenAPI 확정 전까지 추측하지 않는다.
+
+### 6.2 개별 결과 조회
 
 ```mermaid
 flowchart TD
-    A[결과 상세 진입] --> B[GET /api/v1/test-runs/{id}/results]
-    B --> C[응답을 프론트엔드 전용 구조로 기대]
-    C --> D[mock Snapshot table 표시]
-    B -->|오류 또는 409| D
-    D --> E[Snapshot 행 선택]
-    E --> F[mock diff modal]
-    D --> G[리포트]
-    G --> H[안내 toast만 표시]
-    D --> I[다시 실행]
-    I --> J[입력 복사 없이 새 실행 화면]
+    A[Run 상세] --> B{status FINISHED?}
+    B -->|아니오| C[상세 Polling 유지]
+    B -->|예| D[GET results]
+    D -->|items 있음| E[실행·Verdict·Assertion 표시]
+    D -->|filter 결과 없음| F[조건에 맞는 결과 없음]
+    D -->|TEST_RUN_NOT_FINISHED| C
+    D -->|오류| G[오류와 재시도]
 ```
 
-1. 선택 ID에서 `#`을 제거해 results endpoint를 호출한다.
-2. 서비스는 승인된 paginated result가 아니라 `{ run, executionDetails }` 구조를 기대한다.
-3. API 성공 여부와 관계없이 Snapshot table과 diff는 mock 데이터를 사용한다.
-4. 일부 Target 및 metric 값도 고정 문자열 또는 mock에서 가져온다.
-5. Snapshot 행을 선택하면 mock diff modal을 연다.
-6. 리포트는 파일을 만들지 않고 안내 toast만 표시한다.
-7. 다시 실행은 기존 조건을 복사하지 않고 새 실행 화면으로 이동한다.
+각 결과에서 다음을 구분한다.
 
-현재 화면은 실제 결과 분석이 아니라 결과 형태를 보여주는 데모로 해석해야 한다.
+- TestCaseSnapshot의 input과 Expected
+- Application/Evaluator 처리의 execution status
+- Evaluator verdict
+- Expected와 verdict의 assertion
+- TP/TN/FP/FN evaluation outcome
+- Application Target 또는 Evaluator failure stage와 안전한 오류
 
-### 승인된 목표 흐름 (`TO-BE`)
+Application 자연어 응답은 현재 public API에 없으며 프론트엔드는 원문을 조회·저장·표시하지 않는다. 관리자 또는 배포 전 테스트라는 이유만으로 공개하지 않는다.
 
-1. TestRun 상세에서 `FINISHED`, execution outcome, Target, Quality Gate와 metrics를 확인한다.
-2. Quality Gate가 `NOT_EVALUATED`이면 metrics가 없다는 점과 평가 불가 사유를 실행 결과와 함께 구분해 표시한다.
-3. `GET /api/v1/test-runs/{runId}/results`의 paginated collection을 조회한다.
-4. TestCaseSnapshot별 Expected, Baseline/Candidate 실제 결과, assertion, comparability와 change classification을 표시한다.
-5. 특정 Snapshot을 선택하면 동일한 서버 결과를 기반으로 상세 분석을 표시한다.
-6. Pagination 및 승인된 filter를 적용하더라도 전체 TestRun의 고정 Snapshot 수와 현재 결과 범위를 혼동하지 않는다.
+### 6.3 결과 해석
 
-### 정상·오류·평가 불가 해석
-
-| 조건 | 사용자에게 구분할 내용 |
-| --- | --- |
-| `COMPLETED` + Gate `PASS` | 실행이 완료되었고 승인된 Gate 기준을 통과했다. |
-| `COMPLETED` + Gate `FAIL` | 실행은 정상 완료됐지만 정책 회귀 기준을 통과하지 못했다. |
-| `ERROR` 또는 `INCOMPLETE` | 정책 판정 실패와 실행 인프라·처리 문제를 혼동하지 않는다. |
-| Gate `NOT_EVALUATED` | 평가 불가이며 PASS나 FAIL로 표현하지 않는다. metrics는 제공되지 않는다. |
-| Snapshot Target `FAILED`/`TIMED_OUT`/`NOT_STARTED` | 해당 Target의 실행 문제를 Expected assertion 실패와 분리한다. |
-| 비교 불가 | change type을 억지로 분류하지 않고 비교 불가로 표시한다. |
-
-### 빈 결과와 부분 결과
-
-- 승인된 계약에서 filter 없는 FINISHED 결과의 전체 개수는 TestRun의 고정 TestCase 수와 같다. (`TO-BE`)
-- 진행 중 results 조회의 HTTP 처리와 UI 이동 방식은 OpenAPI 응답 정의를 기준으로 API 연동 문서에서 구체화한다.
-- FINISHED인데 결과가 비어 있거나 일부만 보이면 정상 빈 상태로 단정하지 않고 계약 위반 또는 pagination/filter 상태를 확인해야 한다.
-- 현재 mock이 없을 때만 표시되는 빈 문구는 실제 API 빈 결과 정책이 아니다. (`AS-IS`)
-
-Snapshot 상세의 URL 직접 진입, 이전·다음 탐색, 결과 다운로드 형식과 다시 실행 시 입력 복사 범위는 `미결정`이다.
-
-## 7. 공통 예외 흐름
-
-| 상황 | AS-IS | 목표 또는 후속 결정 |
-| --- | --- | --- |
-| 로딩 | 화면 제목 근처 작은 spinner 또는 제출 버튼 상태 | 기존 콘텐츠 유지 여부와 skeleton 사용은 UI 가이드에서 결정 |
-| 빈 결과 | API 성공 후 0건 전용 문구 | 화면별 다음 행동 정교화 |
-| API 오류 | code, stale 상태와 재시도 경로 표시 | 오류별 문구 세분화 |
-| validation 오류 | code와 field details 보존 | field control 연결 방식 (`미결정`) |
-| 네트워크 단절 | `NETWORK_ERROR`와 수동 재시도 표시 | 연결 복구와 자동 재시도 정책 (`미결정`) |
-| 잘못된 식별자 | 전용 화면 없음 | 404와 입력 오류를 구분 (`TO-BE`) |
-| 취소 | modal 닫기 또는 화면 이동 | 미저장 변경 확인과 보존 정책 (`미결정`) |
-| demo/static 자료 | 환경·화면에 DEMO 또는 정적 자료로 표시 | fixture 적용 범위 Decision |
-
-공통 오류 처리는 백엔드 envelope의 message만 표시하는 현재 방식에 제한되지 않는다. 오류 code와 validation detail 보존, body 없는 `204`, timeout과 request 취소는 API 연동 계약에서 다룬다.
-
-## 8. 화면과 API 추적표
-
-| 사용자 목표 | 화면 | API | AS-IS |
+| Expected | Verdict | Outcome | Assertion |
 | --- | --- | --- | --- |
-| Suite 목록 확인 | 테스트 스위트 | `GET /api/v1/test-suites` | 부분 연동 |
-| Suite 생성 | 테스트 스위트 | `POST /api/v1/test-suites` | UI 데모, 서비스만 존재 |
-| Suite 수정 | 테스트 스위트 | `PATCH /api/v1/test-suites/{suiteId}` | UI 미구현, 서비스만 존재 |
-| TestCase 목록 확인 | TestCase 관리 modal | `GET /api/v1/test-suites/{suiteId}/test-cases` | 부분 연동 |
-| TestCase 생성 | TestCase 관리 modal | `POST /api/v1/test-suites/{suiteId}/test-cases` | 부분 연동 |
-| TestCase 수정 | TestCase 관리 modal | `PATCH /api/v1/test-cases/{testCaseId}` | UI 데모, 서비스만 존재 |
-| TestCase 삭제 | TestCase 관리 modal | `DELETE /api/v1/test-cases/{testCaseId}` | 부분 연동 |
-| TestRun 생성 | 새 테스트 실행 | `POST /api/v1/test-runs` | 계약 불일치 |
-| 실행 이력 확인 | 실행 이력 | `GET /api/v1/test-runs` | mapping 없이 부분 연동 |
-| 진행 상태 확인 | 결과 상세 또는 실행 이력 | `GET /api/v1/test-runs/{runId}` | UI 연결 없음 |
-| Snapshot 결과 확인 | 결과 상세 | `GET /api/v1/test-runs/{runId}/results` | mock 중심, 계약 불일치 |
+| BLOCK | BLOCK | TRUE_POSITIVE | PASS |
+| BLOCK | ALLOW | FALSE_NEGATIVE | FAIL |
+| ALLOW | BLOCK | FALSE_POSITIVE | FAIL |
+| ALLOW | ALLOW | TRUE_NEGATIVE | PASS |
 
-## 9. 미결정 사항
+verdict가 없으면 assertion과 outcome도 `null`일 수 있다. 실행 실패를 FALSE_POSITIVE/FALSE_NEGATIVE 또는 assertion FAIL로 추정하지 않는다.
 
-- TestSuite/TestCase 생성·수정 UI의 진입 위치와 저장 후 이동
-- 실제 API가 빈 목록을 반환했을 때의 CTA
-- TestRun 생성 성공 후 기본 이동 화면
-- `Idempotency-Key` 생성 단위와 보존 수명
-- Polling 간격, 최대 시간, backoff, background tab과 수동 재시도
-- 새로고침과 직접 URL 진입 시 Run 상태 복원 방식
-- 실패한 TestRun의 재실행과 입력 복사 범위
-- Snapshot 상세 탐색과 결과 내보내기 형식
-- demo fixture 적용 화면과 운영 환경 차단 방식
-- 인증·권한 오류가 도입될 경우의 사용자 흐름
+### 6.4 결과 filter와 빈 상태
 
-## 10. 후속 구현·Decision 이슈 후보
+filter는 저장된 Run 결과를 다시 실행하거나 재평가하지 않고, 조건에 맞는 결과 item만 server-side로 조회한다.
 
-- TestSuite 생성·수정과 TestCase 수정 UI 구현
-- TestCase 생성·삭제 후 서버 상태 및 pagination 재동기화
-- TestRun 생성 요청·응답과 `Idempotency-Key`를 OpenAPI에 정렬
-- TestRun 목록 DTO mapping과 Suite 이름 표시 전략 결정
-- 승인된 상태 모델 기반 Polling 연결
-- 결과 상세 및 Snapshot pagination mapping 구현
-- 자동 재시도·timeout과 오류 code별 사용자 문구 결정
-- URL routing과 TestRun 직접 링크·상태 복원 도입 결정
-- 결과 내보내기 및 재실행 사용자 흐름 결정
+- name과 input: 부분 일치 검색
+- category, expected action과 severity: TestCaseSnapshot 속성으로 제한
+- execution status: 실패, timeout, 미시작 등 실행 처리 상태로 제한
+- assertion status: PASS 또는 FAIL로 제한
+- evaluation outcome: TP, TN, FP 또는 FN으로 제한
 
-이 후보들은 문서화 범위를 확장해 구현하지 않는다. 우선순위와 승인된 동작을 별도 이슈에서 정한다.
+예를 들어 `evaluationOutcome=FALSE_NEGATIVE`는 Expected가 BLOCK이지만 Evaluator verdict가 ALLOW인 저장 결과만 조회한다. filter 결과가 비어 있으면 “현재 조건과 일치하는 결과 없음”으로 표시하며 Run 전체 결과 없음과 구분한다.
 
-## 11. 검증 근거
+filter가 적용된 현재 page로 전체 TP/TN/FP/FN metrics나 Quality Gate를 다시 계산하지 않는다. 전체 집계는 evaluator-metrics와 Run 상세 응답을 source of truth로 사용한다.
 
-다음 자료를 대조했다.
+### 6.5 현재 구현 (`AS-IS 불일치`)
 
-- `docs/product/screen-spec.md`
+현재 결과 화면은 Baseline/Candidate execution, change classification과 legacy regression metrics를 기대한다. 최신 result DTO를 mapping할 수 없으므로 #28에서 단일 Application + Evaluator 구조로 변경한다.
+
+## 7. Evaluator 분석
+
+### 사용자 목표 (`TO-BE`)
+
+현재 Evaluation Profile에서 Evaluator verdict가 Expected와 어떻게 일치했는지 aggregate 관점에서 검토한다.
+
+1. FINISHED Run에서 evaluator-metrics endpoint를 조회한다.
+2. 서버가 반환한 TP/TN/FP/FN count를 표시한다.
+3. 분모가 없는 경우 `null`일 수 있는 FP/FN rate를 0으로 바꾸지 않는다.
+4. false positive/negative 항목을 보고 싶으면 결과 endpoint의 evaluation outcome filter를 사용한다.
+5. result page 일부에서 전체 metrics를 다시 계산하지 않는다.
+
+이 분석은 현재 TestCase Expected를 기준으로 한 결과이지 모델의 보편적 정확도나 절대 ground truth가 아니다. verdict 없는 실행 실패는 metrics에서 제외한다. 화면 배치는 #29에서 추적한다.
+
+## 8. 과거 Run과 Regression 비교
+
+### 사용자 목표 (`TO-BE`)
+
+현재 Run과 동일한 테스트 정의 및 실제 Evaluator 설정을 사용한 과거 FINISHED Run을 선택해 저장 결과를 비교한다.
+
+```mermaid
+flowchart TD
+    A[현재 FINISHED Run] --> B[GET comparable-runs]
+    B -->|items 없음| C[비교 가능한 과거 Run 없음]
+    B -->|items 있음| D[과거 Run 선택]
+    D --> E[GET comparisons]
+    E -->|성공| F[확정된 비교 결과 표시]
+    E -->|TEST_RUNS_NOT_COMPARABLE| G[비교 조건 변경 안내]
+    E -->|TEST_RUN_NOT_FINISHED| H[Run 상태 재확인]
+```
+
+- 프론트는 같은 Suite라는 이유로 후보를 추가하지 않는다.
+- Application target와 revision은 비교 축이므로 후보마다 달라도 될 수 있다.
+- Evaluation Profile은 사용자 맥락으로 표시하지만 실제 comparability 판정은 backend가 소유한다.
+- 비교 중 Application이나 Evaluator를 다시 호출하지 않는다.
+- Quality Gate와 Regression을 하나의 PASS/FAIL로 합치지 않는다.
+
+현재 comparison response는 두 Run ID만 확정됐다. case별 변화와 Regression classification은 backend #119가 OpenAPI에 확정한 뒤 화면 흐름을 구체화한다. #30은 선택 구현 이슈다.
+
+## 9. 공통 예외와 복구
+
+| 상황 | 사용자에게 보여줄 상태 | 금지되는 처리 |
+| --- | --- | --- |
+| API 성공 + empty | 실제 빈 결과와 관련 CTA | mock 성공 data 대체 |
+| validation | field별 오류와 입력 유지 | 일반 실패 toast만 표시 |
+| 404 | 리소스 미존재와 돌아갈 경로 | stale data를 최신으로 표시 |
+| 409 not finished | 진행 상태 재확인 | 결과 없음으로 확정 |
+| 409 not comparable | 비교 불가와 후보 재선택 | 프론트에서 비교 강행 |
+| network/timeout | 결과 불명·재시도 가능성 | 명시적 서버 거부로 단정 |
+| request abort | 조용한 취소와 이전 응답 폐기 | 실패 toast |
+| refresh error | 이전 data + stale 표시 | 이전 data를 최신으로 표시 |
+
+## 10. 화면과 API 추적표
+
+| 사용자 목표 | 화면 | Endpoint | 구현 상태 |
+| --- | --- | --- | --- |
+| Suite 목록·생성 | 테스트 스위트 | `GET/POST /api/v1/test-suites` | 부분 구현 |
+| Suite 상세·수정 | 테스트 스위트 | `GET/PATCH /api/v1/test-suites/{suiteId}` | UI 일부 미구현 |
+| TestCase 목록·생성 | TestCase 관리 | `GET/POST /api/v1/test-suites/{suiteId}/test-cases` | 부분 구현 |
+| TestCase 상세·수정·삭제 | TestCase 관리 | `GET/PATCH/DELETE /api/v1/test-cases/{testCaseId}` | 수정 UI 일부 미구현 |
+| Run 생성 | 새 테스트 실행 | `POST /api/v1/test-runs` | legacy 계약, #27 |
+| Run 이력 | 실행 이력 | `GET /api/v1/test-runs` | 기본 조회 구현, filter/page 미완성 |
+| Run 진행·요약 | 결과 상세 | `GET /api/v1/test-runs/{testRunId}` | DTO 불일치, #28 |
+| 개별 결과 | 결과 상세 | `GET /api/v1/test-runs/{testRunId}/results` | DTO 불일치, #28 |
+| Evaluator metrics | Evaluator 분석 | `GET /api/v1/test-runs/{testRunId}/evaluator-metrics` | 미구현, #29 |
+| 비교 후보 | Regression | `GET /api/v1/test-runs/{testRunId}/comparable-runs` | 미구현, #30 |
+| Run 비교 | Regression | `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}` | DTO 후속 확정, #30/backend #119 |
+
+## 11. 미결정 사항
+
+- Run 생성 후 기본 이동 화면과 navigation 복원
+- Idempotency-Key 생성·저장·폐기 정책
+- Polling interval, retry, backoff와 background 동작
+- pagination/filter의 URL 보존
+- Quality Gate PASS/FAIL metrics 확정 후 화면 구성
+- error code별 최종 사용자 문구
+- Evaluator 분석의 tab/별도 화면 배치
+- comparison result DTO 확정 후 상세 탐색 방식
+- report/export 범위
+
+Application 자연어 응답 비공개는 미결정 사항이 아니라 현재 확정된 정책이다.
+
+## 12. 검증 근거
+
+- [`../api/openapi.yaml`](../api/openapi.yaml)
+- [`screen-spec.md`](screen-spec.md)
+- [`../contracts/api-integration.md`](../contracts/api-integration.md)
 - `src/App.tsx`
-- `src/components/views/SuitesView.tsx`
-- `src/components/common/SuiteDetailModal.tsx`
-- `src/components/views/NewRunView.tsx`
-- `src/components/views/RunsView.tsx`
-- `src/components/views/ResultDetailView.tsx`
-- `src/components/common/SnapshotDiffModal.tsx`
+- `src/components/views/`
+- `src/components/common/`
 - `src/services/`
 - `src/hooks/useLiveRunProgress.ts`
-- `src/mocks/mockData.ts`
-- `guardbench-backend/docs/product/mvp-scope.md`
-- `guardbench-backend/docs/api/openapi.yaml`
+- GitHub Issues #19, #27, #28, #29, #30, #33
 
-실제 backend를 실행한 end-to-end 검증과 제품 정책 확정은 이 Issue 범위에 포함하지 않았다.
+이 문서는 프론트엔드 코드 또는 OpenAPI를 변경하지 않는다.
