@@ -92,13 +92,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <button
-        type="button"
-        className="absolute inset-0 cursor-default bg-black/40 backdrop-blur-xs"
-        tabIndex={-1}
-        aria-hidden="true"
-        onClick={close}
-      />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-xs" aria-hidden="true" />
 
       <section
         ref={dialogRef}

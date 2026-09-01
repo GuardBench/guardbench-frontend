@@ -9,6 +9,9 @@ const FOCUSABLE_SELECTOR = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
+const openDialogs: HTMLElement[] = [];
+let bodyOverflowBeforeDialogs = '';
+
 interface UseDialogFocusOptions {
   isOpen: boolean;
   onClose: () => void;
@@ -37,7 +40,8 @@ export function useDialogFocus({ isOpen, onClose, initialFocusRef }: UseDialogFo
     const returnFocusTarget = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    const previousOverflow = document.body.style.overflow;
+    if (openDialogs.length === 0) bodyOverflowBeforeDialogs = document.body.style.overflow;
+    openDialogs.push(dialog);
     document.body.style.overflow = 'hidden';
 
     const focusFrame = requestAnimationFrame(() => {
@@ -46,6 +50,8 @@ export function useDialogFocus({ isOpen, onClose, initialFocusRef }: UseDialogFo
     });
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (openDialogs[openDialogs.length - 1] !== dialog) return;
+
       if (event.key === 'Escape') {
         event.preventDefault();
         onCloseRef.current();
@@ -78,9 +84,11 @@ export function useDialogFocus({ isOpen, onClose, initialFocusRef }: UseDialogFo
     return () => {
       cancelAnimationFrame(focusFrame);
       document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = previousOverflow;
+      const dialogIndex = openDialogs.lastIndexOf(dialog);
+      if (dialogIndex >= 0) openDialogs.splice(dialogIndex, 1);
+      if (openDialogs.length === 0) document.body.style.overflow = bodyOverflowBeforeDialogs;
       // 닫기 trigger가 DOM에 남아 있을 때만 focus를 복귀한다.
-      if (returnFocusTarget?.isConnected) requestAnimationFrame(() => returnFocusTarget.focus());
+      if (returnFocusTarget?.isConnected) returnFocusTarget.focus();
     };
   }, [initialFocusRef, isOpen]);
 
