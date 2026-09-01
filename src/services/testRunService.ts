@@ -138,6 +138,15 @@ export interface TestRunResultListApiResponse {
   page: PageMetaRes;
 }
 
+export interface EvaluatorMetricsRes {
+  truePositive: number;
+  trueNegative: number;
+  falsePositive: number;
+  falseNegative: number;
+  falsePositiveRate: number | null;
+  falseNegativeRate: number | null;
+}
+
 // ─── API 호출 함수 ───────────────────────────────────────────────
 
 /**
@@ -197,12 +206,20 @@ export async function getTestRunDetail(
  */
 export async function getTestRunResults(
   testRunId: number | string,
-  params?: { page?: number; size?: number },
+  params?: { page?: number; size?: number; evaluationOutcome?: EvaluationOutcome },
 ): Promise<TestRunResultListApiResponse> {
   const query = new URLSearchParams();
   if (params?.page) query.append('page', params.page.toString());
   if (params?.size) query.append('size', params.size.toString());
+  if (params?.evaluationOutcome) query.append('evaluationOutcome', params.evaluationOutcome);
 
   const queryString = query.toString() ? `?${query.toString()}` : '';
   return apiRequest<TestRunResultListApiResponse>(`/test-runs/${testRunId}/results${queryString}`);
+}
+
+/** FINISHED TestRun의 저장된 Evaluator 분류 지표를 조회합니다. */
+export async function getTestRunEvaluatorMetrics(
+  testRunId: number | string,
+): Promise<EvaluatorMetricsRes> {
+  return apiRequest<EvaluatorMetricsRes>(`/test-runs/${testRunId}/evaluator-metrics`);
 }
