@@ -31,7 +31,7 @@
 | error | 지속 banner, code, stale, retry | abort/timeout과 endpoint code별 표현 미완성 |
 | status | pill, text, color | legacy Baseline/Candidate 결과 의미 잔존 |
 | form | label, required marker, client validation | 새 Target/Profile field 미구현 |
-| modal | close button과 overlay | focus trap/복귀 검증 부족 |
+| modal | 3개 중 `CreateSuiteModal`만 dialog semantics와 초기 `autoFocus` 일부 지원 | 나머지 2개는 dialog semantics가 없고 focus trap·복귀는 미구현 |
 | demo | 상단 data mode 표식 일부 | 정적 dashboard/architecture 범위 명확화 필요 |
 
 현재 UI는 최신 TestRun 생성·결과 DTO와 일치하지 않는다. 이 가이드의 TO-BE를 현재 구현 완료 상태로 간주하지 않는다.
@@ -49,7 +49,7 @@
 
 - `QUEUED`, `PREPARING`, `RUNNING`, `FINISHED` label을 그대로 보존하고 사용자 설명을 병기할 수 있다.
 - 진행 중에는 processed TestCase 수, percent와 마지막 갱신 시각을 사용한다.
-- Polling 내부의 Scheduled/InFlight는 개발 상태이며 기본 사용자 status로 노출하지 않는다.
+- Polling 내부의 Scheduled/InFlight/TransientError/TerminalError는 개발 상태이며 기본 사용자 status로 노출하지 않는다.
 - background 갱신 실패 후 이전 progress를 유지하면 “마지막 확인값” 또는 stale 표시를 함께 제공한다.
 - `FINISHED`는 성공만을 의미하지 않으므로 outcome과 Quality Gate를 별도로 확인하게 한다.
 
@@ -78,7 +78,7 @@ Polling interval, 장시간 실행 안내와 background tab 표현은 `미결정
 | --- | --- |
 | validation | field 근처 오류와 form-level summary, 입력 유지 |
 | resource not found | 대상이 없다는 설명과 목록으로 돌아갈 action |
-| create conflict | code별 원인과 다음 행동 |
+| create conflict | `TEST_SUITE_EMPTY`는 TestCase가 없음을 알리고 Suite 편집으로 연결한다. `IDEMPOTENCY_KEY_CONFLICT`는 자동 재전송을 중단하고 새 시도를 안내한다. |
 | not finished race | Run 상태 재확인, 결과 empty로 확정하지 않음 |
 | not comparable | comparison 해제와 후보 재선택 |
 | network/timeout | 접수·처리 결과 불명 가능성과 재시도 |
@@ -162,7 +162,7 @@ Idempotency-Key는 사용자 입력 field가 아니다. 재전송 정책이 확�
 - 동일 오류 toast가 Polling마다 반복되지 않게 한다.
 - toast가 사라져도 핵심 상태는 화면에서 확인할 수 있어야 한다.
 
-toast queue, 지속 시간, live region politeness와 중복 억제 구현은 `미결정`이다.
+toast queue, 지속 시간과 중복 억제 구현은 `미결정`이다. `aria-live`, `role="status"` 등 동적 상태의 screen reader 음성 안내는 #17에서 정한 이번 데모 범위에서 제외한다. 성공·오류와 핵심 상태는 지속 영역에서도 확인할 수 있어야 한다.
 
 ## 9. Table, list, filter와 pagination
 
@@ -199,7 +199,7 @@ Snapshot 상세 modal은 public result DTO만 사용한다. Application 자연�
 - visible focus indicator를 제거하지 않는다.
 - 새 화면 navigation 후 focus를 page heading 또는 main content로 이동하는 정책을 검토한다.
 
-skip link와 route change announcement의 구체 구현은 `미결정`이다.
+skip link, route change announcement와 screen reader 지원 matrix는 #17에서 정한 이번 데모 범위에서 제외한다. 정확한 route focus 이동 정책은 `미결정`이다.
 
 ## 12. 반응형, 확대와 motion
 
@@ -283,27 +283,30 @@ Application 자연어 응답은 Evaluator 내부 입력이며 public UI에 표�
 
 ## 17. 공통 component 책임
 
-| component 역할 | 소유 | 소유하지 않음 |
-| --- | --- | --- |
-| StatusPill | 축별 label, icon과 시각 표현 | 서로 다른 상태 축의 의미 병합 |
-| RequestErrorBanner | 지속 오류, code, stale와 retry | endpoint business decision |
-| FormField | label, help, error와 control 연결 | OpenAPI 외 validation 규칙 |
-| Pagination | page 이동과 metadata | server collection 재계산 |
-| Dialog | focus, dismiss와 accessible structure | 특정 endpoint 호출 |
+아래 표는 현재 존재하는 공통 component와 향후 공통화할 목표 책임을 함께 구분한다.
+
+| 상태 | component 역할 | 소유 | 소유하지 않음 |
+| --- | --- | --- | --- |
+| `AS-IS` | StatusPill | 축별 label, icon과 시각 표현 | 서로 다른 상태 축의 의미 병합 |
+| `AS-IS` | RequestErrorBanner | 지속 오류, code, stale와 retry | endpoint business decision |
+| `AS-IS` | StatCard | metric label, 값과 보조 설명 | metric 계산과 API 의미 추정 |
+| `TO-BE` | FormField | label, help, error와 control 연결 | OpenAPI 외 validation 규칙 |
+| `TO-BE` | Pagination | page 이동과 metadata | server collection 재계산 |
+| `TO-BE` | Dialog | focus, dismiss와 accessible structure | 특정 endpoint 호출 |
 
 공통 component는 endpoint와 mock을 직접 알지 않는다. component library와 design token은 `미결정`이다.
 
 ## 18. 접근성 검증 전략
 
 - keyboard만으로 주요 사용자 여정을 수행한다.
-- screen reader로 heading, landmark, form label/error, status와 dialog를 확인한다.
-- focus 순서, modal trap/복귀와 dynamic update를 확인한다.
+- 코드와 keyboard 검증으로 heading, landmark, form label/error와 dialog semantics를 확인한다.
+- focus 순서와 modal trap/복귀를 확인한다.
 - 색상 대비와 색상 없이 상태 구분이 가능한지 확인한다.
 - 320 CSS px와 200% 확대에서 reflow를 확인한다.
 - reduced motion 설정을 확인한다.
 - 실제 loading, empty, stale, error, nullable과 conflict 상태 조합을 fixture로 검증한다.
 
-자동화 도구, CI required check와 수동 검증 책임자는 `미결정`이다.
+자동화 도구, CI required check와 수동 검증 책임자는 `미결정`이다. 실제 screen reader 음성 안내와 browser/screen reader 지원 matrix 검증은 #17에서 정한 이번 데모 범위에서 제외한다.
 
 ## 19. 후속 구현·Decision
 

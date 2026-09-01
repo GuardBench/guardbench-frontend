@@ -3,7 +3,7 @@
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
 > Last reviewed: 2026-09-01
-> Scope: GitHub Issues #8, #10, #11, #13, #15, #17, #32, #33, #34, #35
+> Scope: GitHub Issues #8, #10, #11, #13, #15, #17, #32, #33, #34, #35, #36
 
 이 디렉터리는 GuardBench 프론트엔드의 화면 동작, 사용자 흐름, API 소비 방식, 구조와 UI 규칙을 저장소에서 관리하기 위한 문서 진입점이다.
 
@@ -24,13 +24,15 @@
 프론트엔드 구현과 문서가 충돌하면 다음 순서로 판단한다.
 
 1. 현재 Issue의 승인된 요구사항과 사용자의 명시적 지시
-2. 이 저장소의 [`api/openapi.yaml`](api/openapi.yaml)과 백엔드 저장소의 동일한 `APPROVED` OpenAPI 및 제품·도메인 계약
+2. 백엔드 저장소의 `APPROVED` OpenAPI 및 제품·도메인 계약과, 여기에서 동기화한 이 저장소의 [`api/openapi.yaml`](api/openapi.yaml)
 3. 프론트엔드 저장소의 `APPROVED` 문서
 4. 테스트와 현재 공개 코드 동작
 5. `AS-IS` 및 `DRAFT` 문서
 6. mock 데이터와 데모 표현
 
 백엔드 API의 요청·응답 스키마를 이 저장소에서 다시 정의하지 않는다. 프론트엔드 문서는 화면이 승인된 OpenAPI를 어떻게 소비하고 사용자에게 표현하는지 기록한다.
+
+로컬 OpenAPI는 프론트엔드 구현 기준으로 사용하는 동기화 사본이다. 백엔드 계약이 변경되면 동기화 Issue 또는 PR에 출처 commit을 기록하고 두 파일의 drift를 확인한 뒤 관련 프론트엔드 문서를 함께 갱신한다.
 
 API 관련 문서의 책임은 다음 순서로 좁아진다.
 
