@@ -5,6 +5,7 @@ import type {
   EvaluationOutcome,
   ExecutionErrorDetailRes,
   ExecutionOutcome,
+  QualityGateMetricsRes,
   QualityGateRes,
   TargetReferenceReq,
   TargetReferenceRes,
@@ -49,9 +50,12 @@ export type TestRunResultNullabilityContract = [
   Assert<Equal<TestRunResultListItemRes['error'], ExecutionErrorDetailRes | null>>,
 ];
 
-export type QualityGateMetricsNullabilityContract = Assert<
-  Equal<QualityGateRes['metrics'], Record<string, unknown> | null>
->;
+export type QualityGateMetricsContract = [
+  Assert<Equal<QualityGateRes['metrics'], QualityGateMetricsRes | null>>,
+  Assert<Equal<keyof QualityGateMetricsRes, 'assertionPassRate' | 'executionSuccessRate'>>,
+  Assert<Equal<QualityGateMetricsRes['assertionPassRate'], number>>,
+  Assert<Equal<QualityGateMetricsRes['executionSuccessRate'], number>>,
+];
 
 export type EvaluatorMetricsNullabilityContract = [
   Assert<Equal<EvaluatorMetricsRes['falsePositiveRate'], number | null>>,
