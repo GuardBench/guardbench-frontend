@@ -2,9 +2,9 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-09-01
-> Scope: GitHub Issue #32
-> AS-IS baseline: `dev@d0e9c9216e53cdda10bf1f477fbaf6d04d9e537c`
+> Last reviewed: 2026-09-02
+> Scope: GitHub Issues #32, #62
+> AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 
 이 문서는 GuardBench 프론트엔드가 승인된 OpenAPI를 화면에서 소비하는 경계를 정의한다. API endpoint, schema, enum, validation과 오류 code의 소유자는 OpenAPI다. 이 문서는 schema를 다시 정의하지 않고 DTO를 화면 상태로 변환하는 원칙과 사용자 표현 책임만 소유한다.
@@ -13,24 +13,25 @@
 
 - `TO-BE`는 현재 저장소의 [`openapi.yaml`](../api/openapi.yaml)에서 직접 도출할 수 있는 소비 규칙이다.
 - 현재 코드가 OpenAPI와 다르면 코드 동작을 `AS-IS` 불일치로 기록하며 목표 계약으로 승격하지 않는다.
-- OpenAPI가 후속 backend Issue에 위임한 metric 필드, 오류 code 목록 또는 정책은 프론트엔드가 추측하지 않는다.
+- OpenAPI가 확정하지 않은 실행 오류 code 전체 목록, 재시도 또는 인증 정책은 프론트엔드가 추측하지 않는다.
 - 특정 provider, Evaluator type 또는 Guardrail identifier/version은 사용자가 제출하는 TestRun 입력이 아니다.
 - 다른 문서와 이 문서가 충돌하면 API 요청·응답 의미는 OpenAPI를 우선한다.
 
-## 2. 실행 모델 변경과 현재 불일치
+## 2. 실행 모델 변경
 
 최신 계약에서 하나의 TestRun은 하나의 HTTP AI Application Target을 실행하고, 사용자가 요청한 inline Evaluation Profile을 GuardBench가 내부 Evaluator 설정으로 해석한다. 같은 Run 안에서 Baseline과 Candidate Guardrail을 동시에 실행하는 모델은 더 이상 승인된 계약이 아니다.
 
-| 영역 | 코드 AS-IS | OpenAPI TO-BE |
+| 영역 | 폐기된 모델 | 현재 OpenAPI와 구현 |
 | --- | --- | --- |
 | 생성 입력 | Baseline numbered Guardrail + Candidate DRAFT | 단일 `TargetReferenceReq` + `EvaluationProfileReq` |
-| 사용자 선택 | Guardrail ID/version | Application HTTP endpoint, 선택 revision, checks, strictness |
+| 사용자 선택 | Guardrail ID/version | OpenAI-compatible HTTP endpoint, 필수 model, 선택 revision, checks, strictness |
 | 상세 Target | `targets.baseline`, `targets.candidate` | 단일 `target` |
 | 개별 결과 | baseline/candidate execution과 change type | Application 실행 상태, Evaluator verdict, assertion, evaluation outcome |
-| Quality Gate metrics | 고정 regression 지표 타입 | 구체 필드 미확정 object 또는 `null` |
+| Quality Gate metrics | 고정 regression 지표 타입 | `assertionPassRate`, `executionSuccessRate` 또는 `null` |
 | Regression | 현재 Run 안에서 변화 계산 | 비교 가능한 과거 Run과 저장 결과를 별도 endpoint로 비교 |
 
-관련 구현 범위는 #27, #28, #29, #30에서 추적한다.
+핵심 생성·결과·Evaluator 구현은 #27~#29와 #60~#61에서 완료됐고 Regression UI는 #30에서 선택
+범위로 추적한다.
 
 ### 2.1 사용자가 선택하는 실행·평가 입력
 
@@ -39,6 +40,7 @@
 | 입력 | 사용자가 정하는 의미 | 계약상 제약 | 화면 표현 원칙 |
 | --- | --- | --- | --- |
 | Application HTTP endpoint | 테스트할 AI Application의 호출 주소 | `target.type`은 MVP에서 `HTTP_ENDPOINT`이고 `identifier`는 `http://` 또는 `https://` URI여야 한다. | “Application URL”처럼 사용자 목적에 맞는 이름을 사용한다. 내부 TargetReference나 provider 용어를 입력 라벨로 강제하지 않는다. |
+| model | OpenAI-compatible Chat Completions request body에 전달할 모델 식별자 | request와 response에서 필수이며 공백이 아닌 문자열이어야 한다. | Application이 인식하는 모델 식별자로 설명한다. Evaluator provider나 Guardrail ID와 혼동하지 않는다. |
 | revision | 사용자가 실행 대상을 구분하기 위한 배포·모델·commit 식별 문자열 | request에서는 선택 사항이다. 전달할 때는 공백이 아닌 문자열이어야 하며, 생략하면 response의 `target.revision`은 `null`이다. | endpoint가 같아도 배포 버전을 구분하고 싶을 때 입력한다. 서버가 검증하거나 해석한 실제 버전이라고 과장하지 않는다. |
 | checks | 이번 Run에서 확인할 보안 평가 목적 | 최소 한 개를 선택하고 중복할 수 없다. 허용 값은 `PROMPT_INJECTION`, `PII_LEAKAGE`, `HARMFUL_CONTENT`다. | 복수 선택 control로 제공하되 OpenAPI에 없는 check를 프론트에서 추가하지 않는다. |
 | strictness | 선택한 checks를 어느 엄격도로 평가할지 정하는 정책 | `RELAXED`, `STANDARD`, `STRICT` 중 정확히 하나다. | 사용자 정책 수준으로 표현한다. 특정 Evaluator provider의 threshold나 Guardrail version을 직접 선택하는 값으로 설명하지 않는다. |
@@ -55,14 +57,17 @@ Quality Gate에는 서로 다른 두 종류의 `null`이 있다.
 | `qualityGate.status: NOT_EVALUATED`, `metrics: null` | Run은 종료됐지만 Gate를 계산할 수 없었다. | 종료된 평가 불가 상태로 표현하고 진행 중 상태와 구분한다. |
 | `qualityGate.status: PASS` 또는 `FAIL` | 현재 Run의 assertion 집계를 바탕으로 Gate가 결정됐다. | PASS/FAIL 상태는 표시할 수 있지만 metrics의 세부 카드 구성은 확정된 필드만 사용한다. |
 
-`QualityGateRes.metrics`는 필드 자체는 required지만 값은 nullable이다. OpenAPI는 현재 이 값을 `additionalProperties: true`인 object로 열어 두었고, PASS/FAIL일 때 들어갈 구체 필드와 threshold는 backend #118이 최종 소유한다고 명시한다. 이는 “어떤 JSON object든 프론트가 임의로 표시해도 된다”는 뜻이 아니라, 세부 계약이 아직 확정되지 않았다는 뜻이다.
+`QualityGateRes.metrics`는 필드 자체는 required지만 값은 nullable이다. 값이 있으면
+`additionalProperties: false`인 객체이며 `assertionPassRate`와 `executionSuccessRate` 두 필드를 모두
+포함한다. 두 값은 0~1의 서버 저장 비율이다. OpenAPI는 두 비율이 각각 0.95 이상이면 PASS,
+하나라도 미만이면 FAIL이라고 정의한다.
 
 따라서 프론트엔드는 다음을 지킨다.
 
-- `status`는 현재 확정된 계약대로 먼저 표시한다.
-- metrics key를 추측하거나 기존 `candidateAssertionPassRate`, `securityRegressionRate`, `usabilityRegressionRate`를 새 계약으로 재사용하지 않는다.
-- 구체 metrics schema가 OpenAPI에 확정되기 전에는 고정 지표 카드, threshold 문구와 계산식을 목표 UI로 승인하지 않는다.
-- metrics가 확정되면 OpenAPI 필드와 nullable 조건을 기준으로 별도 mapper와 표시 규칙을 추가한다.
+- `status`와 두 metrics는 서버 응답을 source of truth로 사용한다.
+- 비율은 퍼센트로 formatting할 수 있지만 Gate status를 프론트에서 다시 계산하지 않는다.
+- 기존 `candidateAssertionPassRate`, `securityRegressionRate`, `usabilityRegressionRate`를 새 계약으로 재사용하지 않는다.
+- `metrics: null`을 0% 객체로 바꾸거나 누락된 key를 추정하지 않는다.
 
 ## 3. 화면과 endpoint 추적
 
@@ -78,7 +83,7 @@ Quality Gate에는 서로 다른 두 종류의 `null`이 있다.
 | 개별 평가 결과 | 결과 상세 | `GET /api/v1/test-runs/{testRunId}/results` | `FINISHED` 이후 조회하고 실행·평가·assertion 상태를 분리한다. |
 | Evaluator 분류 지표 | Evaluator 검토 | `GET /api/v1/test-runs/{testRunId}/evaluator-metrics` | 서버가 집계한 TP/TN/FP/FN과 rate를 source of truth로 사용한다. |
 | 비교 후보 | Regression 비교 | `GET /api/v1/test-runs/{testRunId}/comparable-runs` | 프론트에서 비교 가능 조건을 재구현하지 않는다. |
-| 저장 결과 비교 | Regression 비교 | `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}` | 현재는 비교 Run 식별자만 확정됐다. 결과 DTO가 확정되기 전에는 변화나 classification을 가정하지 않는다. |
+| 저장 결과 비교 | Regression 비교 | `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}` | 서버 summary count와 case별 comparability/change type을 그대로 사용한다. |
 
 대시보드와 아키텍처 화면에는 전용 API가 없다. 정적 또는 mock 자료를 실제 서버 집계나 최신 도메인 상태로 표현하지 않는다.
 
@@ -203,7 +208,7 @@ timeout 값, 자동 재시도 대상, 인증·권한 오류 UX, runtime schema v
 
 ## 5. TestRun 생성
 
-### 5.1 입력 mapping (`TO-BE`)
+### 5.1 입력 mapping (`AS-IS`)
 
 `TestRunCreateReq`는 다음 사용자 입력을 연결한다.
 
@@ -211,6 +216,7 @@ timeout 값, 자동 재시도 대상, 인증·권한 오류 UX, runtime schema v
 - 하나의 `target`
   - MVP type은 `HTTP_ENDPOINT`
   - `identifier`는 HTTP 또는 HTTPS URI
+  - `model`은 OpenAI-compatible request body에 전달할 필수 non-blank 문자열이다.
   - `revision`은 선택적이며 공백 문자열을 보내지 않는다.
 - 하나의 inline `evaluationProfile`
   - `checks`는 최소 한 개이며 중복 없이 선택한다.
@@ -226,7 +232,7 @@ timeout 값, 자동 재시도 대상, 인증·권한 오류 UX, runtime schema v
 3. key는 선택 header지만 중복 실행 방지 정책을 별도 Decision으로 확정한다.
 4. `202 Accepted`의 `TestRunCreateRes`와 `Location`을 보존하고 상세 조회로 이동한다.
 5. 같은 key와 같은 body의 재전송은 기존 Run의 현재 status를 반환할 수 있다.
-6. `TEST_SUITE_EMPTY`와 `IDEMPOTENCY_KEY_CONFLICT`를 일반 network 오류와 구분한다.
+6. `TEST_SUITE_EMPTY`, `IDEMPOTENCY_KEY_CONFLICT`, `EVALUATION_PROFILE_NOT_SUPPORTED`를 일반 network 오류와 구분한다.
 
 key 생성 형식, 저장 위치, 복원과 폐기 시점은 `미결정`이다. OpenAPI에 없는 TTL을 이 문서에서 확정하지 않는다.
 
@@ -242,7 +248,7 @@ key 생성 형식, 저장 위치, 복원과 폐기 시점은 `미결정`이다. 
 - Gate `FAIL`과 execution `ERROR`를 같은 실패로 표현하지 않는다.
 - `qualityGate = null`과 종료 후 `qualityGate.status = NOT_EVALUATED`를 구분한다.
 - `QualityGateRes.metrics`는 Gate가 `NOT_EVALUATED`이면 `null`이다.
-- PASS/FAIL metrics의 구체 필드는 OpenAPI에서 아직 확정되지 않았다. 기존 `candidateAssertionPassRate`, `securityRegressionRate`, `usabilityRegressionRate` 등을 고정 계약으로 사용하지 않는다.
+- PASS/FAIL metrics는 `assertionPassRate`와 `executionSuccessRate`를 사용하며 둘 다 서버 저장 값을 표시한다.
 
 ## 7. Polling과 결과 조회
 
@@ -321,9 +327,10 @@ Evaluator metrics endpoint는 한 Run의 저장된 Expected와 Evaluator verdict
 1. 현재 Run의 `comparable-runs` endpoint가 반환한 후보만 표시한다.
 2. 같은 Suite라는 이유만으로 프론트가 후보를 추가하지 않는다.
 3. 선택한 후보와 current Run을 comparisons endpoint로 조회한다.
-4. 현재 `TestRunComparisonRes`에서 확정된 `currentRunId`, `comparisonRunId`를 보존한다.
-5. case별 변화, comparability key와 Regression 결과 DTO는 OpenAPI가 #119에 위임했으므로 확정 전까지 표시 모델을 만들지 않는다.
-6. 비교 과정에서 Application이나 Evaluator를 다시 실행하는 것처럼 표현하지 않는다.
+4. summary의 `totalCases`, `changedCount`, `unchangedCount`, `improvedCount`, `regressedCount`, `notComparableCount`를 보존한다.
+5. 각 item의 `snapshotId`, `testCaseId`, `name`, `input`, `expectedAction`, `comparisonVerdict`, `currentVerdict`, `comparabilityStatus`, `changeType`을 보존한다.
+6. `COMPARABLE`/`NOT_COMPARABLE`과 `NO_CHANGE`, `SECURITY_REGRESSION`, `USABILITY_REGRESSION`, `IMPROVEMENT`, `POLICY_BEHAVIOR_CHANGED`를 서버 분류 그대로 표시한다.
+7. 비교 과정에서 Application이나 Evaluator를 다시 실행하는 것처럼 표현하지 않는다.
 
 비교 가능 여부는 backend가 소유한다. Quality Gate는 현재 Run 자체의 판정이며 Regression은 두 Run의 저장 결과 비교이므로 하나의 status나 metric으로 합치지 않는다.
 
@@ -350,6 +357,7 @@ URL에 filter/page를 보존할지와 filter 변경 시 page 초기화 방식은
 | `TEST_RUNS_NOT_COMPARABLE` | 비교 불가로 표시하고 Regression 결과를 추정하지 않는다. |
 | `TEST_SUITE_EMPTY` | Run 생성이 접수되지 않았음을 표시한다. |
 | `IDEMPOTENCY_KEY_CONFLICT` | 같은 key의 다른 요청 충돌로 표시하고 자동 재전송하지 않는다. |
+| `EVALUATION_PROFILE_NOT_SUPPORTED` | 다른 checks/strictness 조합 또는 Evaluator catalog 등록이 필요함을 안내한다. |
 | unknown execution error code | 공개 message와 failure stage를 보존하고 provider 원문을 노출하지 않는다. |
 
 실제 API 응답과 mock을 같은 collection에 출처 표시 없이 섞지 않는다. 실제 API 실패나 빈 결과를 mock 성공으로 위장하지 않는다. 환경별 mock 기본값, production 허용 여부와 fail-fast 정책은 별도 Decision이 필요하다.
@@ -358,11 +366,10 @@ URL에 filter/page를 보존할지와 filter 변경 시 page 초기화 방식은
 
 다음 항목은 프론트 문서에서 임의로 확정하지 않는다.
 
-- Quality Gate PASS/FAIL metrics의 구체 필드와 threshold
 - 실행 오류 `code`의 전체 목록과 terminal 상태 mapping
 - Idempotency-Key의 client 보존 수명
 - timeout, retry, backoff와 background Polling 정책
-- case별 Regression 결과 DTO와 classification
+- comparison nullable enum 표현의 OpenAPI 3.0.3 도구 호환성(backend #144)
 - 인증·권한 오류와 사용자 세션 UX
 - OpenAPI 타입 생성 도입 여부
 

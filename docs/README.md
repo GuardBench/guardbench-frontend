@@ -77,6 +77,10 @@ Application 자연어 응답은 현재 public API와 UI에서 비공개로 확�
 | #34 | 프론트엔드 아키텍처 | `architecture/frontend-architecture.md` |
 | #35 | UI 가이드와 문서 지도 | `conventions/ui-guidelines.md`, 이 문서 |
 | #36 | 전체 개정 추적 | GitHub Issue checklist |
+| #59 | OpenAPI 사본 동기화와 drift 검증 | `api/README.md`, `api/openapi.source.json` |
+| #60 | 필수 Application model 계약 | 생성·상세 DTO와 화면 |
+| #61 | 확정 Quality Gate metrics | 상세 DTO와 Quality Gate 카드 |
+| #62 | 최신 소비 문서 정렬 | API·제품·아키텍처·UI 문서 |
 
 ## 갱신 기준
 

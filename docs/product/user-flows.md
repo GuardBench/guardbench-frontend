@@ -2,9 +2,9 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-09-01
-> Scope: GitHub Issue #33
-> AS-IS baseline: `dev@9c99a4e4943412537b9c15238a353af143b9289c`
+> Last reviewed: 2026-09-02
+> Scope: GitHub Issues #33, #62
+> AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 > Screen specification: [`screen-spec.md`](screen-spec.md)
 > API consumption contract: [`../contracts/api-integration.md`](../contracts/api-integration.md)
@@ -44,7 +44,8 @@ flowchart TD
 
 필수 핵심 흐름은 하나의 Application Target을 실행하고 Evaluation Profile에 따른 Evaluator verdict와 assertion을 확인하는 것이다. Regression은 현재 Run의 Quality Gate 입력이 아니며, 사용자가 원할 때 과거 comparable Run과 별도로 비교한다.
 
-현재 구현은 Suite/TestCase 관리와 Run 목록의 일부를 API에 연결했지만 Run 생성 및 결과 DTO는 이전 Baseline/Candidate 모델이라 최신 backend와 일치하지 않는다. (`AS-IS`)
+현재 구현은 Suite/TestCase 관리, 최신 Target/Profile Run 생성, Polling, 결과와 Evaluator metrics 검토를
+API에 연결한다. Regression 비교 UI만 선택 구현으로 남아 있다. (`AS-IS`)
 
 ## 3. TestSuite와 TestCase 준비
 
@@ -113,19 +114,21 @@ flowchart TD
     B -->|오류| D[오류와 재시도]
     B -->|선택 가능| E[Suite 선택]
     E --> F[Application URL 입력]
-    F --> G[선택 revision 입력]
-    G --> H[Evaluation checks 선택]
-    H --> I[Strictness 선택]
-    I --> J[실행 요약 확인]
-    J --> K{client validation}
-    K -->|실패| L[관련 control 오류]
-    K -->|통과| M[POST test-runs]
+    F --> G[필수 model 입력]
+    G --> H[선택 revision 입력]
+    H --> I[Evaluation checks 선택]
+    I --> J[Strictness 선택]
+    J --> K[실행 요약 확인]
+    K --> L{client validation}
+    L -->|실패| M[관련 control 오류]
+    L -->|통과| N[POST test-runs]
 ```
 
 사용자 언어는 다음 의미를 유지한다.
 
 - **Application**: 테스트할 AI 애플리케이션
-- **Application URL**: GuardBench가 호출할 HTTP/HTTPS endpoint
+- **Application URL**: GuardBench가 호출할 OpenAI-compatible Chat Completions full endpoint
+- **Model**: Application request body에 전달할 필수 모델 식별자
 - **Revision**: 사용자가 배포·모델·commit을 구분하기 위한 선택 정보
 - **Evaluation Profile**: checks와 strictness로 구성된 이번 Run의 평가 정책
 
@@ -133,9 +136,11 @@ flowchart TD
 
 사용자가 Evaluator provider/type, Guardrail identifier/version이나 Snapshot ID를 직접 입력하지 않는다.
 
-### 4.2 현재 흐름 (`AS-IS 불일치`)
+### 4.2 현재 흐름 (`AS-IS`)
 
-현재 화면은 Suite 목록을 API로 조회하지만 Guardrail ID, Baseline numbered version과 Candidate DRAFT를 입력받아 이전 request를 보낸다. 이는 최신 `TestRunCreateReq`와 일치하지 않으므로 성공 가능한 목표 흐름이 아니다. #27에서 수정한다.
+현재 화면은 Suite 목록을 API로 조회하고 URL/model/revision과 Evaluation Profile을 최신
+`TestRunCreateReq`로 전송한다. 접수 성공 시 Run 상세로 이동하며 결과 불명 network 오류에서는 동일
+payload와 Idempotency-Key를 유지한다.
 
 ### 4.3 접수와 멱등성 (`TO-BE`)
 
@@ -156,6 +161,7 @@ key 생성, 저장, 화면 이탈 후 복원과 폐기 시점은 `미결정`이�
 | `TEST_SUITE_NOT_FOUND` | 선택 Suite가 더 이상 존재하지 않음 | Suite 목록 재조회 |
 | `TEST_SUITE_EMPTY` | 활성 TestCase가 없음 | TestCase 준비로 이동 |
 | `IDEMPOTENCY_KEY_CONFLICT` | 같은 key를 다른 body에 재사용 | 자동 재시도 중단, 새 논리 시도 안내 |
+| `EVALUATION_PROFILE_NOT_SUPPORTED` | 선택 Profile에 대응하는 Evaluator catalog가 없음 | 다른 checks/strictness 조합 또는 관리자 등록 안내 |
 | network/timeout | 접수 여부가 불명확할 수 있음 | 같은 key 재사용 정책에 따라 확인·재시도 |
 
 취소 전송의 보장, timeout 값과 자동 retry는 OpenAPI만으로 정하지 않는다.
@@ -213,14 +219,16 @@ Run의 처리 신뢰도와 Quality Gate를 확인하고 TestCaseSnapshot별 Eval
 FINISHED 전후에 다음 정보를 표시한다.
 
 - TestSuite ID와 Run ID
-- Application Target와 optional revision
+- Application Target URL, required model과 optional revision
 - Evaluation Profile checks와 strictness
 - lifecycle와 progress
 - execution outcome
 - Quality Gate status
 - 실행 관련 시각
 
-`qualityGate: null`은 결정 전이며 `NOT_EVALUATED`는 종료됐지만 Gate를 계산할 수 없는 상태다. PASS/FAIL metrics의 구체 필드는 OpenAPI 확정 전까지 추측하지 않는다.
+`qualityGate: null`은 결정 전이며 `NOT_EVALUATED + metrics: null`은 종료됐지만 평가 가능한 Assertion이
+없는 상태다. PASS/FAIL에서는 서버의 `assertionPassRate`와 `executionSuccessRate`를 표시하고 Gate를
+프론트에서 재계산하지 않는다.
 
 ### 6.2 개별 결과 조회
 
@@ -271,13 +279,14 @@ filter는 저장된 Run 결과를 다시 실행하거나 재평가하지 않고,
 
 filter가 적용된 현재 page로 전체 TP/TN/FP/FN metrics나 Quality Gate를 다시 계산하지 않는다. 전체 집계는 evaluator-metrics와 Run 상세 응답을 source of truth로 사용한다.
 
-### 6.5 현재 구현 (`AS-IS 불일치`)
+### 6.5 현재 구현 (`AS-IS`)
 
-현재 결과 화면은 Baseline/Candidate execution, change classification과 legacy regression metrics를 기대한다. 최신 result DTO를 mapping할 수 없으므로 #28에서 단일 Application + Evaluator 구조로 변경한다.
+현재 결과 화면은 단일 Application execution, Evaluator verdict, assertion, outcome과 안전한 오류를
+표시한다. 결과 filter/page, Evaluator metrics와 Quality Gate는 각 서버 응답을 독립적으로 사용한다.
 
 ## 7. Evaluator 분석
 
-### 사용자 목표 (`TO-BE`)
+### 사용자 목표 (`AS-IS`)
 
 현재 Evaluation Profile에서 Evaluator verdict가 Expected와 어떻게 일치했는지 aggregate 관점에서 검토한다.
 
@@ -287,7 +296,8 @@ filter가 적용된 현재 page로 전체 TP/TN/FP/FN metrics나 Quality Gate를
 4. false positive/negative 항목을 보고 싶으면 결과 endpoint의 evaluation outcome filter를 사용한다.
 5. result page 일부에서 전체 metrics를 다시 계산하지 않는다.
 
-이 분석은 현재 TestCase Expected를 기준으로 한 결과이지 모델의 보편적 정확도나 절대 ground truth가 아니다. verdict 없는 실행 실패는 metrics에서 제외한다. 화면 배치는 #29에서 추적한다.
+이 분석은 현재 TestCase Expected를 기준으로 한 결과이지 모델의 보편적 정확도나 절대 ground truth가
+아니다. verdict 없는 실행 실패는 metrics에서 제외한다. 현재 Result Detail 안에서 제공한다.
 
 ## 8. 과거 Run과 Regression 비교
 
@@ -307,12 +317,14 @@ flowchart TD
 ```
 
 - 프론트는 같은 Suite라는 이유로 후보를 추가하지 않는다.
-- Application target와 revision은 비교 축이므로 후보마다 달라도 될 수 있다.
+- Application target URL/model/revision은 비교 축이므로 후보마다 달라도 될 수 있다.
 - Evaluation Profile은 사용자 맥락으로 표시하지만 실제 comparability 판정은 backend가 소유한다.
 - 비교 중 Application이나 Evaluator를 다시 호출하지 않는다.
 - Quality Gate와 Regression을 하나의 PASS/FAIL로 합치지 않는다.
 
-현재 comparison response는 두 Run ID만 확정됐다. case별 변화와 Regression classification은 backend #119가 OpenAPI에 확정한 뒤 화면 흐름을 구체화한다. #30은 선택 구현 이슈다.
+comparison response는 summary count와 case별 이전·현재 verdict, comparability status 및 change type을
+확정했다. 프론트는 `SECURITY_REGRESSION`, `USABILITY_REGRESSION`, `IMPROVEMENT`,
+`POLICY_BEHAVIOR_CHANGED`, `NO_CHANGE`를 서버 값 그대로 사용한다. #30은 선택 구현 이슈다.
 
 ## 9. 공통 예외와 복구
 
@@ -335,13 +347,13 @@ flowchart TD
 | Suite 상세·수정 | 테스트 스위트 | `GET/PATCH /api/v1/test-suites/{suiteId}` | UI 일부 미구현 |
 | TestCase 목록·생성 | TestCase 관리 | `GET/POST /api/v1/test-suites/{suiteId}/test-cases` | 부분 구현 |
 | TestCase 상세·수정·삭제 | TestCase 관리 | `GET/PATCH/DELETE /api/v1/test-cases/{testCaseId}` | 수정 UI 일부 미구현 |
-| Run 생성 | 새 테스트 실행 | `POST /api/v1/test-runs` | legacy 계약, #27 |
+| Run 생성 | 새 테스트 실행 | `POST /api/v1/test-runs` | 최신 Target/Profile 계약 구현, #60 |
 | Run 이력 | 실행 이력 | `GET /api/v1/test-runs` | 기본 조회 구현, filter/page 미완성 |
-| Run 진행·요약 | 결과 상세 | `GET /api/v1/test-runs/{testRunId}` | DTO 불일치, #28 |
-| 개별 결과 | 결과 상세 | `GET /api/v1/test-runs/{testRunId}/results` | DTO 불일치, #28 |
-| Evaluator metrics | Evaluator 분석 | `GET /api/v1/test-runs/{testRunId}/evaluator-metrics` | 미구현, #29 |
+| Run 진행·요약 | 결과 상세 | `GET /api/v1/test-runs/{testRunId}` | 구현 |
+| 개별 결과 | 결과 상세 | `GET /api/v1/test-runs/{testRunId}/results` | 구현 |
+| Evaluator metrics | Evaluator 분석 | `GET /api/v1/test-runs/{testRunId}/evaluator-metrics` | 구현 |
 | 비교 후보 | Regression | `GET /api/v1/test-runs/{testRunId}/comparable-runs` | 미구현, #30 |
-| Run 비교 | Regression | `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}` | DTO 후속 확정, #30/backend #119 |
+| Run 비교 | Regression | `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}` | DTO 확정, UI 선택 구현 #30 |
 
 ## 11. 미결정 사항
 
@@ -349,10 +361,9 @@ flowchart TD
 - Idempotency-Key 생성·저장·폐기 정책
 - Polling interval, retry, backoff와 background 동작
 - pagination/filter의 URL 보존
-- Quality Gate PASS/FAIL metrics 확정 후 화면 구성
 - error code별 최종 사용자 문구
 - Evaluator 분석의 tab/별도 화면 배치
-- comparison result DTO 확정 후 상세 탐색 방식
+- comparison 상세 탐색과 filter UI 방식
 - report/export 범위
 
 Application 자연어 응답 비공개는 미결정 사항이 아니라 현재 확정된 정책이다.
