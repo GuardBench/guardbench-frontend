@@ -41,7 +41,18 @@ function submitErrorMessage(error: unknown): string {
   if (error instanceof ApiError && error.code === 'IDEMPOTENCY_KEY_CONFLICT') {
     return '이전 요청과 충돌했습니다. 입력을 확인한 뒤 새로 시도해 주세요.';
   }
+  if (error instanceof ApiError && error.code === 'EVALUATION_PROFILE_NOT_SUPPORTED') {
+    return '선택한 Checks와 Strictness 조합을 지원하는 Evaluator 설정이 없습니다.';
+  }
   return '테스트 실행 요청에 실패했습니다.';
+}
+
+function hasSubmitErrorMessage(error: unknown): error is ApiError {
+  return error instanceof ApiError && [
+    'TEST_SUITE_EMPTY',
+    'IDEMPOTENCY_KEY_CONFLICT',
+    'EVALUATION_PROFILE_NOT_SUPPORTED',
+  ].includes(error.code);
 }
 
 function createIdempotencyKey(): string {
@@ -60,6 +71,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
   const [reloadToken, setReloadToken] = useState(0);
   const [endpoint, setEndpoint] = useState('');
   const [revision, setRevision] = useState('');
+  const [model, setModel] = useState('');
   const [checks, setChecks] = useState<EvaluationCheck[]>(CHECK_OPTIONS.map((option) => option.value));
   const [strictness, setStrictness] = useState<EvaluationStrictness>('STANDARD');
   const [validation, setValidation] = useState<string | null>(null);
@@ -95,6 +107,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
   const caseCount = selectedSuite?.caseCount ?? 0;
   const normalizedEndpoint = endpoint.trim();
   const normalizedRevision = revision.trim();
+  const normalizedModel = model.trim();
   const canSubmit = !submitting && !suiteLoading && suites.length > 0;
 
   const toggleCheck = (check: EvaluationCheck) => {
@@ -110,6 +123,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
     if (!suiteId) return setValidation('테스트 스위트를 선택해 주세요.');
     if (caseCount === 0) return setValidation('빈 Suite는 실행할 수 없습니다. TestCase를 먼저 추가해 주세요.');
     if (!isHttpEndpoint(normalizedEndpoint)) return setValidation('http:// 또는 https://로 시작하는 유효한 Application URL을 입력해 주세요.');
+    if (!normalizedModel) return setValidation('Application 요청에 사용할 Model 식별자를 입력해 주세요.');
     if (checks.length === 0) return setValidation('평가할 보안 항목을 하나 이상 선택해 주세요.');
 
     setSubmitting(true);
@@ -119,8 +133,9 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
         type: 'HTTP_ENDPOINT' as const,
         identifier: normalizedEndpoint,
         ...(normalizedRevision ? { revision: normalizedRevision } : {}),
+        model: normalizedModel,
       },
-      evaluationProfile: { checks, strictness },
+      evaluationProfile: { checks: [...checks].sort(), strictness },
     };
     const fingerprint = JSON.stringify(payload);
     if (idempotencyAttempt.current?.fingerprint !== fingerprint) {
@@ -169,12 +184,17 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
 
           <div className="pt-6">
             <h2 className="text-base font-bold text-[#17202a]">2. Application</h2>
-            <p className="mb-4 mt-1 text-xs text-[#697586]">테스트할 AI Application의 HTTP endpoint를 입력합니다.</p>
+            <p className="mb-4 mt-1 text-xs text-[#697586]">OpenAI-compatible Chat Completions endpoint와 요청에 사용할 Model을 입력합니다.</p>
             <div className="space-y-4">
               <div>
                 <label htmlFor="run-endpoint" className="mb-2 block text-xs font-bold text-[#4e5a68]">HTTP Endpoint URL <span className="text-[#b83b34]">필수</span></label>
-                <input id="run-endpoint" type="url" value={endpoint} onChange={(event) => { setEndpoint(event.target.value); setValidation(null); }} placeholder="https://example.com/api/chat" className={fieldClass} />
-                <p className="mt-1.5 text-[11px] text-[#697586]">HTTP 또는 HTTPS URL만 지원합니다.</p>
+                <input id="run-endpoint" type="url" value={endpoint} onChange={(event) => { setEndpoint(event.target.value); setValidation(null); }} placeholder="https://example.com/v1/chat/completions" className={fieldClass} />
+                <p className="mt-1.5 text-[11px] text-[#697586]">OpenAI-compatible Chat Completions의 전체 HTTP 또는 HTTPS URL을 입력합니다.</p>
+              </div>
+              <div>
+                <label htmlFor="run-model" className="mb-2 block text-xs font-bold text-[#4e5a68]">Model <span className="text-[#b83b34]">필수</span></label>
+                <input id="run-model" value={model} onChange={(event) => { setModel(event.target.value); setValidation(null); }} placeholder="예: example-model" className={fieldClass} />
+                <p className="mt-1.5 text-[11px] text-[#697586]">Application이 Chat Completions 요청 body에서 인식하는 모델 식별자입니다.</p>
               </div>
               <div>
                 <label htmlFor="run-revision" className="mb-2 block text-xs font-bold text-[#4e5a68]">Revision <span className="font-normal text-[#697586]">선택</span></label>
@@ -208,12 +228,19 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
           <dl className="divide-y divide-[#e5e9ee] text-xs">
             <div className="flex justify-between gap-4 py-3"><dt className="text-[#697586]">TestSuite</dt><dd className="text-right font-bold">{selectedSuite?.name || '—'}</dd></div>
             <div className="flex justify-between py-3"><dt className="text-[#697586]">예상 실행 수</dt><dd className="font-bold">{caseCount}회</dd></div>
-            <div className="py-3"><dt className="text-[#697586]">Application</dt><dd className="mt-1 break-all font-bold">{normalizedEndpoint || '—'}</dd>{normalizedRevision && <dd className="mt-1 text-[10px] text-[#697586]">Revision: {normalizedRevision}</dd>}</div>
+            <div className="py-3"><dt className="text-[#697586]">Application</dt><dd className="mt-1 break-all font-bold">{normalizedEndpoint || '—'}</dd><dd className="mt-1 text-[10px] text-[#697586]">Model: {normalizedModel || '입력 필요'}</dd>{normalizedRevision && <dd className="mt-1 text-[10px] text-[#697586]">Revision: {normalizedRevision}</dd>}</div>
             <div className="py-3"><dt className="text-[#697586]">Evaluation Profile</dt><dd className="mt-1 font-bold">{checks.length ? CHECK_OPTIONS.filter((option) => checks.includes(option.value)).map((option) => option.label).join(', ') : '선택 필요'}</dd><dd className="mt-1 text-[10px] text-[#697586]">Strictness: {strictness}</dd></div>
           </dl>
           <div className="flex gap-2 rounded-xl bg-[#eef8f4] p-3.5 text-[11px] leading-relaxed text-[#27634f]"><ShieldCheck size={16} className="shrink-0" /><span>각 Snapshot은 Application에서 1회 실행됩니다. Evaluator 설정은 GuardBench가 내부에서 관리합니다.</span></div>
           {validation && <div id="run-validation-summary" className="rounded-xl border border-[#e7c47f] bg-[#fff7e8] px-4 py-3 text-xs font-semibold text-[#78501b]">{validation}</div>}
-          {submitError !== null && <RequestErrorBanner error={submitError} fallbackMessage={submitErrorMessage(submitError)} />}
+          {submitError !== null && <RequestErrorBanner
+            error={submitError}
+            fallbackMessage="테스트 실행 요청에 실패했습니다."
+            messageOverride={hasSubmitErrorMessage(submitError) ? submitErrorMessage(submitError) : undefined}
+            helpMessage={submitError instanceof ApiError && submitError.code === 'EVALUATION_PROFILE_NOT_SUPPORTED'
+              ? '다른 Checks 또는 Strictness 조합으로 다시 시도하세요. 필요한 평가 조합이라면 관리자에게 Evaluator catalog 등록을 요청해야 합니다.'
+              : undefined}
+          />}
           <button type="button" onClick={handleRun} disabled={!canSubmit} aria-describedby={validation ? 'run-validation-summary' : undefined} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a7f5a] py-3 text-sm font-bold text-white hover:bg-[#146648] disabled:cursor-not-allowed disabled:opacity-50"><Play size={16} />{submitting ? '실행 요청 중...' : '테스트 실행 요청'}</button>
         </aside>
       </div>

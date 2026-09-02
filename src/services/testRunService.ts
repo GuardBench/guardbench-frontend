@@ -10,12 +10,14 @@ export interface TargetReferenceReq {
   type: 'HTTP_ENDPOINT';
   identifier: string;
   revision?: string;
+  model: string;
 }
 
 export interface TargetReferenceRes {
   type: 'HTTP_ENDPOINT';
   identifier: string;
   revision: string | null;
+  model: string;
 }
 
 export interface EvaluationProfileReq {

@@ -6,6 +6,7 @@ import type {
   ExecutionErrorDetailRes,
   ExecutionOutcome,
   QualityGateRes,
+  TargetReferenceReq,
   TargetReferenceRes,
   TestRunDetailRes,
   TestRunListItemRes,
@@ -21,9 +22,11 @@ type Equal<Left, Right> =
 type Assert<Condition extends true> = Condition;
 
 // OpenAPI의 required + nullable 조합이 DTO 변경 과정에서 optional이나 non-null로 좁혀지지 않게 한다.
-export type TargetReferenceNullabilityContract = Assert<
-  Equal<TargetReferenceRes['revision'], string | null>
->;
+export type TargetReferenceContract = [
+  Assert<Equal<TargetReferenceReq['model'], string>>,
+  Assert<Equal<TargetReferenceRes['revision'], string | null>>,
+  Assert<Equal<TargetReferenceRes['model'], string>>,
+];
 
 export type TestRunDetailNullabilityContract = [
   Assert<Equal<TestRunDetailRes['executionOutcome'], ExecutionOutcome | null>>,

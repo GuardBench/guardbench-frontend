@@ -235,7 +235,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
       <article className="rounded-2xl border border-[#e5e9ee] bg-white p-6">
         <div className="mb-4 flex items-center justify-between"><h2 className="text-sm font-bold">실행 정보</h2><div className="flex gap-2">{detail?.executionOutcome ? <StatusPill kind="execution" status={detail.executionOutcome} /> : <span className="rounded-full bg-[#eef1f4] px-2.5 py-1 text-[10px] font-extrabold text-[#8fa0ad]">결정 전</span>}<StatusPill kind="gate" status={gateStatus} /></div></div>
         <dl className="grid gap-4 text-xs sm:grid-cols-2">
-          <div><dt className="text-[#697586]">Application</dt><dd className="mt-1 break-all font-bold">{detail?.target.identifier ?? '—'}</dd><dd className="mt-1 text-[#697586]">Revision: {detail?.target.revision ?? '없음'}</dd></div>
+          <div><dt className="text-[#697586]">Application</dt><dd className="mt-1 break-all font-bold">{detail?.target.identifier ?? '—'}</dd><dd className="mt-1 text-[#697586]">Model: {detail?.target.model ?? '—'}</dd><dd className="mt-1 text-[#697586]">Revision: {detail?.target.revision ?? '없음'}</dd></div>
           <div><dt className="text-[#697586]">Evaluation Profile</dt><dd className="mt-1 font-bold">{detail?.evaluationProfile.checks.join(', ') ?? '—'}</dd><dd className="mt-1 text-[#697586]">Strictness: {detail?.evaluationProfile.strictness ?? '—'}</dd></div>
         </dl>
       </article>
