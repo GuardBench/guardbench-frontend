@@ -2,9 +2,9 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-09-01
-> Scope: GitHub Issue #35
-> AS-IS baseline: `dev@86190bcf0a6905e5d77194a5e99886fe433cb9c2`
+> Last reviewed: 2026-09-02
+> Scope: GitHub Issues #35, #62
+> AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 > Product flows: [`../product/screen-spec.md`](../product/screen-spec.md), [`../product/user-flows.md`](../product/user-flows.md)
 > API consumption contract: [`../contracts/api-integration.md`](../contracts/api-integration.md)
@@ -34,7 +34,8 @@
 | modal | 공통 focus trap, Escape, trigger 복귀와 layer 정책 | native widget과 입력 손실 정책 지속 검증 |
 | demo | 상단 data mode 표식 | 정적 Architecture 자료 범위를 더 명확히 할 수 있음 |
 
-현재 UI는 최신 TestRun 생성·결과 DTO를 사용한다. comparison case-level DTO처럼 OpenAPI에서 미확정인 영역은 구현 완료 상태로 간주하지 않는다.
+현재 UI는 필수 Application model, 최신 TestRun 생성·결과 DTO와 확정 Quality Gate metrics를 사용한다.
+comparison DTO도 확정됐지만 전용 UI는 #30의 선택 구현 범위다.
 
 ## 3. Loading과 진행 상태
 
@@ -78,7 +79,7 @@ Polling interval, 장시간 실행 안내와 background tab 표현은 `미결정
 | --- | --- |
 | validation | field 근처 오류와 form-level summary, 입력 유지 |
 | resource not found | 대상이 없다는 설명과 목록으로 돌아갈 action |
-| create conflict | `TEST_SUITE_EMPTY`는 TestCase가 없음을 알리고 Suite 편집으로 연결한다. `IDEMPOTENCY_KEY_CONFLICT`는 자동 재전송을 중단하고 새 시도를 안내한다. |
+| create conflict | `TEST_SUITE_EMPTY`는 TestCase가 없음을 알리고 Suite 편집으로 연결한다. `IDEMPOTENCY_KEY_CONFLICT`는 자동 재전송을 중단하고 새 시도를 안내한다. `EVALUATION_PROFILE_NOT_SUPPORTED`는 다른 Profile 조합 또는 Evaluator catalog 등록을 안내한다. |
 | not finished race | Run 상태 재확인, 결과 empty로 확정하지 않음 |
 | not comparable | comparison 해제와 후보 재선택 |
 | network/timeout | 접수·처리 결과 불명 가능성과 재시도 |
@@ -122,7 +123,8 @@ Polling interval, 장시간 실행 안내와 background tab 표현은 `미결정
 | 사용자 label | API 의미 | UI 규칙 |
 | --- | --- | --- |
 | TestSuite | `testSuiteId` | 실제 ID를 사용하고 empty/error를 구분 |
-| Application URL | `target.identifier` | HTTP/HTTPS URI, 필수 |
+| Application URL | `target.identifier` | OpenAI-compatible Chat Completions full HTTP/HTTPS URI, 필수 |
+| Model | `target.model` | OpenAI-compatible request의 모델 식별자, 필수, 공백 금지 |
 | Revision | `target.revision` | optional, 공백 문자열 금지 |
 | Evaluation checks | `evaluationProfile.checks` | 최소 1개, 중복 없이 복수 선택 |
 | Strictness | `evaluationProfile.strictness` | Profile 전체에 하나, 모든 checks에 공통 적용 |
@@ -130,7 +132,7 @@ Polling interval, 장시간 실행 안내와 background tab 표현은 `미결정
 - 사용자에게 Evaluator provider/type 또는 Guardrail ID/version을 입력받지 않는다.
 - check별 strictness control을 만들지 않는다.
 - strictness label은 특정 provider threshold나 절대 안전 수준을 보장하는 표현을 사용하지 않는다.
-- 실행 요약에는 Suite, Application URL/revision, checks와 단일 strictness를 표시한다.
+- 실행 요약에는 Suite, Application URL/model/revision, checks와 단일 strictness를 표시한다.
 - 예상 실행 수에 legacy `caseCount * 2`를 사용하지 않는다.
 
 Idempotency-Key는 사용자 입력 field가 아니다. 재전송 정책이 확정되면 UI는 결과 불명과 새 시도를 구분한다.
@@ -237,7 +239,8 @@ skip link, route change announcement와 screen reader 지원 matrix는 #17에서
 
 - Gate FAIL을 execution ERROR와 같은 색·문구 하나로 합치지 않는다.
 - `qualityGate: null`은 결정 전이고 `NOT_EVALUATED`는 종료 후 계산 불가다.
-- PASS/FAIL metrics field가 OpenAPI에 확정되기 전 legacy regression card를 재사용하지 않는다.
+- PASS/FAIL에서는 `assertionPassRate`와 `executionSuccessRate`를 별도 label로 표시한다.
+- Quality Gate metrics를 퍼센트로 formatting할 수 있지만 status나 threshold 판정을 프론트에서 재계산하지 않는다.
 - status를 색상만으로 전달하지 않고 text label을 제공한다.
 
 ### 13.3 개별 결과
@@ -271,7 +274,8 @@ chart 유형, 숫자 rounding과 mobile 배치는 `미결정`이다.
 - current와 comparison Run의 Application Target, Evaluation Profile과 완료 시각을 비교 context로 표시한다.
 - 비교 중 Application/Evaluator를 다시 실행하는 것처럼 표현하지 않는다.
 - `TEST_RUNS_NOT_COMPARABLE`이면 기존 비교 결과를 유지하지 않고 후보 재선택을 제공한다.
-- case-level 결과 DTO와 classification이 OpenAPI에 확정되기 전 badge와 table 의미를 만들지 않는다.
+- case-level badge와 table은 서버의 comparability status와 change type을 그대로 사용한다.
+- summary count와 item을 현재 result page에서 다시 계산하지 않는다.
 
 Regression 전용 UI는 #30의 선택 구현 범위다.
 
@@ -313,9 +317,8 @@ Application 자연어 응답은 Evaluator 내부 입력이며 public UI에 표�
 
 ## 19. 후속 구현·Decision
 
-- Target + Evaluation Profile form과 field error 연결 (#27)
-- 결과 상세의 상태 축과 public DTO mapping (#28)
-- Evaluator metrics 분석 UI (#29)
+- form validation과 control 접근성 연결 (#65)
+- dev 대상 소스 PR build/lint CI (#64)
 - Regression 비교 UI (#30)
 - toast queue/live region과 지속 feedback
 - modal focus management와 route focus

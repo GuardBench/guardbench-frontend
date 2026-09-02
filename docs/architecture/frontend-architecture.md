@@ -2,9 +2,9 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-09-01
-> Scope: GitHub Issue #34
-> AS-IS baseline: `dev@cc57fbbd17f6c9e2e4b061ca6b930079e367d8f8`
+> Last reviewed: 2026-09-02
+> Scope: GitHub Issues #34, #62
+> AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 > Product flows: [`../product/screen-spec.md`](../product/screen-spec.md), [`../product/user-flows.md`](../product/user-flows.md)
 > API consumption contract: [`../contracts/api-integration.md`](../contracts/api-integration.md)
@@ -54,7 +54,9 @@ View / Form
 - Suite/TestCase, Run 생성·목록·상세·결과·metrics 화면은 API의 data/empty/error/stale 상태를 구분한다.
 - `mockData`는 Architecture의 정적 설명 자료에만 남아 있다. API 화면은 실패를 mock 성공으로 대체하지 않는다.
 
-현재 코드는 최신 OpenAPI의 단일 Application Target, Evaluation Profile, Evaluator 결과와 metrics를 사용한다. comparison 응답은 ID 외 case-level 필드가 미확정이므로 별도 선택 구현으로 남긴다.
+현재 코드는 최신 OpenAPI의 필수 model을 포함한 단일 Application Target, Evaluation Profile,
+Evaluator 결과와 확정 Quality Gate metrics를 사용한다. comparison DTO도 확정됐지만 선택 UI는 #30의
+별도 구현 범위로 남아 있다.
 
 ## 3. 실행과 환경 경계
 
@@ -147,7 +149,7 @@ query identity는 endpoint 결과를 유일하게 결정하는 입력을 포함�
 - 단일 Target을 legacy `baseline/candidate` 구조로 변환하지 않는다.
 - `evaluationProfile`을 Evaluator provider 설정이나 저장 resource ID로 바꾸지 않는다.
 - Application 자연어 응답, provider 원문, stack trace를 DTO에 추가하지 않는다.
-- comparison DTO가 확정되기 전 case별 change/classification model을 만들지 않는다.
+- comparison summary와 case별 change/classification은 서버 DTO를 보존하고 프론트에서 재분류하지 않는다.
 - unknown public error code도 stage/message와 함께 보존한다.
 
 수동 DTO 유지, OpenAPI type generation, runtime schema validation과 mapper 위치는 `미결정`이다.
@@ -165,16 +167,18 @@ flowchart LR
 ```
 
 - form draft와 server mutation 상태를 분리한다.
-- request body는 `testSuiteId`, 단일 `target`과 inline `evaluationProfile`만 포함한다.
+- request body는 `testSuiteId`, URL/model/선택 revision을 가진 단일 `target`과 inline `evaluationProfile`만 포함한다.
 - 하나의 Profile strictness를 선택된 모든 checks에 공통 적용한다.
 - 같은 논리적 재전송은 같은 key와 body를 사용하고 다른 body에 key를 재사용하지 않는다.
 - `202`를 실행 완료로 처리하지 않는다.
-- response의 Run ID와 `Location` header를 보존하고 Run detail identity로 이동한다.
+- 현재는 response의 Run ID로 Result Detail identity를 이동한다. `apiClient`가 `Location` header를 노출하지 않으므로 header 보존은 남은 계약 격차다.
 - `TEST_SUITE_EMPTY`는 활성 TestCase 준비 흐름으로 연결한다.
 - `IDEMPOTENCY_KEY_CONFLICT`는 같은 key를 다른 body에 사용한 충돌이므로 자동 재전송을 중단한다.
+- `EVALUATION_PROFILE_NOT_SUPPORTED`는 다른 Profile 조합 또는 Evaluator catalog 등록 흐름으로 연결한다.
 - network/timeout은 접수 여부가 불명일 수 있으므로 명시적 validation/API 거부와 구분한다.
 
-Idempotency-Key의 생성·보존·폐기 구현은 `미결정`이다.
+현재 화면은 payload fingerprint별 key를 보존하고 network 결과 불명에서는 재사용하며 성공 또는 명시적
+서버 거부 후 폐기한다. 화면 이탈 후 key 복원과 장기 보존은 `미결정`이다.
 
 ## 8. Polling 구조
 
@@ -231,7 +235,8 @@ RunDetail
 - 원문 Application response는 frontend state, modal과 export에 포함하지 않는다.
 - results 또는 evaluator-metrics가 `TEST_RUN_NOT_FINISHED`를 반환하면 detail 상태를 다시 조회하고 진행 흐름으로 복귀한다.
 
-Quality Gate metrics의 구체 field가 확정되면 detail mapper와 표시 model을 별도로 갱신한다.
+Quality Gate의 `assertionPassRate`와 `executionSuccessRate`는 detail DTO에서 보존하고 표시 단계에서만
+퍼센트로 변환한다. Gate status와 두 비율을 result page에서 재계산하지 않는다.
 
 ## 10. Comparable Runs와 comparison 경계
 
@@ -245,7 +250,10 @@ Regression은 현재 Run 자체의 Quality Gate와 독립적인 조회 기능이
 6. `TEST_RUN_NOT_FINISHED`이면 관련 Run detail을 다시 확인한다.
 7. `TEST_RUNS_NOT_COMPARABLE`이면 comparison state를 비우고 comparable-runs를 재조회하거나 다른 후보를 선택하게 한다.
 
-comparability 규칙을 프론트에서 복제하거나 같은 Suite라는 이유로 후보를 추가하지 않는다. 현재 comparison response는 ID만 확정됐으므로 case-level result state와 UI mapper는 backend #119의 OpenAPI 확정 후 추가한다.
+comparability 규칙을 프론트에서 복제하거나 같은 Suite라는 이유로 후보를 추가하지 않는다. comparison
+응답의 summary count, 이전·현재 verdict, comparability status와 change type은 서버 값을 보존한다.
+`NOT_COMPARABLE` item의 nullable verdict/change type 표현은 backend #144에서 OpenAPI 3.0.3 도구
+호환성을 명확히 한 뒤 generated type 도입 시 재확인한다.
 
 ## 11. Mutation 동기화
 
@@ -379,10 +387,10 @@ test framework, 실제 backend 사용 범위와 CI required check는 `미결정`
 
 | 순서 | 구현 범위 | 관련 이슈 |
 | --- | --- | --- |
-| 1 | 생성 DTO와 Application Target + Evaluation Profile form | #27 |
-| 2 | Run detail/results DTO, mapper와 결과 화면 | #28 |
-| 3 | Evaluator metrics query와 분석 화면 | #29 |
-| 4 | comparable-runs와 comparison | #30 / backend #119 |
+| 1 | 생성 DTO와 Application Target + Evaluation Profile form | #27 / #60 완료 |
+| 2 | Run detail/results DTO, mapper와 결과 화면 | #28 / #61 완료 |
+| 3 | Evaluator metrics query와 분석 화면 | #29 완료 |
+| 4 | comparable-runs와 comparison UI | #30 선택 구현 |
 
 별도 Decision 후보:
 

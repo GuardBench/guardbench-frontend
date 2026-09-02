@@ -2,9 +2,9 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-09-01
-> Scope: GitHub Issue #33
-> AS-IS baseline: `dev@9c99a4e4943412537b9c15238a353af143b9289c`
+> Last reviewed: 2026-09-02
+> Scope: GitHub Issues #33, #62
+> AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 > API consumption contract: [`../contracts/api-integration.md`](../contracts/api-integration.md)
 
@@ -111,33 +111,34 @@ pagination/filter UX, 삭제 확인 방식과 mutation 후 재조회 정책은 `
 
 ## 6. 새 테스트 실행
 
-### 목적 (`TO-BE`)
+### 목적
 
 사용자가 TestSuite, 테스트할 AI Application과 평가 정책을 선택해 비동기 TestRun을 접수한다.
 
 ```text
 TestSuite
-+ Application HTTP endpoint / optional revision
++ OpenAI-compatible HTTP endpoint / required model / optional revision
 + Evaluation Profile checks / strictness
 → POST /api/v1/test-runs
 → 202 Accepted
 → Run 상세 조회
 ```
 
-### 현재 동작 (`AS-IS` 불일치)
+### 현재 동작 (`AS-IS`)
 
 - Suite 목록은 실제 API에서 조회한다.
-- 화면은 여전히 Guardrail ID, Baseline numbered version과 Candidate DRAFT를 입력받는다.
-- `testRunService`도 `baseline`과 `candidate` body를 전송한다.
-- 최신 `TestRunCreateReq`가 요구하는 `target`과 `evaluationProfile`을 전송하지 않는다.
-- 따라서 현재 form은 최신 backend와 성공 가능한 생성 계약이 아니다.
+- OpenAI-compatible full endpoint, 필수 model과 선택 revision을 입력받는다.
+- checks 복수 선택과 Profile 전체의 단일 strictness를 입력받는다.
+- `testRunService`는 최신 `target`과 inline `evaluationProfile`을 전송한다.
+- 동일 payload의 결과 불명 재시도에는 같은 Idempotency-Key를 유지한다.
 
-### 목표 form (`TO-BE`)
+### 현재 form 계약 (`AS-IS`)
 
 | 영역 | 입력 | 상태와 validation |
 | --- | --- | --- |
 | TestSuite | 실제 Suite ID | loading, empty, 조회 오류와 선택 상태 |
-| Application | HTTP/HTTPS URL | 필수, OpenAPI URI/pattern 적용 |
+| Application | HTTP/HTTPS URL | 필수, URL parsing과 HTTP/HTTPS protocol 검사 |
+| Application model | Chat Completions request의 모델 식별자 | 필수, 공백 문자열 금지 |
 | Application revision | 배포·모델·commit 식별 문자열 | 선택, 공백 문자열 금지 |
 | Evaluation checks | Prompt Injection, PII Leakage, Harmful Content | Profile에서 최소 1개, 중복 불가 |
 | Strictness | Relaxed, Standard, Strict | Evaluation Profile 전체에 정확히 1개 선택하며 선택된 모든 checks에 공통 적용 |
@@ -146,17 +147,18 @@ TestSuite
 - Evaluation Profile은 저장된 리소스 ID가 아니라 Run에 포함되는 inline 정책으로 설명한다.
 - 현재 OpenAPI는 check별 strictness를 지원하지 않는다. check마다 다른 엄격도를 보내거나 화면 전용 조합을 request body에 추가하지 않는다.
 - 예상 실행 수는 활성 TestCaseSnapshot당 단일 Application 처리 기준이며 기존 `caseCount * 2`를 사용하지 않는다.
-- 화면 요약에는 Suite, Application과 Evaluation Profile만 표시한다.
-- `Idempotency-Key`의 생성·복원 정책이 확정되면 한 논리적 제출 시도에 같은 key를 사용한다.
+- 화면 요약에는 Suite, Application URL/model/revision과 Evaluation Profile을 표시한다.
+- 한 논리적 제출 payload에는 같은 `Idempotency-Key`를 사용하고 payload가 바뀌면 새 key를 사용한다.
 
-### 생성 결과와 오류 (`TO-BE`)
+### 생성 결과와 오류 (`AS-IS`)
 
 - `202 Accepted`는 실행 완료가 아니라 접수 성공이다.
 - 응답의 Run ID, status, testCaseCount, target, evaluationProfile과 createdAt을 보존한다.
 - 접수 후 즉시 Run 상세 화면 또는 진행 확인 흐름으로 이동한다.
-- `TEST_SUITE_EMPTY`, `IDEMPOTENCY_KEY_CONFLICT`, validation과 network 결과 불명을 구분한다.
+- `TEST_SUITE_EMPTY`, `IDEMPOTENCY_KEY_CONFLICT`, `EVALUATION_PROFILE_NOT_SUPPORTED`, validation과 network 결과 불명을 구분한다.
 
-생성 후 기본 이동, 멱등 key 보존 수명과 재제출 UI는 `미결정`이다. 구현 이슈는 #27에서 추적한다.
+생성 후 Result Detail로 이동한다. network 결과 불명에서는 동일 payload/key를 유지하며 화면 이탈 후
+복원과 장기 보존은 `미결정`이다.
 
 ## 7. 실행 이력
 
@@ -194,29 +196,32 @@ filter URL 보존, 진행 Run 자동 갱신과 refresh interval은 `미결정`�
 
 ## 8. Run 결과 상세
 
-### 목적 (`TO-BE`)
+### 목적
 
 현재 Run의 Application 실행 상태, Evaluation Profile, Evaluator 판정과 Quality Gate를 확인한다. Regression은 같은 화면의 기본 판정에 섞지 않고 별도 비교 흐름으로 제공한다.
 
-### 현재 동작 (`AS-IS 불일치`)
+### 현재 동작 (`AS-IS`)
 
 - Run 상세와 결과 endpoint를 호출한다.
-- 화면과 service DTO는 여전히 `targets.baseline/candidate`, 양쪽 execution, comparability와 change type을 기대한다.
-- 고정 regression metrics와 Baseline/Candidate diff card를 표시한다.
-- 최신 OpenAPI 응답 shape와 맞지 않아 실제 결과를 정확히 mapping할 수 없다.
+- 단일 Application 실행, Evaluator verdict, assertion과 evaluation outcome을 표시한다.
+- 결과 page metadata와 server filter를 사용하고 Evaluator metrics를 별도로 조회한다.
+- Quality Gate의 확정된 두 metrics를 서버 값 그대로 표시한다.
+- Application 자연어 응답과 legacy Baseline/Candidate diff를 표시하지 않는다.
 
-### 8.1 Run 요약 (`TO-BE`)
+### 8.1 Run 요약 (`AS-IS`)
 
 - TestSuite ID
-- 단일 Application Target type, identifier와 optional revision
+- 단일 Application Target type, identifier, required model과 optional revision
 - 요청한 Evaluation Profile checks와 strictness
 - lifecycle, progress, execution outcome
 - Quality Gate status
 - created/started/completed/updated 시각
 
-`qualityGate: null`은 아직 결정 전이고 `NOT_EVALUATED`는 종료됐지만 Gate 계산 불가다. PASS/FAIL metrics의 구체 필드는 OpenAPI에서 확정되기 전까지 고정 card로 만들지 않는다.
+`qualityGate: null`은 아직 결정 전이고 `NOT_EVALUATED + metrics: null`은 종료됐지만 평가 가능한
+Assertion이 없는 상태다. PASS/FAIL에서는 `assertionPassRate`와 `executionSuccessRate`를 표시하되
+프론트에서 Gate status를 다시 계산하지 않는다.
 
-### 8.2 개별 결과 (`TO-BE`)
+### 8.2 개별 결과 (`AS-IS`)
 
 `GET /api/v1/test-runs/{testRunId}/results`의 paginated item을 다음 열로 표시한다.
 
@@ -253,7 +258,7 @@ filter URL 보존, 진행 Run 자동 갱신과 refresh interval은 `미결정`�
 - filter를 적용해도 Evaluator metrics와 Quality Gate를 현재 page에서 다시 계산하지 않는다. aggregate는 각각의 서버 응답을 source of truth로 사용한다.
 - page, size와 sort도 결과 endpoint에 함께 전달할 수 있다.
 
-### 8.3 Evaluator metrics (`TO-BE`)
+### 8.3 Evaluator metrics (`AS-IS`)
 
 `GET /api/v1/test-runs/{testRunId}/evaluator-metrics`를 사용해 서버가 집계한 TP/TN/FP/FN count와 FP/FN rate를 표시한다.
 
@@ -262,7 +267,7 @@ filter URL 보존, 진행 Run 자동 갱신과 refresh interval은 `미결정`�
 - 일부 result page를 가지고 전체 metrics를 재계산하지 않는다.
 - 일반적인 모델 성능이나 절대 ground truth로 과장하지 않는다.
 
-Evaluator 검토 화면 또는 tab의 정확한 배치는 `미결정`이며 구현 이슈 #29에서 추적한다.
+Evaluator metrics는 현재 Result Detail에서 Quality Gate와 구분된 review section으로 표시한다.
 
 ## 9. Regression 비교
 
@@ -278,7 +283,9 @@ Evaluator 검토 화면 또는 tab의 정확한 배치는 `미결정`이며 구�
 4. 후보를 선택해 comparisons endpoint를 조회한다.
 5. Application이나 Evaluator를 다시 실행하는 것처럼 표현하지 않는다.
 
-현재 `TestRunComparisonRes`는 Run 식별자만 확정됐고 case별 Regression 결과 DTO와 classification은 backend #119 소유다. 구체 비교 table, badge와 filter는 OpenAPI가 확정되기 전까지 목표 사양으로 만들지 않는다. 구현 이슈는 #30에서 추적한다.
+`TestRunComparisonRes`는 Run ID, 전체·변경·유지·개선·악화·비교 불가 count와 case별 item을
+반환한다. 각 item은 Expected, 이전·현재 verdict, `COMPARABLE`/`NOT_COMPARABLE`과 확정 change type을
+포함한다. UI는 서버 classification을 재계산하지 않으며 구현은 #30에서 선택 범위로 추적한다.
 
 ## 10. 아키텍처 화면
 
@@ -305,9 +312,9 @@ interval, backoff, background tab과 최대 지속 시간은 `미결정`이다.
 
 | 범위 | 이슈 | 문서 기준 |
 | --- | --- | --- |
-| 새 TestRun 생성 | #27 | §6 |
-| Run 결과 상세 | #28 | §8.1~8.2 |
-| Evaluator 분석 | #29 | §8.3 |
+| 새 TestRun 생성 | #27 / #60 완료 | §6 |
+| Run 결과 상세 | #28 / #61 완료 | §8.1~8.2 |
+| Evaluator 분석 | #29 완료 | §8.3 |
 | Regression 비교 | #30 | §9 |
 | API 빈 결과·오류·mock | #19 | §3 및 API 연동 계약 |
 
