@@ -21,6 +21,8 @@ GuardBench(Amazon Bedrock Guardrail 정책 회귀 테스트 플랫폼)의 공식
 
 ## 💻 로컬 개발 환경 실행
 
+`.env.example`을 기준으로 실행 환경을 설정합니다. 기본값은 `VITE_DATA_MODE=api`이며 API 오류를 mock 성공 데이터로 바꾸지 않습니다. 데모·정적 자료를 사용하는 환경은 `VITE_DATA_MODE=demo`를 명시하고 화면 상단의 DEMO 표시로 실제 API 데이터와 구분합니다.
+
 ```bash
 # 1. 의존성 패키지 설치
 npm install

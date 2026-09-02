@@ -8,10 +8,12 @@ import { NewRunView } from './components/views/NewRunView';
 import { RunsView } from './components/views/RunsView';
 import { ResultDetailView } from './components/views/ResultDetailView';
 import { ArchitectureView } from './components/views/ArchitectureView';
+import { runtimeConfig } from './config/runtimeConfig';
+import { LAYER_CLASS } from './config/layers';
 
 export function App() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
-  const [selectedRunId, setSelectedRunId] = useState<string>('#5001');
+  const [selectedRunId, setSelectedRunId] = useState<string>('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -58,6 +60,11 @@ export function App() {
         />
 
         <main className="flex-1 p-6 sm:p-8 max-w-[1500px] w-full mx-auto">
+          {runtimeConfig.dataMode === 'demo' && (
+            <div className="mb-5 rounded-xl border border-[#e6c979] bg-[#fff7e8] px-4 py-3 text-xs font-bold text-[#78501b]">
+              DEMO 데이터 모드입니다. 화면의 데모·정적 정보는 실제 API 결과가 아닙니다.
+            </div>
+          )}
           {currentView === 'dashboard' && (
             <DashboardView
               onGoNewRun={() => handleSelectView('new-run')}
@@ -69,7 +76,7 @@ export function App() {
             <NewRunView
               onNotify={showToast}
               onRunCreated={(runId) => {
-                handleSelectRun(`#${runId}`);
+                handleSelectRun(runId);
               }}
             />
           )}
@@ -81,9 +88,9 @@ export function App() {
           )}
           {currentView === 'result' && (
             <ResultDetailView
+              key={selectedRunId}
               selectedRunId={selectedRunId}
               onGoNewRun={() => handleSelectView('new-run')}
-              onNotify={showToast}
             />
           )}
           {currentView === 'architecture' && <ArchitectureView />}
@@ -92,7 +99,7 @@ export function App() {
 
       {/* Floating Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#14231d] text-white px-4 py-3 rounded-xl shadow-2xl text-xs font-semibold animate-rise flex items-center gap-2">
+        <div className={`fixed bottom-6 right-6 ${LAYER_CLASS.toast} bg-[#14231d] text-white px-4 py-3 rounded-xl shadow-2xl text-xs font-semibold animate-rise flex items-center gap-2`}>
           <span>✓</span>
           {toastMessage}
         </div>

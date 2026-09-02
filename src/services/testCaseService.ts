@@ -27,6 +27,8 @@ export interface TestCaseListApiResponse {
     size: number;
     totalElements: number;
     totalPages: number;
+    hasPrevious: boolean;
+    hasNext: boolean;
   };
 }
 

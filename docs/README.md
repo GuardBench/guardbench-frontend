@@ -1,13 +1,13 @@
 # GuardBench Frontend 문서
 
-> Status: AS-IS
+> Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-08-31
-> Scope: GitHub Issues #8, #10, #11, #13, #15, #17
+> Last reviewed: 2026-09-01
+> Scope: GitHub Issues #8, #10, #11, #13, #15, #17, #32, #33, #34, #35, #36
 
 이 디렉터리는 GuardBench 프론트엔드의 화면 동작, 사용자 흐름, API 소비 방식, 구조와 UI 규칙을 저장소에서 관리하기 위한 문서 진입점이다.
 
-현재 문서는 구현 코드를 조사한 기준선이다. `AS-IS` 문서에 적힌 동작을 승인된 제품 요구사항이나 향후 목표 동작으로 간주하지 않는다.
+문서는 현재 구현을 기록한 `AS-IS`, 최신 OpenAPI에서 도출되는 `TO-BE`와 별도 결정이 필요한 `미결정`을 함께 관리한다. `AS-IS` 동작을 승인된 제품 요구사항이나 향후 목표 동작으로 간주하지 않는다.
 
 ## 문서 상태
 
@@ -24,7 +24,7 @@
 프론트엔드 구현과 문서가 충돌하면 다음 순서로 판단한다.
 
 1. 현재 Issue의 승인된 요구사항과 사용자의 명시적 지시
-2. 백엔드 저장소의 `APPROVED` OpenAPI 및 제품·도메인 계약
+2. 백엔드 저장소의 `APPROVED` OpenAPI 및 제품·도메인 계약과, 여기에서 동기화한 이 저장소의 [`api/openapi.yaml`](api/openapi.yaml)
 3. 프론트엔드 저장소의 `APPROVED` 문서
 4. 테스트와 현재 공개 코드 동작
 5. `AS-IS` 및 `DRAFT` 문서
@@ -32,18 +32,55 @@
 
 백엔드 API의 요청·응답 스키마를 이 저장소에서 다시 정의하지 않는다. 프론트엔드 문서는 화면이 승인된 OpenAPI를 어떻게 소비하고 사용자에게 표현하는지 기록한다.
 
+로컬 OpenAPI는 프론트엔드 구현 기준으로 사용하는 동기화 사본이다. 출처 commit과 SHA-256은
+[`api/openapi.source.json`](api/openapi.source.json)에 기록하며, 동기화와 검증 절차는
+[`api/README.md`](api/README.md)를 따른다. 백엔드 계약이 변경되면 사본과 관련 DTO·화면·문서를
+같은 변경 흐름에서 검토한다.
+
+API 관련 문서의 책임은 다음 순서로 좁아진다.
+
+```text
+OpenAPI
+  → API 연동 계약
+  → 화면 명세와 사용자 흐름
+  → 프론트엔드 아키텍처
+  → UI 및 접근성 가이드
+```
+
+- OpenAPI는 endpoint, schema, enum, nullable, validation과 공개 오류를 소유한다.
+- API 연동 계약은 프론트엔드의 소비·mapping 원칙을 소유한다.
+- 제품 문서는 사용자 목표, 화면과 상태 흐름을 소유한다.
+- 아키텍처 문서는 상태·의존성·계층 경계를 소유한다.
+- UI 가이드는 label, feedback, interaction과 접근성 표현을 소유한다.
+
 ## 문서 지도
 
 | 문서 | 상태 | 목적 |
 | --- | --- | --- |
-| [화면 및 기능 명세](product/screen-spec.md) | `AS-IS` | 현재 6개 화면의 사용자 행동, 데이터 출처, 상태 표현과 계약 불일치를 기록한다. |
-| [사용자 흐름](product/user-flows.md) | `AS-IS` / `TO-BE` / `미결정` | TestSuite 관리부터 TestRun 결과·Snapshot 분석까지 정상·오류·평가 불가 흐름을 연결한다. |
-| [API 연동 계약](contracts/api-integration.md) | `AS-IS` / `TO-BE` / `미결정` | 화면별 API 매핑, 오류, Polling, 멱등성, pagination, mock과 빈 결과 정책을 정의한다. |
-| [프론트엔드 아키텍처](architecture/frontend-architecture.md) | `AS-IS` / `TO-BE` / `미결정` | 라우팅, 상태 소유권, API 계층, 컴포넌트, 오류 경계와 테스트 구조를 정의한다. |
-| [UI 및 접근성 가이드](conventions/ui-guidelines.md) | `AS-IS` / `TO-BE` / `미결정` | 로딩·빈 결과·오류·폼·피드백·반응형·키보드와 접근성 표현을 정의한다. |
+| [OpenAPI](api/openapi.yaml) | `APPROVED` | 백엔드 canonical source에서 검증 가능하게 동기화한 계약 사본이다. |
+| [OpenAPI 사본 관리](api/README.md) | `APPROVED` | source metadata, 동기화·검증과 drift 탐지 절차를 정의한다. |
+| [화면 및 기능 명세](product/screen-spec.md) | `AS-IS` / `TO-BE` / `미결정` | 6개 현재 화면과 Application Target·Evaluator·Regression 목표 화면을 구분한다. |
+| [사용자 흐름](product/user-flows.md) | `AS-IS` / `TO-BE` / `미결정` | Suite 준비부터 Run 접수·Polling·결과·Evaluator 분석·선택적 비교까지 연결한다. |
+| [API 연동 계약](contracts/api-integration.md) | `AS-IS` / `TO-BE` / `미결정` | 요청 구성, DTO mapping, 오류, Polling, metrics, comparison과 비공개 정책을 정의한다. |
+| [프론트엔드 아키텍처](architecture/frontend-architecture.md) | `AS-IS` / `TO-BE` / `미결정` | query identity, 상태 소유권, API 계층, Polling·동기화·오류와 테스트 경계를 정의한다. |
+| [UI 및 접근성 가이드](conventions/ui-guidelines.md) | `AS-IS` / `TO-BE` / `미결정` | 상태 축, form, 빈 결과·오류, Evaluator·Regression과 접근성 표현을 정의한다. |
 | [프론트엔드 빌드 및 dev 배포](operations/frontend-deployment.md) | `AS-IS` / `DRAFT` | PR build, 문서-only 제외, dev 배포 조건과 AWS 인증 전환 방향을 기록한다. |
 
-예정 문서는 해당 세부 Issue에서 범위와 결정 사항을 확정한 뒤 생성한다.
+Application 자연어 응답은 현재 public API와 UI에서 비공개로 확정돼 있다. 관리자 또는 배포 전 테스트라는 이유만으로 원문을 조회·저장·표시하지 않는다.
+
+## 최신 OpenAPI 개정 추적
+
+| 이슈 | 범위 | 상태 확인 위치 |
+| --- | --- | --- |
+| #32 | API 연동 계약 | `contracts/api-integration.md` |
+| #33 | 화면 명세와 사용자 흐름 | `product/` |
+| #34 | 프론트엔드 아키텍처 | `architecture/frontend-architecture.md` |
+| #35 | UI 가이드와 문서 지도 | `conventions/ui-guidelines.md`, 이 문서 |
+| #36 | 전체 개정 추적 | GitHub Issue checklist |
+| #59 | OpenAPI 사본 동기화와 drift 검증 | `api/README.md`, `api/openapi.source.json` |
+| #60 | 필수 Application model 계약 | 생성·상세 DTO와 화면 |
+| #61 | 확정 Quality Gate metrics | 상세 DTO와 Quality Gate 카드 |
+| #62 | 최신 소비 문서 정렬 | API·제품·아키텍처·UI 문서 |
 
 ## 갱신 기준
 

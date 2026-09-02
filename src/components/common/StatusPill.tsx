@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ProgressState, ExecutionResultState, QualityGateState, AssertionStatus } from '../../types';
+import { progressStatusLabel } from './statusLabels';
 
 export type PillKind = 'progress' | 'execution' | 'gate' | 'assertion' | 'generic';
 
@@ -34,28 +35,25 @@ export const StatusPill: React.FC<StatusPillProps> = ({ kind = 'generic', status
 
   // 1. 진행 상태 (Progress)
   else if (kind === 'progress' || status === 'QUEUED' || status === 'PREPARING' || status === 'RUNNING' || status === 'FINISHED') {
+    label = progressStatusLabel(String(status));
     switch (status) {
       case 'QUEUED':
-        label = '대기 중';
         styleClasses = 'bg-[#eef1f4] text-[#566271]';
         break;
       case 'PREPARING':
-        label = '대상 준비 중';
         styleClasses = 'bg-[#fff7e8] text-[#a56512]';
         break;
       case 'RUNNING':
-        label = '실행 중';
         styleClasses = 'bg-[#edf6fc] text-[#246fa8]';
         break;
       case 'FINISHED':
-        label = '종료';
         styleClasses = 'bg-[#e9f7f1] text-[#1a7f5a]';
         break;
     }
   }
 
   // 2. 실행 결과 (Execution Result)
-  else if (kind === 'execution' || status === 'COMPLETED' || status === 'INCOMPLETE' || status === 'FAILED') {
+  else if (kind === 'execution' || status === 'COMPLETED' || status === 'INCOMPLETE' || status === 'ERROR') {
     switch (status) {
       case 'COMPLETED':
         label = '정상 완료';
@@ -65,7 +63,7 @@ export const StatusPill: React.FC<StatusPillProps> = ({ kind = 'generic', status
         label = '부분 완료';
         styleClasses = 'bg-[#fff7e8] text-[#a56512]';
         break;
-      case 'FAILED':
+      case 'ERROR':
         label = '실행 오류';
         styleClasses = 'bg-[#fff0ef] text-[#bd3b35]';
         break;

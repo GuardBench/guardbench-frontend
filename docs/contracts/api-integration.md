@@ -2,214 +2,390 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-08-30
-> Scope: GitHub Issue #13
-> AS-IS baseline: `main@389ee1078fc41e52b46f268facf7032fec0da159`
-> Compared unmerged implementation: `dev@b6713880be394063a38835837dc230d858f3cad3`
-> Canonical product scope: `guardbench-backend/docs/product/mvp-scope.md` (`APPROVED`)
-> Canonical API: `guardbench-backend/docs/api/openapi.yaml` (`APPROVED`)
+> Last reviewed: 2026-09-02
+> Scope: GitHub Issues #32, #62
+> AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
+> Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 
-이 문서는 GuardBench 프론트엔드가 승인된 백엔드 API를 화면에서 호출하고 응답을 UI 상태로 변환하는 경계를 정의한다. 요청·응답 schema를 복제하지 않고 OpenAPI의 endpoint와 schema 이름을 참조한다.
+이 문서는 GuardBench 프론트엔드가 승인된 OpenAPI를 화면에서 소비하는 경계를 정의한다. API endpoint, schema, enum, validation과 오류 code의 소유자는 OpenAPI다. 이 문서는 schema를 다시 정의하지 않고 DTO를 화면 상태로 변환하는 원칙과 사용자 표현 책임만 소유한다.
 
 ## 1. 판단 기준
 
-- `AS-IS`는 위 baseline의 코드에서 관찰되는 동작이다.
-- `TO-BE`는 승인된 MVP 범위와 OpenAPI에서 직접 도출되는 소비 규칙이다.
-- 환경별 mock, 재시도 횟수, 사용자 문구처럼 백엔드 계약이 결정하지 않는 정책은 `미결정`이다.
-- `dev`에 코드가 있다는 사실만으로 TO-BE를 승인하지 않는다. 계약과 일치하는 미병합 구현과 남은 정책을 구분한다.
-- API schema의 필드·enum·validation은 OpenAPI가 소유한다. 이 문서는 화면 mapping과 사용자 표현만 소유한다.
+- `TO-BE`는 현재 저장소의 [`openapi.yaml`](../api/openapi.yaml)에서 직접 도출할 수 있는 소비 규칙이다.
+- 현재 코드가 OpenAPI와 다르면 코드 동작을 `AS-IS` 불일치로 기록하며 목표 계약으로 승격하지 않는다.
+- OpenAPI가 확정하지 않은 실행 오류 code 전체 목록, 재시도 또는 인증 정책은 프론트엔드가 추측하지 않는다.
+- 특정 provider, Evaluator type 또는 Guardrail identifier/version은 사용자가 제출하는 TestRun 입력이 아니다.
+- 다른 문서와 이 문서가 충돌하면 API 요청·응답 의미는 OpenAPI를 우선한다.
 
-## 2. 브랜치 기준과 영향
+## 2. 실행 모델 변경
 
-`main`과 `dev`는 선후 관계가 아니라 공통 지점 이후 서로 고유 커밋을 가진 분기 상태다. `main`에는 화면 명세와 사용자 흐름이 있고, `dev`에는 다음 미병합 구현이 있다.
+최신 계약에서 하나의 TestRun은 하나의 HTTP AI Application Target을 실행하고, 사용자가 요청한 inline Evaluation Profile을 GuardBench가 내부 Evaluator 설정으로 해석한다. 같은 Run 안에서 Baseline과 Candidate Guardrail을 동시에 실행하는 모델은 더 이상 승인된 계약이 아니다.
 
-| `dev` 구현 | 계약 정합성 | 남은 범위 |
+| 영역 | 폐기된 모델 | 현재 OpenAPI와 구현 |
 | --- | --- | --- |
-| OpenAPI 기준 TestRun 요청·응답 DTO | 계약과 대체로 일치 | 실제 병합과 전체 화면 검증 |
-| TestRun 목록·상세·결과 DTO mapping | 계약과 대체로 일치 | pagination, filter와 오류 UX |
-| `204 No Content` parsing 생략 | 계약과 일치 | 공통 client 병합 |
-| code와 field errors를 보존하는 `ApiError` | 계약과 일치 | 화면별 오류 mapping 정책 |
-| TestCase 삭제 성공 후에만 로컬 제거 | 계약과 일치 | 재조회와 사용자 피드백 정책 |
-| `FINISHED`에서 끝나는 Polling hook | 계약과 일치 | 화면 연결, backoff와 복구 정책 |
-| 선택적 `Idempotency-Key` 전달 | 계약과 일치 | key 생성·보존·재사용 정책 |
+| 생성 입력 | Baseline numbered Guardrail + Candidate DRAFT | 단일 `TargetReferenceReq` + `EvaluationProfileReq` |
+| 사용자 선택 | Guardrail ID/version | OpenAI-compatible HTTP endpoint, 필수 model, 선택 revision, checks, strictness |
+| 상세 Target | `targets.baseline`, `targets.candidate` | 단일 `target` |
+| 개별 결과 | baseline/candidate execution과 change type | Application 실행 상태, Evaluator verdict, assertion, evaluation outcome |
+| Quality Gate metrics | 고정 regression 지표 타입 | `assertionPassRate`, `executionSuccessRate` 또는 `null` |
+| Regression | 현재 Run 안에서 변화 계산 | 비교 가능한 과거 Run과 저장 결과를 별도 endpoint로 비교 |
 
-`dev`가 `main`에 병합되면 [화면 명세](../product/screen-spec.md)와 [사용자 흐름](../product/user-flows.md)의 TestSuite 생성, TestRun DTO, 결과 mapping, 오류 처리 및 삭제 흐름 AS-IS를 다시 검토한다.
+핵심 생성·결과·Evaluator 구현은 #27~#29와 #60~#61에서 완료됐고 Regression UI는 #30에서 선택
+범위로 추적한다.
 
-## 3. 화면별 API 추적
+### 2.1 사용자가 선택하는 실행·평가 입력
 
-| 사용자 목표 | 화면 | Endpoint | AS-IS | TO-BE mapping |
-| --- | --- | --- | --- | --- |
-| Suite 목록 확인 | 테스트 스위트 | `GET /api/v1/test-suites` | API 항목이 있으면 카드로 변환하고 빈 결과·오류는 mock 유지 | `TestSuiteListRes.items`와 `page`를 서버 상태로 보존하고 실제 빈 결과를 표시 |
-| Suite 생성 | 테스트 스위트 | `POST /api/v1/test-suites` | 연결된 UI는 데모 | `TestSuiteCreateReq`를 보내고 `TestSuiteCreateRes`의 서버 ID로 반영 |
-| Suite 상세·수정 | 테스트 스위트 | `GET/PATCH /api/v1/test-suites/{suiteId}` | 서비스만 있고 연결 UI 없음 | summary field만 표시하고 API에 없는 상태·통과율을 사실처럼 만들지 않음 |
-| TestCase 목록 | TestCase 관리 modal | `GET /api/v1/test-suites/{suiteId}/test-cases` | 실패 시 mock, page 20 | `TestCaseListRes.items/page`를 함께 보존 |
-| TestCase 생성 | TestCase 관리 modal | `POST /api/v1/test-suites/{suiteId}/test-cases` | 응답 대신 임시 ID로 로컬 추가 | 생성 응답의 ID와 필드를 사용하고 목록/page를 재동기화 |
-| TestCase 상세·수정 | TestCase 관리 modal | `GET/PATCH /api/v1/test-cases/{testCaseId}` | 수정 UI는 데모 | 허용 field의 부분 수정과 validation detail을 mapping |
-| TestCase 삭제 | TestCase 관리 modal | `DELETE /api/v1/test-cases/{testCaseId}` | 실패해도 성공처럼 제거할 수 있고 204 parsing 충돌 가능 | 204 성공 후에만 UI를 갱신하고 실패 시 서버 상태를 유지 |
-| TestRun 생성 | 새 테스트 실행 | `POST /api/v1/test-runs` | 요청·응답 DTO가 계약과 불일치 | `TestRunCreateReq/Res`와 `Idempotency-Key`를 사용 |
-| 실행 이력 | 실행 이력 | `GET /api/v1/test-runs` | API DTO를 UI 타입으로 직접 사용하고 오류 시 mock | 세 상태 축과 progress를 명시적으로 mapping |
-| 진행 확인 | 결과 상세 또는 실행 이력 | `GET /api/v1/test-runs/{runId}` | Polling hook이 화면에 연결되지 않음 | 상세를 즉시 조회하고 `FINISHED`까지 Polling |
-| 결과 분석 | 결과 상세 | `GET /api/v1/test-runs/{runId}/results` | mock Snapshot 중심, 응답 구조 불일치 | `TestRunResultListRes.items/page`를 Snapshot 행과 상세에 동일하게 사용 |
+사용자 선택은 **무엇을 실행할지**와 **어떤 정책으로 평가할지**의 두 부분으로 나뉜다.
 
-대시보드와 아키텍처 화면에는 승인된 전용 API가 없다. 정적·mock 데이터를 실제 서버 집계나 도메인 최신 상태로 표현하지 않는다. (`AS-IS`, 후속 Decision)
+| 입력 | 사용자가 정하는 의미 | 계약상 제약 | 화면 표현 원칙 |
+| --- | --- | --- | --- |
+| Application HTTP endpoint | 테스트할 AI Application의 호출 주소 | `target.type`은 MVP에서 `HTTP_ENDPOINT`이고 `identifier`는 `http://` 또는 `https://` URI여야 한다. | “Application URL”처럼 사용자 목적에 맞는 이름을 사용한다. 내부 TargetReference나 provider 용어를 입력 라벨로 강제하지 않는다. |
+| model | OpenAI-compatible Chat Completions request body에 전달할 모델 식별자 | request와 response에서 필수이며 공백이 아닌 문자열이어야 한다. | Application이 인식하는 모델 식별자로 설명한다. Evaluator provider나 Guardrail ID와 혼동하지 않는다. |
+| revision | 사용자가 실행 대상을 구분하기 위한 배포·모델·commit 식별 문자열 | request에서는 선택 사항이다. 전달할 때는 공백이 아닌 문자열이어야 하며, 생략하면 response의 `target.revision`은 `null`이다. | endpoint가 같아도 배포 버전을 구분하고 싶을 때 입력한다. 서버가 검증하거나 해석한 실제 버전이라고 과장하지 않는다. |
+| checks | 이번 Run에서 확인할 보안 평가 목적 | 최소 한 개를 선택하고 중복할 수 없다. 허용 값은 `PROMPT_INJECTION`, `PII_LEAKAGE`, `HARMFUL_CONTENT`다. | 복수 선택 control로 제공하되 OpenAPI에 없는 check를 프론트에서 추가하지 않는다. |
+| strictness | 선택한 checks를 어느 엄격도로 평가할지 정하는 정책 | `RELAXED`, `STANDARD`, `STRICT` 중 정확히 하나다. | 사용자 정책 수준으로 표현한다. 특정 Evaluator provider의 threshold나 Guardrail version을 직접 선택하는 값으로 설명하지 않는다. |
 
-## 4. DTO와 UI 상태 mapping
+`checks`와 `strictness`는 독립 리소스 ID가 아니라 TestRun 요청에 포함되는 inline `evaluationProfile`이다. GuardBench가 이 profile을 실제 Evaluator 설정으로 해석한다. 따라서 프론트엔드는 사용자가 특정 Evaluator type/provider나 Guardrail identifier/version을 직접 선택한 것처럼 표시하거나 request에 추가하지 않는다.
 
-### 4.1 공통 원칙 (`TO-BE`)
+### 2.2 Quality Gate와 metrics의 nullable 구조
 
-- API DTO와 화면 모델을 구분하고 service 또는 전용 mapper에서 명시적으로 변환한다.
-- API에 없는 Suite 이름, version, 통과율, 장식 상태는 응답에서 얻은 값처럼 만들지 않는다.
-- 식별자는 OpenAPI의 `int64` 의미를 보존한다. 화면 장식용 `#`, `suite-`, `tc-` 접두사는 API 경계에서 제거하거나 추가하지 않는다.
-- 날짜는 서버의 UTC ISO 8601 값을 원본으로 보존하고 표시 계층에서 locale을 적용한다.
-- 목록 응답은 `items`와 `page`를 하나의 서버 상태로 다룬다.
+Quality Gate에는 서로 다른 두 종류의 `null`이 있다.
 
-### 4.2 TestRun의 세 축 (`TO-BE`)
+| 응답 상태 | 의미 | UI 처리 |
+| --- | --- | --- |
+| `qualityGate: null` | Run이 아직 진행 중이거나 Gate가 아직 결정되지 않았다. | `NOT_EVALUATED`로 바꾸지 않고 “평가 진행 전/결정 전” 상태로 표현한다. |
+| `qualityGate.status: NOT_EVALUATED`, `metrics: null` | Run은 종료됐지만 Gate를 계산할 수 없었다. | 종료된 평가 불가 상태로 표현하고 진행 중 상태와 구분한다. |
+| `qualityGate.status: PASS` 또는 `FAIL` | 현재 Run의 assertion 집계를 바탕으로 Gate가 결정됐다. | PASS/FAIL 상태는 표시할 수 있지만 metrics의 세부 카드 구성은 확정된 필드만 사용한다. |
+
+`QualityGateRes.metrics`는 필드 자체는 required지만 값은 nullable이다. 값이 있으면
+`additionalProperties: false`인 객체이며 `assertionPassRate`와 `executionSuccessRate` 두 필드를 모두
+포함한다. 두 값은 0~1의 서버 저장 비율이다. OpenAPI는 두 비율이 각각 0.95 이상이면 PASS,
+하나라도 미만이면 FAIL이라고 정의한다.
+
+따라서 프론트엔드는 다음을 지킨다.
+
+- `status`와 두 metrics는 서버 응답을 source of truth로 사용한다.
+- 비율은 퍼센트로 formatting할 수 있지만 Gate status를 프론트에서 다시 계산하지 않는다.
+- 기존 `candidateAssertionPassRate`, `securityRegressionRate`, `usabilityRegressionRate`를 새 계약으로 재사용하지 않는다.
+- `metrics: null`을 0% 객체로 바꾸거나 누락된 key를 추정하지 않는다.
+
+## 3. 화면과 endpoint 추적
+
+| 사용자 목표 | 화면 | Endpoint | 소비 원칙 |
+| --- | --- | --- | --- |
+| Suite 목록·생성 | 테스트 스위트 | `GET/POST /api/v1/test-suites` | `items`와 `page`를 함께 보존하고 validation detail을 form에 연결한다. |
+| Suite 상세·수정 | 테스트 스위트 | `GET/PATCH /api/v1/test-suites/{suiteId}` | API에 없는 상태, 통과율 또는 최근 실행을 서버 값처럼 만들지 않는다. |
+| TestCase 목록·생성 | TestCase 관리 | `GET/POST /api/v1/test-suites/{suiteId}/test-cases` | 빈 collection과 Suite 미존재를 구분한다. |
+| TestCase 상세·수정·삭제 | TestCase 관리 | `GET/PATCH/DELETE /api/v1/test-cases/{testCaseId}` | 삭제는 `204 No Content`로 처리하며 성공 전 로컬 제거를 확정하지 않는다. |
+| Run 생성 | 새 테스트 실행 | `POST /api/v1/test-runs` | 단일 Target과 inline Evaluation Profile을 전송한다. |
+| Run 이력 | 실행 이력 | `GET /api/v1/test-runs` | lifecycle, outcome, Gate를 독립 축으로 표시하고 서버 filter/page를 사용한다. |
+| Run 진행·요약 | 결과 상세 또는 실행 이력 | `GET /api/v1/test-runs/{testRunId}` | 즉시 조회 후 `FINISHED`까지 Polling한다. |
+| 개별 평가 결과 | 결과 상세 | `GET /api/v1/test-runs/{testRunId}/results` | `FINISHED` 이후 조회하고 실행·평가·assertion 상태를 분리한다. |
+| Evaluator 분류 지표 | Evaluator 검토 | `GET /api/v1/test-runs/{testRunId}/evaluator-metrics` | 서버가 집계한 TP/TN/FP/FN과 rate를 source of truth로 사용한다. |
+| 비교 후보 | Regression 비교 | `GET /api/v1/test-runs/{testRunId}/comparable-runs` | 프론트에서 비교 가능 조건을 재구현하지 않는다. |
+| 저장 결과 비교 | Regression 비교 | `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}` | 서버 summary count와 case별 comparability/change type을 그대로 사용한다. |
+
+대시보드와 아키텍처 화면에는 전용 API가 없다. 정적 또는 mock 자료를 실제 서버 집계나 최신 도메인 상태로 표현하지 않는다.
+
+## 4. 공통 API 경계
+
+공통 API 경계는 화면이 HTTP 세부사항이나 backend DTO에 직접 의존하지 않게 하는 층이다. 책임은 다음 방향으로 흐른다.
+
+```text
+View / Form
+  → endpoint service
+  → API DTO ↔ UI model mapper
+  → common API client
+  → GuardBench REST API
+```
+
+각 단계는 자신보다 아래 단계의 책임을 중복하지 않는다. 예를 들어 view가 success envelope를 직접 unwrap하거나, 공통 client가 `FALSE_NEGATIVE`의 화면 문구를 결정하거나, mapper가 서버에 없는 값을 만들어서는 안 된다.
+
+### 4.1 계층별 책임
+
+| 계층 | 소유 책임 | 소유하지 않는 책임 |
+| --- | --- | --- |
+| View / Form | 입력, loading/empty/error/stale 표시, 사용자 action과 접근성 | URL 조합, envelope parsing, backend schema 재정의 |
+| endpoint service | endpoint와 HTTP method, path/query/header/body 구성, endpoint별 DTO type | toast 문구, modal 상태, 장식용 화면 값 |
+| mapper | 검증된 API DTO를 화면 model로 변환 | 누락된 서버 값을 mock·추정값으로 보충, network 요청 |
+| common API client | base URL, 공통 header, fetch, envelope unwrap, transport/HTTP/API 오류 구조화 | TestRun 상태 해석, 화면 이동, endpoint별 retry 정책 |
+| OpenAPI | endpoint, method, schema, enum, nullable, validation, 공개 오류 계약 | 화면 layout, 사용자 문구, local interaction |
+
+작은 endpoint에서는 service와 mapper가 같은 파일에 있을 수 있지만 책임 자체를 합치지는 않는다. 정확한 폴더 구조와 OpenAPI 생성 타입 도입은 별도 아키텍처 결정이다.
+
+### 4.2 요청 구성
+
+- base URL은 runtime config가 소유하고 endpoint service는 `/test-runs` 같은 상대 경로만 전달한다.
+- path parameter는 실제 API ID를 사용한다. 장식용 `#901`, `suite-1`을 그대로 URL에 넣지 않는다.
+- query parameter는 OpenAPI의 이름, 반복 방식과 범위를 보존한다.
+  - 배열 filter는 같은 parameter를 반복해 OR 의미를 유지한다.
+  - 값이 `undefined`인 선택 parameter는 보내지 않는다.
+  - 유효한 값이 될 수 있는 `0`, `false`, 빈 collection을 단순 truthy 검사로 잘못 누락하지 않는다.
+- JSON body에는 OpenAPI schema의 field만 넣는다. `additionalProperties: false`인 request에 화면 전용 label이나 임시 상태를 섞지 않는다.
+- `Idempotency-Key`처럼 endpoint가 정의한 header는 endpoint service가 명시적으로 전달한다.
+- body가 없는 GET과 DELETE에 `Content-Type: application/json`을 항상 붙일 필요가 있는지는 구현 시 검토한다. `Accept`와 실제 body의 content type을 구분한다.
+- 사용자 입력 validation은 빠른 피드백을 위해 client에서도 수행할 수 있지만 서버 validation을 대체하지 않는다. 최종 허용값과 제약은 OpenAPI다.
+
+### 4.3 DTO와 화면 모델
+
+API DTO는 서버 응답을 손실 없이 표현하고, 화면 모델은 UI가 표시하기 쉬운 구조를 표현한다.
+
+| API 값 | 경계 처리 원칙 |
+| --- | --- |
+| `int64` ID | 문자열 장식 없이 의미를 보존한다. JavaScript number 안전 범위를 넘을 가능성이 있으면 타입 전략을 별도 결정한다. |
+| UTC ISO 8601 | 원문을 보존하고 locale formatting은 표시 계층에서 수행한다. |
+| enum | OpenAPI enum을 source of truth로 사용하고 임의의 fallback enum을 정상 상태로 만들지 않는다. |
+| required + nullable | field 누락은 계약 위반, 명시적 `null`은 계약이 허용한 상태로 구분한다. |
+| optional | 누락과 사용자가 빈 값을 제출한 경우를 구분한다. |
+| paginated response | `items`와 `page`를 한 조회 결과로 보존한다. |
+| error detail | 공개 `code`, `message`, validation `errors` 또는 execution `stage`를 보존한다. |
+
+mapper는 다음 규칙을 따른다.
+
+- API에 없는 Suite 이름, pass rate, Target version 또는 결과 값을 서버에서 받은 것처럼 생성하지 않는다.
+- `null`을 임의의 성공·실패 enum으로 바꾸지 않는다.
+- 화면에서 필요한 파생 표시값은 원본 DTO와 계산 근거를 추적할 수 있어야 한다.
+- filter나 page가 바뀌면 새 응답의 `items`와 `page`를 함께 교체한다. 이전 items와 새 page를 섞지 않는다.
+- OpenAPI에 없는 Application 자연어 응답, provider 원문, stack trace 또는 내부 예외 메시지를 결과 DTO에서 얻을 수 있다고 가정하지 않는다.
+
+### 4.4 Success response와 envelope
+
+JSON 성공 응답은 공통 envelope의 `httpStatus`, `message`, `data`를 사용한다. 공통 client는 envelope를 검증한 뒤 endpoint service에 `data`를 반환한다.
+
+현재 `apiClient`는 다음을 수행한다. (`AS-IS`)
+
+- `VITE_API_BASE_URL` 또는 `/api/v1`을 base URL로 사용한다.
+- JSON을 parse하고 `httpStatus` 존재 여부를 최소 검증한다.
+- 성공 시 `data`를 반환한다.
+- `204 No Content`는 JSON parsing 없이 `undefined`를 반환한다.
+
+목표 경계는 다음과 같다. (`TO-BE`)
+
+- HTTP status와 envelope `httpStatus`가 서로 모순되거나 required envelope field가 없으면 정상 data로 사용하지 않는다.
+- `200`, `202` 등 endpoint별 성공 status 차이를 유지한다. mutation 접수와 처리 완료를 같은 의미로 보지 않는다.
+- `204`는 body가 없는 성공이다. 빈 JSON object나 `null` data를 요구하지 않는다.
+- JSON parse 성공만으로 schema 전체가 검증됐다고 간주하지 않는다. runtime schema validation 도입 여부는 별도 결정이지만, 최소한 계약과 다른 shape는 `INVALID_RESPONSE`로 진단할 수 있어야 한다.
+- envelope `message`는 보조 정보다. 화면의 도메인 상태를 message 문자열 parsing으로 결정하지 않는다.
+
+### 4.5 오류 분류와 보존
+
+오류는 발생 위치와 복구 방식이 다르므로 한 종류의 “요청 실패”로 합치지 않는다.
+
+| 오류 범주 | 예 | 공통 경계의 처리 | 화면 책임 |
+| --- | --- | --- | --- |
+| network | 연결 실패, DNS, offline | HTTP status가 없는 구조화 오류 | 연결 실패와 재시도 가능성 표시 |
+| abort | Run 변경, 화면 이탈, 사용자 취소 | 일반 network 오류와 구분 | 실패 toast를 띄우지 않고 오래된 요청 결과를 폐기 |
+| timeout | client 제한 시간 초과 | abort와 구분 가능한 code 보존 | 상태 불명과 명시적 서버 거부를 구분 |
+| invalid response | invalid JSON, envelope/shape 불일치 | `INVALID_RESPONSE`와 HTTP status 보존 | 정상 빈 결과로 표시하지 않음 |
+| HTTP/API | 4xx/5xx와 공개 error envelope | status, message, `data.code`, field errors 보존 | endpoint code별 사용자 흐름 선택 |
+| execution result error | HTTP 200 결과 안의 `error` | DTO의 stage/code/message로 보존 | Application/Evaluator 실패를 assertion과 분리 |
+| rendering | React render 예외 | API client에서 처리하지 않음 | error boundary와 복구 UI |
+
+현재 `ApiError`는 HTTP status, code와 validation field errors를 보존하고 JSON/envelope 오류를 구조화한다. 다만 fetch가 던진 abort도 현재는 `NETWORK_ERROR`가 될 수 있어 구분이 필요하다. (`AS-IS` 불일치)
+
+서버가 공개한 안전한 `message`, `code`, validation detail만 사용자 표현 후보로 사용한다. provider 원문, stack trace와 내부 예외를 추출하거나 노출하지 않는다. unknown code도 버리지 않고 일반 오류 표현과 진단 정보에 보존한다.
+
+### 4.6 취소, 동시 요청과 stale 상태
+
+- Run ID, filter 또는 page가 바뀌면 이전 요청을 취소하거나 응답 적용 시 현재 request identity를 확인한다.
+- 늦게 도착한 이전 응답이 새 선택의 state를 덮어쓰지 않게 한다.
+- Polling 요청이 겹치지 않도록 한 요청의 완료·취소와 다음 tick의 관계를 관리한다.
+- 화면 이탈과 unmount 시 timer와 진행 중 요청을 정리한다.
+- background 갱신 실패 후 이전 성공 data를 유지한다면 반드시 stale/갱신 실패 상태를 함께 표시한다.
+- mutation 성공 후 목록을 낙관적으로 갱신할지 재조회할지는 endpoint별 정책이다. 실패를 성공처럼 반영하지 않는 원칙은 공통이다.
+
+`AbortSignal` 전달 위치, timeout 구현, 중복 GET 제거와 cache library 도입은 `미결정`이다.
+
+### 4.7 실제 API와 mock 경계
+
+- 실제 API mode와 demo/mock mode를 명시적으로 구분한다.
+- 실제 API의 성공 data와 mock item을 한 collection에 섞지 않는다.
+- API 실패 또는 성공한 빈 결과를 mock 성공으로 대체하지 않는다.
+- mock fixture도 OpenAPI shape와 nullable 조합을 따라야 하지만 실제 계약 검증의 대체물은 아니다.
+- production에서 mock을 허용할지와 설정 누락 시 fail-fast할지는 별도 Decision으로 확정한다.
+
+timeout 값, 자동 재시도 대상, 인증·권한 오류 UX, runtime schema validation과 공통 cache 정책은 OpenAPI가 결정하지 않으므로 `미결정`이다.
+
+## 5. TestRun 생성
+
+### 5.1 입력 mapping (`AS-IS`)
+
+`TestRunCreateReq`는 다음 사용자 입력을 연결한다.
+
+- 실제 `testSuiteId`
+- 하나의 `target`
+  - MVP type은 `HTTP_ENDPOINT`
+  - `identifier`는 HTTP 또는 HTTPS URI
+  - `model`은 OpenAI-compatible request body에 전달할 필수 non-blank 문자열이다.
+  - `revision`은 선택적이며 공백 문자열을 보내지 않는다.
+- 하나의 inline `evaluationProfile`
+  - `checks`는 최소 한 개이며 중복 없이 선택한다.
+  - 값은 `PROMPT_INJECTION`, `PII_LEAKAGE`, `HARMFUL_CONTENT` 중 하나다.
+  - `strictness`는 `RELAXED`, `STANDARD`, `STRICT` 중 하나다.
+
+사용자에게 Evaluator provider/type, Guardrail identifier/version, Snapshot identity를 요구하거나 request에 추가하지 않는다. `additionalProperties: false`이므로 화면 전용 필드를 body에 섞지 않는다.
+
+### 5.2 접수와 멱등성
+
+1. 한 논리적 제출 시도에 하나의 `Idempotency-Key`를 부여한다.
+2. 응답을 확인하지 못해 동일 body를 재전송할 때 같은 key를 사용한다.
+3. key는 선택 header지만 중복 실행 방지 정책을 별도 Decision으로 확정한다.
+4. 현재는 `202 Accepted`의 `TestRunCreateRes`에 포함된 Run ID로 상세 조회에 이동한다. `Location` header 보존은 `apiClient`가 response header를 노출할 때까지 남은 계약 격차다.
+5. 같은 key와 같은 body의 재전송은 기존 Run의 현재 status를 반환할 수 있다.
+6. `TEST_SUITE_EMPTY`, `IDEMPOTENCY_KEY_CONFLICT`, `EVALUATION_PROFILE_NOT_SUPPORTED`를 일반 network 오류와 구분한다.
+
+현재 구현은 payload fingerprint별 key를 메모리에 보존하고 network 결과 불명에서는 재사용하며, 성공 또는 명시적 서버 거부 후 폐기한다. 화면 이탈 후 복원, 장기 보존과 OpenAPI에 없는 TTL은 `미결정`이다.
+
+## 6. Run lifecycle, outcome과 Quality Gate
 
 | 축 | 값 | UI 의미 |
 | --- | --- | --- |
-| `status` | `QUEUED`, `PREPARING`, `RUNNING`, `FINISHED` | 실행 생명주기와 Polling 종료 조건 |
-| `executionOutcome` | `COMPLETED`, `ERROR`, `INCOMPLETE`, 실행 중 `null` | 실행 신뢰도와 처리 결과 |
-| Quality Gate | `PASS`, `FAIL`, `NOT_EVALUATED`, 실행 중 `null` | 정책 Gate 판정 |
+| `status` | `QUEUED`, `PREPARING`, `RUNNING`, `FINISHED` | lifecycle과 Polling 종료 조건 |
+| `executionOutcome` | `COMPLETED`, `ERROR`, `INCOMPLETE`, 미결정 시 `null` | Run 처리 결과와 신뢰도 |
+| Quality Gate | `PASS`, `FAIL`, `NOT_EVALUATED`, 미결정 시 `null` | 현재 Run의 assertion 집계 판정 |
 
-- `FAILED`를 TestRun status로 만들지 않는다.
-- `qualityGate = null`은 아직 평가 전이고 `NOT_EVALUATED`는 종료됐지만 평가 불가다.
-- Gate `FAIL`을 실행 오류로 표현하지 않는다.
-- progress는 `processedTestCaseCount`와 `percent`를 사용한다.
+- `FAILED`를 Run status로 만들지 않는다.
+- Gate `FAIL`과 execution `ERROR`를 같은 실패로 표현하지 않는다.
+- `qualityGate = null`과 종료 후 `qualityGate.status = NOT_EVALUATED`를 구분한다.
+- `QualityGateRes.metrics`는 Gate가 `NOT_EVALUATED`이면 `null`이다.
+- PASS/FAIL metrics는 `assertionPassRate`와 `executionSuccessRate`를 사용하며 둘 다 서버 저장 값을 표시한다.
 
-### 4.3 Snapshot 결과 (`TO-BE`)
+## 7. Polling과 결과 조회
 
-- Expected, Baseline/Candidate execution, assertion, comparability, change type을 별도 값으로 표시한다.
-- `FAILED`, `TIMED_OUT`, `NOT_STARTED`를 assertion 실패와 혼동하지 않는다.
-- `NOT_COMPARABLE`이면 없는 change type을 추정하지 않는다.
-- 행과 상세 modal은 동일한 `TestRunResultListItemRes` 원본을 사용한다.
+1. 생성 응답 또는 실행 이력에서 Run ID를 얻으면 상세를 즉시 조회한다.
+2. `QUEUED`, `PREPARING`, `RUNNING`이면 `processedTestCaseCount`와 `percent`를 표시하고 반복 조회한다.
+3. Run 변경, 화면 이탈 또는 unmount 시 timer와 진행 중 요청을 취소한다.
+4. `FINISHED`이면 Polling을 종료하고 outcome과 Quality Gate를 표시한다.
+5. 개별 결과와 Evaluator metrics를 조회한다.
+6. 종료 직전 race로 결과 API가 `TEST_RUN_NOT_FINISHED`를 반환하면 완료 결과로 간주하지 않고 상세 상태를 다시 확인한다.
 
-## 5. 공통 API client
+고정 간격, backoff, jitter, background tab 감속, 최대 지속 시간과 일시 오류 허용 횟수는 `미결정`이다.
 
-### AS-IS
+## 8. 개별 결과 mapping
 
-- base URL은 `VITE_API_BASE_URL` 또는 `/api/v1`이다.
-- JSON envelope의 `data`를 반환한다.
-- HTTP 또는 envelope 오류는 일반 `Error`로 바뀌며 message 외 code와 field errors를 잃는다.
-- 모든 응답을 JSON으로 parsing해 204와 충돌할 수 있다.
-- timeout, 취소, 인증과 공통 재시도 정책이 없다.
+`TestRunResultItemRes`는 실행 당시 TestCaseSnapshot과 Evaluator의 공개 결과다.
 
-### TO-BE
-
-- 204는 body parsing 없이 성공으로 처리한다.
-- 오류에는 HTTP status, envelope message, `data.code`, validation `errors`를 보존한다.
-- network 실패, timeout/abort, invalid JSON, HTTP/API 오류를 최소한 진단 가능한 범주로 구분한다.
-- 서버가 제공한 안전한 message만 사용자 표현 후보로 사용하고 stack trace나 provider 원문을 노출하지 않는다.
-- GET 요청에 불필요한 `Content-Type`을 강제할지 여부는 구현 시 검토한다.
-
-timeout 값, 자동 재시도 대상과 인증·권한 오류 UX는 `미결정`이다.
-
-## 6. TestRun 생성과 멱등성
-
-### TO-BE
-
-1. 실제 TestSuite ID, 하나의 Guardrail ID, Baseline numbered version과 Candidate `DRAFT`를 수집한다.
-2. 필수값, numbered version과 동일 Guardrail ID 조건을 검증한다.
-3. 한 논리적 생성 시도에 하나의 `Idempotency-Key`를 부여한다.
-4. 같은 시도의 응답을 받지 못한 재전송에는 같은 key와 같은 요청을 사용한다.
-5. 성공 응답의 `id`, `status`, `testCaseCount`, `createdAt`을 보존하고 상세 조회로 이어간다.
-6. `TEST_SUITE_EMPTY`와 `IDEMPOTENCY_KEY_CONFLICT`를 일반 네트워크 오류와 구분한다.
-
-OpenAPI에서 header는 선택 사항이지만, 사용자 중복 실행을 막기 위한 프론트엔드 사용 원칙은 필요하다. key 생성 형식, 저장 위치, 승인된 3시간 서버 TTL 안의 재사용 수명, 화면 이탈 후 복원 방식은 API 계약과 백엔드 ADR을 함께 참조해 후속 Decision에서 확정한다. (`미결정`)
-
-## 7. Polling
-
-### TO-BE 흐름
-
-1. 생성 응답 또는 실행 이력에서 Run ID를 얻으면 상세를 즉시 한 번 조회한다.
-2. `QUEUED`, `PREPARING`, `RUNNING`이면 progress와 마지막 갱신 시각을 표시하고 반복 조회한다.
-3. `FINISHED`이면 Polling을 종료하고 outcome과 Quality Gate를 표시한다.
-4. 결과 목록을 조회한다. 종료 직전 race로 `TEST_RUN_NOT_FINISHED`가 오면 진행 상태로 되돌려 상세를 다시 확인한다.
-5. Run 변경, 화면 이탈 또는 unmount 시 진행 중 요청과 timer를 취소한다.
-
-고정 간격, 지수 backoff, jitter, 최대 지속 시간, background tab 감속, 일시 오류 허용 횟수와 수동 재시도 UI는 `미결정`이다. 오류가 발생했다는 이유로 mock Run을 완료 결과처럼 표시하지 않는다.
-
-## 8. Pagination과 filter
-
-### TO-BE
-
-- page는 1-based이며 기본값 1, size는 OpenAPI의 1~100 범위를 따른다.
-- `PageMetaRes.number`, `size`, `totalElements`, `totalPages`, `hasPrevious`, `hasNext`를 함께 보존한다.
-- 범위를 초과한 page에서도 서버가 돌려준 요청 page 번호와 빈 `items`를 유지한다.
-- filter 또는 검색을 server-side로 제공하는 endpoint에서는 전체 결과에 적용한 뒤 pagination한 서버 결과를 사용한다.
-- 반복 query parameter인 TestRun status/outcome/Gate filter는 OR 의미를 보존한다.
-- filter 없는 FINISHED 결과의 `totalElements`는 고정 `testCaseCount`와 같아야 한다. 다르면 정상 빈 결과로 단정하지 않고 계약 불일치로 진단한다.
-
-URL에 page/filter를 보존할지, filter 변경 시 page를 1로 되돌릴지와 빈 상태 CTA는 `미결정`이다.
-
-## 9. 빈 결과
-
-### TO-BE 원칙
-
-- 성공 응답의 `items: []`는 실제 빈 결과다. mock으로 대체하지 않는다.
-- 최초 데이터 0건, filter 결과 0건, 범위 초과 page를 구분한다.
-- TestSuite/TestCase의 정상 빈 목록과 `TEST_SUITE_NOT_FOUND`를 구분한다.
-- FINISHED 결과가 filter 없이 비었으면 정상 빈 화면보다 계약 위반 가능성을 우선 확인한다.
-- 이전 데이터가 보이는 동안 새 조회가 빈 결과를 반환하면 이전 값을 실제 최신 결과처럼 유지하지 않는다.
-
-빈 화면 문구, CTA와 일러스트는 UI 가이드에서 결정한다. (`미결정`)
-
-## 10. 환경별 mock
-
-현재 코드는 환경 구분 없이 mock을 초기값과 오류 fallback으로 사용한다. (`AS-IS`)
-
-다음 항목은 백엔드 계약만으로 확정할 수 없어 Decision이 필요하다.
-
-| 환경 | 결정할 내용 |
+| 필드 | 표현 책임 |
 | --- | --- |
-| 로컬 개발 | 명시적 mock mode와 실제 API mode 전환, 기본값 |
-| 자동 테스트 | deterministic fixture, network 차단과 계약 fixture 관리 |
-| 데모 | mock 사용 표시, 쓰기 동작 제한과 데이터 초기화 |
-| 실제 API/배포 | mock 금지 여부, 설정 누락 시 fail-fast 여부 |
+| `testCaseSnapshotId` | 현재 TestCase ID와 혼동하지 않는 실행 당시 결과 identity |
+| `expectedAction` | TestCase가 기대한 `ALLOW` 또는 `BLOCK` |
+| `executionStatus` | Application 실행과 Evaluator 처리가 도달한 terminal 상태 |
+| `evaluatorVerdict` | Evaluator가 만든 공통 `ALLOW` 또는 `BLOCK`; 결과가 없으면 `null` |
+| `assertionStatus` | Expected와 verdict 일치 여부; 평가 결과가 없으면 `null` |
+| `evaluationOutcome` | `TRUE_POSITIVE`, `TRUE_NEGATIVE`, `FALSE_POSITIVE`, `FALSE_NEGATIVE`; 평가 결과가 없으면 `null` |
+| `error.stage` | `APPLICATION_TARGET` 또는 `EVALUATOR` 실패 위치 |
 
-공통 최소 원칙은 다음과 같다. (`TO-BE`)
+- `FAILED`, `TIMED_OUT`, `NOT_STARTED`를 assertion `FAIL`과 혼동하지 않는다.
+- verdict가 없는 항목을 FP/FN 통계에 포함하지 않는다.
+- API 결과에는 Application 자연어 응답이 포함되지 않는다. #28과 #29의 Application Response 표시는 OpenAPI 변경 없이 구현 가능한 목표로 간주하지 않는다.
+- provider 원문이나 내부 오류로 빈 필드를 보충하지 않는다.
 
-- 실제 API 응답과 mock을 출처 표시 없이 같은 collection에 섞지 않는다.
-- API 실패나 실제 빈 결과를 mock 성공 데이터로 위장하지 않는다.
-- mock mode는 승인된 서버 상태나 제품 계약의 증거가 아니다.
-- production 허용 여부가 결정되기 전까지 silent fallback을 목표 동작으로 승인하지 않는다.
+`error.code`의 목표 값 목록과 terminal 상태 mapping은 OpenAPI가 아직 확정하지 않았다. 프론트는 알려지지 않은 code도 안전한 message와 stage를 보존해 표시할 수 있어야 한다.
 
-## 11. 오류와 fallback
+### 8.1 Application 자연어 응답 공개 원칙
 
-| 상황 | AS-IS | TO-BE 원칙 |
-| --- | --- | --- |
-| 목록 조회 실패 | mock으로 조용히 대체 | 오류 상태와 재시도 경로를 제공하고 mock과 구분 |
-| mutation validation | 일반 toast | `VALIDATION_ERROR` field details를 보존 |
-| 404 | 일반 오류 또는 mock | 리소스 미존재를 구분하고 stale 화면 상태를 정리 |
-| 409 | 일반 오류 | `TEST_SUITE_EMPTY`, `IDEMPOTENCY_KEY_CONFLICT`, `TEST_RUN_NOT_FINISHED`별 흐름 분리 |
-| DELETE 실패 | 성공처럼 제거 가능 | 성공을 확정하지 않고 서버 상태 유지 또는 재조회 |
-| network/timeout | 일반 오류 | 결과 불명과 명시적 거부를 구분 |
+현재 OpenAPI는 Application 자연어 응답을 Evaluator의 내부 입력으로만 사용하고 public 결과에는 포함하지 않는다. 따라서 프론트엔드의 기본 정책은 **원문을 조회·저장·표시하지 않는 것**이다.
 
-마지막 성공 데이터 유지, 오류 banner/toast, 자동 재시도와 오프라인 복구 방식은 `미결정`이다. 어떤 선택이든 stale 데이터에는 오류 또는 갱신 실패 상태를 함께 표시하고 최신 성공 데이터처럼 오인시키지 않는다.
+TestCase의 `input`, 주제, category와 expected action을 안다고 해서 실제 Application 응답의 민감도를 예측할 수는 없다. 응답에는 요청하지 않은 개인정보, 고객 데이터, 인증 정보, 내부 시스템 정보, system prompt 또는 외부 도구 결과가 포함될 수 있다. 관리자 전용 화면이나 배포 전 테스트도 다음 위험을 제거하지 않는다.
 
-## 12. 후속 구현·Decision 후보
+- 관리자 계정의 과도한 권한, 계정 탈취 또는 내부자 오용
+- 결과 DB, backup, observability pipeline과 로그로의 민감정보 복제
+- 브라우저 cache, 화면 캡처, 화면 공유와 export를 통한 2차 노출
+- 보존 기간, 삭제 요청, 감사와 규제 범위의 확대
+- 원문이 UI에 렌더링될 때 발생할 수 있는 injection과 안전하지 않은 link/content 처리
 
-- `dev`의 계약 정렬 구현을 현재 `main`과 안전하게 통합하고 문서 AS-IS 갱신
-- 환경별 mock mode와 실제 API mode Decision
-- silent mock fallback 제거 또는 명시적 표시
-- 공통 204·구조화된 오류·abort/timeout 처리
-- TestRun 멱등 key 생성과 복원
-- Polling 연결, backoff, 오류 복구와 background tab 정책
-- pagination/filter UI와 URL 상태 Decision
-- 실제 빈 결과와 오류 상태 UI
-- OpenAPI 기반 타입 생성 여부 Decision
+결과 검토의 기본 화면은 원문 대신 다음 최소 정보로 목적을 충족한다.
 
-이 문서는 위 구현을 수행하거나 정책을 임의로 승인하지 않는다.
+- TestCaseSnapshot의 name, input, expected action, severity와 category
+- Application/Evaluator 처리의 `executionStatus`
+- `evaluatorVerdict`, `assertionStatus`, `evaluationOutcome`
+- 공개 가능한 `error.stage`, `code`, `message`
+- Run 및 Evaluation Profile metadata
 
-## 13. 검증 근거
+향후 실제 디버깅에 원문이 꼭 필요하다는 근거가 생기면 일반 결과 DTO에 바로 추가하지 않고 별도 보안·제품 Decision과 OpenAPI 변경을 선행한다. 최소한 다음 통제가 함께 확정되어야 한다.
 
-- `src/services/`
+- 기본 비공개와 명시적 권한이 있는 사용자만 사용하는 on-demand reveal
+- Run, tenant와 역할을 함께 검증하는 server-side authorization
+- 원문 접근에 대한 사용자·시각·Run 단위 audit log
+- secret/PII 탐지와 masking 또는 redaction 정책
+- 전송·저장 암호화, 짧은 retention과 확실한 삭제 정책
+- browser cache, analytics, error reporting, 일반 application log와 export로의 전파 차단
+- 안전한 text rendering과 길이 제한
+
+이 통제 없이 “관리자이므로” 또는 “배포 전 테스트이므로” 원문을 공개하지 않는다. 관리자 여부는 위험을 없애는 근거가 아니라, 제한 공개가 필요할 때 적용할 여러 통제 중 하나다.
+
+## 9. Evaluator metrics
+
+Evaluator metrics endpoint는 한 Run의 저장된 Expected와 Evaluator verdict 분류 집계를 반환한다. 서버 응답의 TP/TN/FP/FN count와 FP/FN rate를 source of truth로 사용하며 결과 page 일부로 전체 지표를 다시 계산하지 않는다.
+
+- verdict가 없는 실행 실패는 분류 집계에서 제외한다.
+- FP/FN은 현재 Evaluation Profile과 TestCase ExpectedResult의 관계이며 일반적인 모델 성능의 절대 ground truth로 과장하지 않는다.
+- Quality Gate와 Evaluator confusion metrics는 서로 다른 API와 사용자 목적을 가진다.
+
+## 10. Comparable Runs와 Regression
+
+1. 현재 Run의 `comparable-runs` endpoint가 반환한 후보만 표시한다.
+2. 같은 Suite라는 이유만으로 프론트가 후보를 추가하지 않는다.
+3. 선택한 후보와 current Run을 comparisons endpoint로 조회한다.
+4. summary의 `totalCases`, `changedCount`, `unchangedCount`, `improvedCount`, `regressedCount`, `notComparableCount`를 보존한다.
+5. 각 item의 `snapshotId`, `testCaseId`, `name`, `input`, `expectedAction`, `comparisonVerdict`, `currentVerdict`, `comparabilityStatus`, `changeType`을 보존한다.
+6. `COMPARABLE`/`NOT_COMPARABLE`과 `NO_CHANGE`, `SECURITY_REGRESSION`, `USABILITY_REGRESSION`, `IMPROVEMENT`, `POLICY_BEHAVIOR_CHANGED`를 서버 분류 그대로 표시한다.
+7. 비교 과정에서 Application이나 Evaluator를 다시 실행하는 것처럼 표현하지 않는다.
+
+비교 가능 여부는 backend가 소유한다. Quality Gate는 현재 Run 자체의 판정이며 Regression은 두 Run의 저장 결과 비교이므로 하나의 status나 metric으로 합치지 않는다.
+
+## 11. Pagination과 filter
+
+- page는 1-based이며 기본값 1, size는 1~100 범위다.
+- `PageMetaRes` 전체를 보존한다.
+- 범위를 초과한 page의 빈 `items`를 최초 데이터 없음과 구분한다.
+- 반복 status/outcome/Gate filter의 OR 의미를 보존한다.
+- created-from/to와 sort를 서버 query로 전달하고 전체 결과를 받은 것처럼 client-side filter하지 않는다.
+- 결과 목록의 execution status, assertion status, evaluation outcome, severity/category filter는 OpenAPI에 선언된 query만 사용한다.
+- filter 없는 FINISHED 결과의 `page.totalElements`가 고정 `testCaseCount`와 다르면 정상 빈 결과로 단정하지 않고 계약 불일치로 진단한다.
+
+URL에 filter/page를 보존할지와 filter 변경 시 page 초기화 방식은 `미결정`이다.
+
+## 12. 빈 결과, 오류와 mock
+
+| 상황 | 처리 원칙 |
+| --- | --- |
+| 성공한 `items: []` | 실제 빈 결과로 표시하며 mock으로 대체하지 않는다. |
+| `VALIDATION_ERROR` | field와 message를 관련 control에 연결한다. |
+| `TEST_*_NOT_FOUND` | 해당 리소스 미존재 흐름으로 처리한다. |
+| `TEST_RUN_NOT_FINISHED` | 진행 상태를 재확인하며 완료 결과 없음으로 표시하지 않는다. |
+| `TEST_RUNS_NOT_COMPARABLE` | 비교 불가로 표시하고 Regression 결과를 추정하지 않는다. |
+| `TEST_SUITE_EMPTY` | Run 생성이 접수되지 않았음을 표시한다. |
+| `IDEMPOTENCY_KEY_CONFLICT` | 같은 key의 다른 요청 충돌로 표시하고 자동 재전송하지 않는다. |
+| `EVALUATION_PROFILE_NOT_SUPPORTED` | 다른 checks/strictness 조합 또는 Evaluator catalog 등록이 필요함을 안내한다. |
+| unknown execution error code | 공개 message와 failure stage를 보존하고 provider 원문을 노출하지 않는다. |
+
+실제 API 응답과 mock을 같은 collection에 출처 표시 없이 섞지 않는다. 실제 API 실패나 빈 결과를 mock 성공으로 위장하지 않는다. 환경별 mock 기본값, production 허용 여부와 fail-fast 정책은 별도 Decision이 필요하다.
+
+## 13. OpenAPI 미확정 영역
+
+다음 항목은 프론트 문서에서 임의로 확정하지 않는다.
+
+- 실행 오류 `code`의 전체 목록과 terminal 상태 mapping
+- Idempotency-Key의 client 보존 수명
+- timeout, retry, backoff와 background Polling 정책
+- comparison nullable enum 표현의 OpenAPI 3.0.3 도구 호환성(backend #144)
+- 인증·권한 오류와 사용자 세션 UX
+- OpenAPI 타입 생성 도입 여부
+
+미확정 영역이 구현을 차단하면 관련 backend Issue 또는 별도 프론트 Decision에 연결한다.
+
+## 14. 검증 근거
+
+- [`../api/openapi.yaml`](../api/openapi.yaml)
+- `src/services/apiClient.ts`
+- `src/services/testSuiteService.ts`
+- `src/services/testCaseService.ts`
+- `src/services/testRunService.ts`
 - `src/hooks/useLiveRunProgress.ts`
-- `src/components/views/`
-- `src/components/common/SuiteDetailModal.tsx`
-- `src/mocks/mockData.ts`
-- [화면 명세](../product/screen-spec.md)
-- [사용자 흐름](../product/user-flows.md)
-- `guardbench-backend/docs/product/mvp-scope.md`
-- `guardbench-backend/docs/api/openapi.yaml`
+- `src/components/views/NewRunView.tsx`
+- `src/components/views/RunsView.tsx`
+- `src/components/views/ResultDetailView.tsx`
+- GitHub Issues #27, #28, #29, #30, #32
 
-실제 backend를 실행한 end-to-end 검증과 `dev` 병합은 이 Issue 범위에 포함하지 않았다.
+실제 backend와의 end-to-end 검증 및 프론트엔드 구현 수정은 이 문서 Issue의 범위가 아니다.

@@ -14,7 +14,7 @@ export const ArchitectureView: React.FC = () => {
           </p>
         </div>
         <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full border border-[#cfe6dd] bg-[#f1faf6] text-[#1a7f5a] text-xs font-bold">
-          Java · Spring Boot · AWS
+          정적 데모 자료 · Java · Spring Boot · AWS
         </span>
       </div>
 

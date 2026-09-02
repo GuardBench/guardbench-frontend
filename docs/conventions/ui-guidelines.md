@@ -2,266 +2,340 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-08-31
-> Scope: GitHub Issue #17
-> AS-IS baseline: `main@d12ab47d58545c47fe7ce3b8737209469f3efb4d`
-> Canonical product scope: `guardbench-backend/docs/product/mvp-scope.md` (`APPROVED`)
-> Canonical API: `guardbench-backend/docs/api/openapi.yaml` (`APPROVED`)
+> Last reviewed: 2026-09-02
+> Scope: GitHub Issues #35, #62
+> AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
+> Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
+> Product flows: [`../product/screen-spec.md`](../product/screen-spec.md), [`../product/user-flows.md`](../product/user-flows.md)
+> API consumption contract: [`../contracts/api-integration.md`](../contracts/api-integration.md)
+> Architecture: [`../architecture/frontend-architecture.md`](../architecture/frontend-architecture.md)
 
-이 문서는 반복되는 UI 상태와 interaction의 현재 동작을 기록하고, 승인된 제품·API 계약을 사용자가 오해하지 않도록 표현하는 공통 기준을 정의한다. 구체적 문구·디자인 token·도구 선택은 근거 없이 확정하지 않는다.
+이 문서는 최신 OpenAPI 상태를 사용자가 오해하지 않도록 표현하는 UI 및 접근성 기준을 정의한다. API 의미는 OpenAPI와 API 연동 계약을 따르고, 이 문서는 label, feedback, interaction과 접근성 표현만 소유한다.
 
 ## 1. 기본 원칙
 
-- 상태를 색상, icon 또는 toast 하나에만 의존해 전달하지 않는다.
-- 실제 API 성공, 실제 빈 결과, 오류, mock과 demo를 서로 다른 상태로 표현한다.
-- native HTML element로 해결할 수 있는 interaction에는 `div` click과 custom role보다 `button`, `a`, `input`, `select`를 우선한다.
-- keyboard와 pointer 사용자가 같은 핵심 기능과 정보를 이용할 수 있어야 한다.
-- control에는 label, native element 등 코드로 식별 가능한 이름과 상태를 제공하되, 동적 상태의 음성 안내는 이번 데모 범위에서 제외한다.
-- API schema와 오류 code 의미는 [API 연동 계약](../contracts/api-integration.md)을 따른다.
-- 상태 소유권과 오류 경계는 [프론트엔드 아키텍처](../architecture/frontend-architecture.md)를 따른다.
+- 실제 API data, 성공한 empty, 오류, stale과 demo/mock을 구분한다.
+- 색상, icon 또는 위치 하나만으로 상태 의미를 전달하지 않는다.
+- lifecycle, execution outcome, Evaluator verdict, assertion, Quality Gate와 Regression을 하나의 “성공/실패”로 합치지 않는다.
+- 사용자가 선택한 Evaluation Profile과 GuardBench 내부 Evaluator/provider 정보를 구분한다.
+- Application 자연어 응답은 조회·저장·표시하지 않는다.
+- OpenAPI에 없는 값, metric, error 의미와 comparison classification을 UI에서 추정하지 않는다.
+- keyboard와 screen reader 사용자가 pointer 사용자와 같은 정보·action에 접근할 수 있어야 한다.
 
 ## 2. 현재 공통 UI (`AS-IS`)
 
-| 영역 | 현재 동작 | 제약 |
+| 영역 | 현재 지원 | 주요 차이 |
 | --- | --- | --- |
-| loading | 제목 옆 작은 spinner 또는 제출 button 문구 | accessible status와 지속 상태 설명 없음 |
-| empty | 빈 table 또는 mock 유지 | 실제 0건과 오류를 구분하기 어려움 |
-| error | 일반 toast 또는 silent mock fallback | code·field error·재시도 경로 없음 |
-| toast | 우측 하단 약 2.8초, 문자열 하나 | severity, queue와 dismiss 없음 |
-| modal/drawer | overlay click과 닫기 button | dialog semantics, focus trap·복원, Escape 미지원 |
-| clickable card/row | `article`/`tr`에 `onClick` | keyboard focus와 activation 없음 |
-| form | 시각적 `label`이 있지만 명시적 연결 부족 | field error와 invalid state 없음 |
-| status | pill, text와 색상 | 일부 상태 의미가 API 축과 불일치 가능 |
-| responsive | mobile sidebar와 table horizontal scroll | focus/scroll lock과 좁은 화면 정보 우선순위 미정 |
+| loading | 주요 목록·Dashboard에서 최초 loading과 data 유지 중 갱신을 구분 | 화면별 skeleton 형태는 미통일 |
+| empty | 실제 API empty와 filter empty 전용 표현 | CTA와 mobile 표현 보완 가능 |
+| error | 지속 banner, code, field error, stale, retry | endpoint별 사용자 행동 문구 보완 가능 |
+| status | lifecycle, outcome, Gate, assertion 축별 pill과 text | 공통 label 확장 시 중복 방지 필요 |
+| form | Target/Profile field, label, required marker, client/server validation | 접근 가능한 error summary 보완 가능 |
+| modal | 공통 focus trap, Escape, trigger 복귀와 layer 정책 | native widget과 입력 손실 정책 지속 검증 |
+| demo | 상단 data mode 표식 | 정적 Architecture 자료 범위를 더 명확히 할 수 있음 |
+
+현재 UI는 필수 Application model, 최신 TestRun 생성·결과 DTO와 확정 Quality Gate metrics를 사용한다.
+comparison DTO도 확정됐지만 전용 UI는 #30의 선택 구현 범위다.
 
 ## 3. Loading과 진행 상태
 
-### TO-BE
+### 3.1 조회 loading
 
-- 최초 로딩, 기존 데이터 갱신, mutation 제출과 장기 실행 progress를 구분한다.
-- 최초 로딩에서는 대상 영역의 목적을 유지하면서 loading 상태임을 화면의 text로 전달한다.
-- background 갱신은 기존 데이터를 숨기지 않되 stale 또는 갱신 중 상태를 식별할 수 있어야 한다.
-- mutation 중에는 같은 논리 요청의 중복 제출을 막고 button의 disabled/busy 상태와 진행 문구를 함께 제공한다.
-- TestRun progress는 `status`, `processedTestCaseCount`, `percent`를 사용하며 Gate 결과처럼 표현하지 않는다.
-- spinner animation만으로 상태를 전달하지 않는다.
+- 최초 조회는 data가 아직 확정되지 않았음을 text 또는 skeleton과 함께 표시한다.
+- spinner만 두지 않고 무엇을 불러오는지 설명한다.
+- background refresh는 기존 data를 즉시 숨기지 않는다.
+- 오래 걸리는 action에는 사용자가 중복 제출하지 않도록 진행 상태를 표시한다.
 
-동적 상태의 screen reader 음성 안내(`aria-live`, `role="status"` 등)는 이번 데모 범위에서 제외한다. skeleton 사용 범위와 기존 데이터 유지 시간은 `미결정`이다.
+### 3.2 TestRun 진행
+
+- `QUEUED`, `PREPARING`, `RUNNING`, `FINISHED` label을 그대로 보존하고 사용자 설명을 병기할 수 있다.
+- 진행 중에는 processed TestCase 수, percent와 마지막 갱신 시각을 사용한다.
+- Polling 내부의 Scheduled/InFlight/TransientError/TerminalError는 개발 상태이며 기본 사용자 status로 노출하지 않는다.
+- background 갱신 실패 후 이전 progress를 유지하면 “마지막 확인값” 또는 stale 표시를 함께 제공한다.
+- `FINISHED`는 성공만을 의미하지 않으므로 outcome과 Quality Gate를 별도로 확인하게 한다.
+
+Polling interval, 장시간 실행 안내와 background tab 표현은 `미결정`이다.
 
 ## 4. 빈 결과
 
-### TO-BE
+빈 결과는 오류가 아니며 발생 위치와 filter context에 맞는 다음 행동을 제공한다.
 
-- API가 성공해 `items: []`를 반환하면 실제 빈 결과로 표시하고 mock으로 바꾸지 않는다.
-- 최초 데이터 0건, filter/search 결과 0건과 범위 초과 page를 구분한다.
-- empty 영역에는 현재 조건과 가능한 다음 action을 설명하되 존재하지 않는 create 기능을 CTA로 제공하지 않는다.
-- FINISHED TestRun의 filter 없는 결과가 비어 계약 위반이 의심되면 정상 empty로 단정하지 않는다.
-- empty와 404, network 오류 또는 권한 오류를 같은 화면으로 표현하지 않는다.
+| 상황 | 표현 | 다음 행동 예시 |
+| --- | --- | --- |
+| Suite 0건 | 등록된 Suite 없음 | Suite 생성 |
+| 존재하는 Suite의 TestCase 0건 | 아직 TestCase 없음 | TestCase 추가 |
+| filter 결과 0건 | 현재 조건과 일치하는 항목 없음 | filter 초기화 |
+| comparable Run 0건 | 비교 가능한 과거 Run 없음 | 현재 Run 검토로 복귀 |
+| page 범위 초과 | 해당 page에 항목 없음 | 이전 page |
 
-화면별 문구와 CTA는 제품 Decision으로 남긴다.
+- `404 TEST_SUITE_NOT_FOUND`를 “TestCase 없음”으로 표시하지 않는다.
+- `TEST_RUN_NOT_FINISHED`를 “결과 없음”으로 표시하지 않는다.
+- FINISHED Run의 filter 없는 result total이 고정 testCaseCount와 다르면 정상 empty로 단정하지 않는다.
+- empty를 mock item으로 채우지 않는다.
 
-## 5. 오류와 stale 상태
+## 5. 오류, stale과 복구
 
-| 오류 범주 | 사용자 표현 책임 |
+| 오류 범주 | 사용자 표현 |
 | --- | --- |
-| field validation | 관련 field 근처에 오류를 연결하고 수정 가능한 값 유지 |
-| 404 | 대상이 존재하지 않음을 설명하고 안전한 이동 경로 제공 |
-| conflict | 현재 상태 또는 재요청 충돌 원인과 다음 action 구분 |
-| network/timeout | 서버가 거부한 것과 결과를 알 수 없는 상황을 구분 |
-| parsing/unknown | 일반 실패로 숨기더라도 진단 가능한 내부 context 보존 |
-| rendering | 화면 error boundary에서 격리하고 API 오류와 구분 |
+| validation | field 근처 오류와 form-level summary, 입력 유지 |
+| resource not found | 대상이 없다는 설명과 목록으로 돌아갈 action |
+| create conflict | `TEST_SUITE_EMPTY`는 TestCase가 없음을 알리고 Suite 편집으로 연결한다. `IDEMPOTENCY_KEY_CONFLICT`는 자동 재전송을 중단하고 새 시도를 안내한다. `EVALUATION_PROFILE_NOT_SUPPORTED`는 다른 Profile 조합 또는 Evaluator catalog 등록을 안내한다. |
+| not finished race | Run 상태 재확인, 결과 empty로 확정하지 않음 |
+| not comparable | comparison 해제와 후보 재선택 |
+| network/timeout | 접수·처리 결과 불명 가능성과 재시도 |
+| request abort | 실패 toast 없이 조용히 폐기 |
+| invalid response | 정상 empty가 아닌 계약/응답 오류 |
+| execution result error | Application/Evaluator stage와 안전한 code/message |
+| rendering | error boundary와 화면 복구 action |
 
-### TO-BE
+### 지속 오류와 toast
 
-- 오류로 인해 이전 데이터를 유지하면 “최신”으로 오인하지 않도록 갱신 실패/stale 상태를 함께 표시한다.
-- 화면 핵심 작업을 막는 오류는 자동으로 사라지는 toast만 사용하지 않고 지속 영역과 재시도 action을 제공한다.
-- mutation 실패를 성공 toast로 표시하거나 로컬 상태를 성공으로 확정하지 않는다.
-- mock/demo를 오류 fallback으로 사용하면 실제 성공 데이터와 명시적으로 구분한다.
-- 안전한 server message만 사용자에게 노출하고 stack trace나 provider 원문을 표시하지 않는다.
+- 화면 핵심 작업을 막는 오류는 자동으로 사라지는 toast만 사용하지 않는다.
+- 조회 오류에는 지속 banner와 retry action을 제공한다.
+- mutation validation은 관련 field와 연결한다.
+- 이전 data를 유지하면 stale임을 text로 표시한다.
+- 공개된 안전한 message만 사용하며 provider 원문, stack trace와 내부 예외를 노출하지 않는다.
 
-자동 재시도, offline 표현, 오류 report와 마지막 성공 데이터 유지 정책은 `미결정`이다.
+자동 retry, offline mode, 오류 report와 마지막 성공 data 유지 기간은 `미결정`이다.
 
 ## 6. Form과 validation
 
-### 입력 기본 규칙
+### 6.1 공통 규칙
 
-- 모든 input/select에는 programmatic label을 제공한다. 시각적 `<label>`은 `htmlFor`와 control `id`로 연결한다.
-- required, 형식과 예시는 placeholder만으로 전달하지 않고 label 또는 설명으로 제공한다.
-- 도움말과 field error는 `aria-describedby` 등으로 해당 control과 연결한다.
-- invalid control은 시각적 표현과 `aria-invalid` 상태를 함께 제공한다.
-- 공백만 있는 필수 문자열, numeric version과 식별자 형식을 client에서 조기 안내하되 server validation을 대체하지 않는다.
-- server `VALIDATION_ERROR.errors`를 가능한 field에 mapping하고 mapping할 수 없는 오류는 form 수준에서 표시한다.
-- 오류 발생 후 사용자가 입력한 안전한 값을 유지한다.
+- 모든 control에 programmatic label을 제공한다.
+- required와 optional을 text로 구분한다.
+- placeholder를 label 대체물로 사용하지 않는다.
+- 도움말과 오류를 `aria-describedby` 등으로 control과 연결한다.
+- 제출 실패 시 첫 오류로 focus하거나 접근 가능한 error summary를 제공한다.
+- client validation은 빠른 feedback이며 서버 validation을 대체하지 않는다.
+- server `VALIDATION_ERROR.errors`를 가능한 field에 mapping한다.
+- 제출 중 중복 action을 막고 button의 진행 상태를 알린다.
 
-### 제출과 취소
+### 6.2 Suite 생성
 
-- 제출 중 같은 button과 Enter 경로의 중복 요청을 막는다.
-- 성공은 server 응답 후 확정하고 생성된 server ID를 사용한다.
-- timeout으로 결과가 불명확한 멱등 요청은 단순 실패와 구분한다.
-- 취소, 화면 이탈과 form draft 보존·경고 정책은 `미결정`이다.
+- Suite 이름만으로 빈 Suite를 생성할 수 있다.
+- 초기 TestCase 추가는 선택 action으로 제공한다.
+- 현재 MVP UI는 초기 TestCase 한 건을 지원하며, OpenAPI의 최대 100건 허용을 UI가 모두 입력받아야 한다는 의미로 해석하지 않는다.
+- 초기 TestCase를 포함하면 전체가 원자적으로 생성되고 하나라도 유효하지 않으면 Suite도 생성되지 않음을 오류 시 명확히 한다.
+
+### 6.3 TestRun 생성
+
+| 사용자 label | API 의미 | UI 규칙 |
+| --- | --- | --- |
+| TestSuite | `testSuiteId` | 실제 ID를 사용하고 empty/error를 구분 |
+| Application URL | `target.identifier` | OpenAI-compatible Chat Completions full HTTP/HTTPS URI, 필수 |
+| Model | `target.model` | OpenAI-compatible request의 모델 식별자, 필수, 공백 금지 |
+| Revision | `target.revision` | optional, 공백 문자열 금지 |
+| Evaluation checks | `evaluationProfile.checks` | 최소 1개, 중복 없이 복수 선택 |
+| Strictness | `evaluationProfile.strictness` | Profile 전체에 하나, 모든 checks에 공통 적용 |
+
+- 사용자에게 Evaluator provider/type 또는 Guardrail ID/version을 입력받지 않는다.
+- check별 strictness control을 만들지 않는다.
+- strictness label은 특정 provider threshold나 절대 안전 수준을 보장하는 표현을 사용하지 않는다.
+- 실행 요약에는 Suite, Application URL/model/revision, checks와 단일 strictness를 표시한다.
+- 예상 실행 수에 legacy `caseCount * 2`를 사용하지 않는다.
+
+Idempotency-Key는 사용자 입력 field가 아니다. 재전송 정책이 확정되면 UI는 결과 불명과 새 시도를 구분한다.
 
 ## 7. Button, link와 clickable surface
 
-- 상태 변경·modal 열기·submit은 `button`을 사용한다.
-- URL navigation은 link semantics를 사용한다. 현재 router가 없어도 `div` click을 접근 가능한 navigation으로 간주하지 않는다.
-- icon-only button에는 보이는 text 또는 accessible name을 제공한다.
-- disabled button은 이유를 주변 설명으로 알 수 있어야 한다.
-- card 또는 table row 전체가 click 대상이면 keyboard focus, Enter/Space activation과 내부 action 충돌을 설계한다. 가능하면 명시적 link/button을 둔다.
-- hover 효과만으로 click 가능성을 전달하지 않는다.
-- 최소 touch target 크기의 구체적 token은 디자인 Decision에서 확정한다.
+- page 이동은 link 의미를, 현재 상태를 바꾸는 action은 button 의미를 사용한다.
+- icon-only button에는 accessible name을 제공한다.
+- disabled 이유를 주변 text 또는 도움말로 알 수 있게 한다.
+- card 전체가 clickable이면 내부 button과 중첩 interaction을 만들지 않는다.
+- destructive action은 label, 시각 표현과 필요 시 확인 절차로 구분한다.
+- click target 크기와 간격은 touch 사용을 고려한다.
 
-## 8. Toast와 지속 피드백
+최소 touch target token과 공통 button component 도입은 `미결정`이다.
 
-### 상태 종류
+## 8. Toast와 지속 feedback
 
 | 종류 | 용도 |
 | --- | --- |
-| success | server mutation 성공이 확정된 경우 |
-| error | 사용자가 즉시 알 필요가 있는 실패의 보조 알림 |
-| warning | 결과 불명, stale 또는 위험 action 주의 |
-| info | 완료 여부와 무관한 안내 |
-| demo/mock | 실제 API 성공과 구분되는 명시적 데모 상태 |
+| success | 서버가 확인한 mutation 성공 |
+| info | navigation, 접수 또는 중립 안내 |
+| warning | 결과 불명, stale, non-terminal conflict |
+| error | 사용자가 확인해야 하는 실패 |
+| demo | 실제 API action이 아닌 동작 |
 
-- 핵심 오류·validation·장기 progress를 toast만으로 전달하지 않는다.
-- 새 toast가 이전 toast를 무조건 덮어쓰지 않도록 queue 또는 대체 정책을 정한다.
-- 자동 dismiss 시간, 수동 닫기, 위치, 최대 개수와 queue 방식은 `미결정`이다.
+- `202 Accepted`는 실행 완료가 아니라 접수 성공으로 알린다.
+- API 응답을 받지 못한 Run 생성은 성공 또는 실패로 단정하지 않는다.
+- 핵심 오류, validation과 장기 progress를 toast만으로 전달하지 않는다.
+- 동일 오류 toast가 Polling마다 반복되지 않게 한다.
+- toast가 사라져도 핵심 상태는 화면에서 확인할 수 있어야 한다.
 
-toast의 screen reader 음성 안내를 위한 live region은 이번 데모 범위에서 제외한다. 성공·오류 정보는 화면에서 확인할 수 있어야 하며, 핵심 오류는 지속 영역에도 남긴다.
+toast queue, 지속 시간과 중복 억제 구현은 `미결정`이다. `aria-live`, `role="status"` 등 동적 상태의 screen reader 음성 안내는 #17에서 정한 이번 데모 범위에서 제외한다. 성공·오류와 핵심 상태는 지속 영역에서도 확인할 수 있어야 한다.
 
-## 9. Table, list와 pagination
+## 9. Table, list, filter와 pagination
 
-- table에는 column header와 문맥상 필요한 caption 또는 accessible name을 제공한다.
-- status cell은 text를 포함하고 색상만으로 의미를 전달하지 않는다.
-- interactive row는 keyboard 경로를 제공하고 내부 delete/edit/detail action의 event 경계를 분리한다.
-- loading, empty와 error를 데이터 행처럼 혼동하지 않고 table 주변 상태 영역으로 표현할 수 있다.
-- horizontal scroll container는 keyboard 및 zoom 환경에서 content가 잘리지 않게 한다.
-- pagination은 현재 page, 전체 page 또는 결과 범위와 이전·다음 가능 여부를 제공한다.
-- filter/search에는 label, clear action과 적용 결과를 제공하고 filter 변경 시 page 처리 정책을 명시한다.
+- table header와 cell 관계를 semantic markup으로 표현한다.
+- sort 방향과 filter 적용 여부를 text/accessible state로 제공한다.
+- server page의 `items`와 page metadata를 함께 표시한다.
+- filter가 바뀌었을 때 page를 초기화할지는 일관된 정책으로 결정한다.
+- filter 결과 empty와 전체 data empty를 다른 문구로 표시한다.
+- result filter는 저장 결과 목록만 좁히며 Quality Gate나 Evaluator metrics를 다시 계산하지 않는다.
+- 현재 result page의 count를 전체 Run count처럼 표시하지 않는다.
+- 좁은 viewport에서는 핵심 열 우선, horizontal scroll 또는 row detail을 선택하되 정보 자체를 제거하지 않는다.
 
-page를 URL에 보존할지, mobile에서 table을 card로 바꿀지는 `미결정`이다.
+filter/page의 URL 보존과 mobile table pattern은 `미결정`이다.
 
 ## 10. Dialog, modal과 drawer
 
-### TO-BE interaction
+- 열린 surface에 `role="dialog"`, accessible name과 modal 의미를 제공한다.
+- 열릴 때 의미 있는 첫 요소로 focus를 이동하고 닫힐 때 trigger로 돌려준다.
+- Tab focus를 modal 내부에 유지한다.
+- Escape와 명시적 닫기 button을 제공한다. 입력 손실 위험이 있으면 확인한다.
+- IME 조합 중 Escape는 입력기의 조합 종료·취소 처리를 우선하고 Dialog를 닫지 않는다. 확정되는 글자 형태는 운영체제 입력기가 결정한다. 일부 browser가 Escape 전에 조합 종료를 알리므로 짧은 조합 종료 유예 구간도 같은 입력 동작으로 취급한다.
+- native select처럼 Escape를 자체 dismiss에 사용하는 control에 focus가 있으면 control 동작을 우선하고 Dialog를 닫지 않는다.
+- backdrop click만 유일한 닫기 방식으로 사용하지 않는다. 입력 form Dialog는 backdrop click으로 닫지 않고, 읽기 전용 상세 Dialog는 Escape와 닫기 button을 함께 제공할 때만 backdrop 닫기를 허용한다.
+- modal 내부 scroll과 배경 scroll을 구분한다.
+- 오류 후 modal을 닫지 않고 입력과 오류를 유지한다.
+- layer 순서는 공통 token을 사용하며 현재 Topbar·mobile backdrop `z-40` < Sidebar `z-50` < Dialog `z-[60]` < toast `z-[70]` 순으로 둔다.
 
-1. trigger가 dialog를 열고 trigger element를 기억한다.
-2. dialog에 `role="dialog"`, modal semantics와 accessible name을 제공한다.
-3. 열린 뒤 heading 또는 첫 번째 의미 있는 control로 focus를 이동한다.
-4. Tab/Shift+Tab focus가 modal 범위를 벗어나 background로 이동하지 않게 한다.
-5. Escape와 명시적 닫기 button을 제공한다. backdrop click은 데이터 손실 가능성에 따라 결정한다.
-6. 닫을 때 원래 trigger 또는 합리적인 다음 위치로 focus를 복원한다.
-7. 열린 동안 background의 pointer·keyboard 접근과 page scroll을 제어한다.
-
-- destructive action은 대상과 결과를 명확히 한 확인 절차를 제공한다.
-- side drawer도 modal로 동작한다면 동일한 focus와 background 규칙을 적용한다.
-- nested modal을 기본 패턴으로 만들지 않는다.
-- backdrop close와 미저장 draft 처리, animation 방식은 `미결정`이다.
+Snapshot 상세 modal은 public result DTO만 사용한다. Application 자연어 응답, provider 원문과 내부 오류를 표시하는 영역을 만들지 않는다.
 
 ## 11. Keyboard, focus와 page structure
 
-- 모든 핵심 action은 Tab으로 도달하고 keyboard로 실행할 수 있어야 한다.
-- native control의 Enter/Space 동작을 보존하고 custom key handler는 필요한 경우에만 추가한다.
-- focus indicator를 제거하지 않으며 배경과 구분 가능하게 표시한다.
-- 화면 전환 후 page heading 또는 main 영역으로 focus를 옮길 필요를 검토한다.
-- validation 제출 실패 시 첫 오류로 focus하거나 오류 summary와 field를 연결한다.
-- `header`, `nav`, `main`, heading 순서 등 landmark와 문서 구조를 사용한다.
+- page마다 하나의 명확한 `h1`을 두고 heading 순서를 유지한다.
+- Sidebar와 main content 사이의 focus 이동을 고려한다.
+- 모든 action은 keyboard로 실행할 수 있어야 한다.
+- row 선택을 click handler가 있는 `tr`에만 의존하지 않고 button/link를 제공한다.
+- loading 완료, 오류 발생과 modal open/close 후 focus를 예측 가능한 위치에 둔다.
+- visible focus indicator를 제거하지 않는다.
+- 새 화면 navigation 후 focus를 page heading 또는 main content로 이동하는 정책을 검토한다.
 
-정확한 focus 이동 정책은 `미결정`이다. skip link, screen reader 음성 안내와 지원 matrix는 이번 데모 범위에서 제외한다.
+skip link, route change announcement와 screen reader 지원 matrix는 #17에서 정한 이번 데모 범위에서 제외한다. 정확한 route focus 이동 정책은 `미결정`이다.
 
 ## 12. 반응형, 확대와 motion
 
-### AS-IS
+- 320 CSS px 너비와 200% 확대에서 핵심 action과 text가 잘리거나 겹치지 않아야 한다.
+- grid와 form은 좁은 화면에서 단일 column으로 재배치한다.
+- table은 핵심 정보가 유지되는 scroll 또는 대체 layout을 제공한다.
+- 고정 높이로 오류, label과 translated text를 잘라내지 않는다.
+- motion은 의미 전달을 보조할 뿐 유일한 상태 신호가 아니다.
+- `prefers-reduced-motion`에서 불필요한 animation을 줄인다.
 
-- `lg` 미만에서 sidebar를 drawer로 열고 overlay를 제공한다.
-- 일부 header/action은 `sm` breakpoint에서 row/column 배치를 바꾼다.
-- 결과 table은 최소 폭과 horizontal scroll을 사용한다.
-- modal/drawer는 viewport 높이를 사용하고 내부 scroll을 제공한다.
-- `animate-rise`, spinner와 여러 transition을 사용하지만 reduced-motion 분기는 없다.
+지원 browser와 breakpoint token은 `미결정`이다.
 
-### TO-BE
+## 13. 상태 의미와 표현
 
-- 200% 이상 확대와 좁은 viewport에서 핵심 content와 action이 잘리거나 겹치지 않게 한다.
-- table horizontal scroll이 page 전체 scroll과 충돌하지 않도록 영역을 명확히 한다.
-- drawer와 modal의 close action이 viewport 안에 유지되어야 한다.
-- text wrapping으로 status, metric과 button 의미가 사라지지 않게 한다.
-- motion은 정보 이해에 필수적이지 않아야 하며 사용자 reduced-motion 설정에 대응한다.
-- color contrast는 실제 token과 상태 조합별로 검증한다.
+### 13.1 Run lifecycle
 
-지원 viewport, breakpoint와 contrast 목표 수준은 디자인·접근성 Decision에서 확정한다.
-
-## 13. Status, outcome과 Quality Gate
-
-- TestRun `status`는 진행 단계, `executionOutcome`은 실행 결과, Quality Gate는 정책 판정으로 분리한다.
-- `FINISHED + ERROR`를 진행 중 또는 정책 FAIL로 표현하지 않는다.
-- Gate `FAIL`은 실행 실패가 아니라 평가 가능한 정책 판정 실패다.
-- `qualityGate = null`은 평가 전이고 `NOT_EVALUATED`는 종료 후 평가 불가다.
-- badge에는 enum code 또는 이해 가능한 text를 포함하고 icon/색상은 보조 수단으로 사용한다.
-- progress, outcome과 Gate를 하나의 “상태” filter로 합치지 않는다.
-
-화면별 한국어 label은 제품 용어 검토 후 확정한다.
-
-## 14. 공통 컴포넌트 책임
-
-| 컴포넌트 후보 | 공통 책임 | 화면 책임 |
-| --- | --- | --- |
-| Button/IconButton | semantics, focus, disabled/busy | action과 label |
-| Field/Error | label, description, invalid 연결 | validation rule과 message mapping |
-| StatusPill | 상태 종류별 시각·text 구조 | 어떤 축의 값을 표시할지 선택 |
-| Toast | severity, dismiss와 queue | 발생 시점과 message |
-| Loading/Empty/Error | 공통 구조와 접근 가능한 상태 | 화면 목적, CTA와 retry |
-| Dialog/Drawer | focus, Escape, background, scroll | content, submit과 discard 정책 |
-| Pagination | 현재 위치와 이전·다음 semantics | query와 server page 상태 |
-
-공통 component는 API endpoint나 mock을 직접 알지 않는다. component library 도입과 디자인 token은 `미결정`이다.
-
-## 15. Baseline 저장 결과 방향 (`DRAFT` / 백엔드 계약 대기)
-
-Baseline 결과를 미리 저장하고 TestRun에서는 Candidate만 실행하는 방향은 아직 승인된 백엔드 계약이 아니다. 다음 UI를 확정하지 않는다.
-
-- Baseline 선택 control, 기본값과 검색 방식
-- Baseline 생성·갱신 action
-- 누락·Suite 불일치·stale Baseline의 오류 문구
-- Candidate-only progress와 결과 layout
-
-방향이 승인되면 저장 Baseline과 이번 Candidate 실행의 출처를 명시적으로 구분한다. Baseline을 이번 Run에서 실행된 결과처럼 표시하지 않고, 기준의 identity/version/생성 시점 등 승인된 provenance를 사용자가 확인할 수 있게 한다. stale·불일치·부분 누락을 정상 비교 결과로 표현하지 않는다.
-
-## 16. 접근성 검증 전략
-
-| 검증 | 대상 |
+| 상태 | 사용자 의미 |
 | --- | --- |
-| 코드 검토 | native semantics, label, heading, landmark와 ARIA 사용 |
-| keyboard 수동 검증 | Tab 순서, activation, Escape, focus trap·복원 |
-| zoom/viewport | reflow, table scroll, modal/drawer와 touch action |
-| motion/color | reduced motion, contrast와 색상 독립성 |
-| component test | accessible name, invalid state, dialog와 화면의 dynamic feedback |
-| browser flow | Suite 관리, Run 생성·진행·결과 분석 핵심 여정 |
+| QUEUED | 실행 요청 접수, 시작 대기 |
+| PREPARING | Target 준비와 실행 조건 고정 |
+| RUNNING | TestCase 처리 중 |
+| FINISHED | 처리 종료, outcome 확인 필요 |
 
-axe 등 자동 검사와 CI required check는 `미결정`이다. screen reader 음성 안내와 지원 matrix는 이번 데모 범위에서 제외한다. 자동 검사는 keyboard 흐름과 실제 이해 가능성을 대체하지 않는다.
+`FAILED`를 lifecycle status로 만들지 않는다.
 
-## 17. 후속 구현·Decision 후보
+### 13.2 Execution outcome과 Quality Gate
 
-- loading/empty/error/stale 공통 상태 component
-- structured field error와 form validation
-- toast severity, queue와 지속 오류 영역
-- accessible dialog/drawer와 destructive confirmation
-- clickable card/row의 native interaction 전환
-- focus management와 landmark
-- responsive table/modal과 reduced motion
-- 접근성 component/E2E 검사 기반
-- 디자인 token, breakpoint와 지원 matrix Decision
-- Baseline 계약 승인 후 선택·출처·stale UI 갱신
+| 축 | 값 | 표현 원칙 |
+| --- | --- | --- |
+| execution outcome | COMPLETED, ERROR, INCOMPLETE, null | 처리 결과와 신뢰도 |
+| Quality Gate | PASS, FAIL, NOT_EVALUATED, null | 현재 Run assertion 집계 판정 |
 
-이 문서는 위 구현과 디자인 선택을 승인하지 않는다.
+- Gate FAIL을 execution ERROR와 같은 색·문구 하나로 합치지 않는다.
+- `qualityGate: null`은 결정 전이고 `NOT_EVALUATED`는 종료 후 계산 불가다.
+- PASS/FAIL에서는 `assertionPassRate`와 `executionSuccessRate`를 별도 label로 표시한다.
+- Quality Gate metrics를 퍼센트로 formatting할 수 있지만 status나 threshold 판정을 프론트에서 재계산하지 않는다.
+- status를 색상만으로 전달하지 않고 text label을 제공한다.
 
-## 18. 검증 근거
+### 13.3 개별 결과
 
+다음 축을 각각의 column, label 또는 detail group으로 구분한다.
+
+- Expected action
+- execution status
+- Evaluator verdict
+- assertion status
+- evaluation outcome(TP/TN/FP/FN)
+- error stage(`APPLICATION_TARGET`/`EVALUATOR`)
+
+실행 실패를 assertion FAIL이나 FP/FN으로 표현하지 않는다. verdict/assertion/outcome이 `null`이면 “없음/평가되지 않음”을 context에 맞게 표시하고 `ALLOW`, `PASS` 또는 0으로 바꾸지 않는다.
+
+## 14. Evaluator 분석
+
+- Evaluation Profile checks와 통합 strictness를 분석 context로 함께 표시한다.
+- TP/TN/FP/FN count와 FP/FN rate는 evaluator-metrics 응답을 사용한다.
+- rate가 `null`이면 분모 없음 또는 계산 불가로 표시하며 0%로 바꾸지 않는다.
+- FP/FN은 현재 TestCase Expected와 Evaluator verdict의 관계임을 설명한다.
+- 모델의 보편적 정확도나 절대 ground truth로 과장하지 않는다.
+- verdict 없는 실행 실패는 confusion metrics에 포함되지 않음을 안내한다.
+
+chart 유형, 숫자 rounding과 mobile 배치는 `미결정`이다.
+
+## 15. Regression 비교
+
+- Regression은 current Run Quality Gate와 별도 section 또는 화면으로 구분한다.
+- backend가 반환한 comparable Run만 선택지로 제공한다.
+- current와 comparison Run의 Application Target, Evaluation Profile과 완료 시각을 비교 context로 표시한다.
+- 비교 중 Application/Evaluator를 다시 실행하는 것처럼 표현하지 않는다.
+- `TEST_RUNS_NOT_COMPARABLE`이면 기존 비교 결과를 유지하지 않고 후보 재선택을 제공한다.
+- case-level badge와 table은 서버의 comparability status와 change type을 그대로 사용한다.
+- summary count와 item을 현재 result page에서 다시 계산하지 않는다.
+
+Regression 전용 UI는 #30의 선택 구현 범위다.
+
+## 16. Application 자연어 응답 비공개
+
+Application 자연어 응답은 Evaluator 내부 입력이며 public UI에 표시하지 않는다.
+
+- 관리자 또는 배포 전 테스트라는 이유만으로 reveal action을 제공하지 않는다.
+- frontend state, modal, DOM, analytics, error report, log와 export에 원문을 넣지 않는다.
+- TestCaseSnapshot, execution status, verdict, assertion, outcome과 안전한 오류 정보로 결과를 검토한다.
+- 향후 제한 공개가 필요하면 별도 보안·제품 Decision과 OpenAPI 변경을 선행한다.
+
+## 17. 공통 component 책임
+
+아래 표는 현재 존재하는 공통 component와 향후 공통화할 목표 책임을 함께 구분한다.
+
+| 상태 | component 역할 | 소유 | 소유하지 않음 |
+| --- | --- | --- | --- |
+| `AS-IS` | StatusPill | 축별 label, icon과 시각 표현 | 서로 다른 상태 축의 의미 병합 |
+| `AS-IS` | RequestErrorBanner | 지속 오류, code, stale와 retry | endpoint business decision |
+| `AS-IS` | StatCard | metric label, 값과 보조 설명 | metric 계산과 API 의미 추정 |
+| `TO-BE` | FormField | label, help, error와 control 연결 | OpenAPI 외 validation 규칙 |
+| `TO-BE` | Pagination | page 이동과 metadata | server collection 재계산 |
+| `AS-IS` | Dialog hook + layer config | focus, dismiss, 중첩 surface와 layer 순서 | 특정 endpoint 호출 |
+
+공통 component는 endpoint와 mock을 직접 알지 않는다. layer 순서를 제외한 component library와 전체 design token 체계는 `미결정`이다.
+
+## 18. 접근성 검증 전략
+
+- keyboard만으로 주요 사용자 여정을 수행한다.
+- 코드와 keyboard 검증으로 heading, landmark, form label/error와 dialog semantics를 확인한다.
+- focus 순서와 modal trap/복귀를 확인한다.
+- 색상 대비와 색상 없이 상태 구분이 가능한지 확인한다.
+- 320 CSS px와 200% 확대에서 reflow를 확인한다.
+- reduced motion 설정을 확인한다.
+- 실제 loading, empty, stale, error, nullable과 conflict 상태 조합을 fixture로 검증한다.
+
+자동화 도구, CI required check와 수동 검증 책임자는 `미결정`이다. 실제 screen reader 음성 안내와 browser/screen reader 지원 matrix 검증은 #17에서 정한 이번 데모 범위에서 제외한다.
+
+## 19. 후속 구현·Decision
+
+- form validation과 control 접근성 연결 (#65)
+- dev 대상 소스 PR build/lint CI (#64)
+- Regression 비교 UI (#30)
+- toast queue/live region과 지속 feedback
+- modal focus management와 route focus
+- responsive table pattern
+- design token과 공통 component
+- 접근성 자동화와 수동 검증 절차
+
+## 20. 검증 근거
+
+- [`../api/openapi.yaml`](../api/openapi.yaml)
+- [`../contracts/api-integration.md`](../contracts/api-integration.md)
+- [`../product/screen-spec.md`](../product/screen-spec.md)
+- [`../product/user-flows.md`](../product/user-flows.md)
+- [`../architecture/frontend-architecture.md`](../architecture/frontend-architecture.md)
 - `src/App.tsx`
-- `src/components/layout/`
-- `src/components/views/`
-- `src/components/common/`
-- `src/index.css`
-- [화면 명세](../product/screen-spec.md)
-- [사용자 흐름](../product/user-flows.md)
-- [API 연동 계약](../contracts/api-integration.md)
-- [프론트엔드 아키텍처](../architecture/frontend-architecture.md)
+- `src/components/layout`, `src/components/views`, `src/components/common`
+- `src/services`, `src/hooks`, `src/types`, `src/mocks`
+- GitHub Issues #19, #27, #28, #29, #30, #35
 
-실제 screen reader·browser matrix 검증, UI 코드 변경과 디자인 token 확정은 이 Issue 범위에 포함하지 않았다.
+이 문서는 frontend code, OpenAPI, design system 또는 배포 설정을 변경하지 않는다.

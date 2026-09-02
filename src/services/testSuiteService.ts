@@ -3,8 +3,8 @@ import { apiRequest } from './apiClient';
 // 1. TestSuite 생성 요청
 export interface CreateTestSuitePayload {
   name: string;
-  description?: string;
-  initialTestCases?: Array<{
+  description?: string | null;
+  testCases?: Array<{
     name: string;
     input: string;
     expectedAction: 'ALLOW' | 'BLOCK';
@@ -28,6 +28,8 @@ export interface TestSuiteListApiResponse {
     size: number;
     totalElements: number;
     totalPages: number;
+    hasPrevious: boolean;
+    hasNext: boolean;
   };
 }
 

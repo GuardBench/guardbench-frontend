@@ -1,90 +1,119 @@
-import { useState, useEffect, useRef } from 'react';
-import { getTestRunProgress, type TestRunProgressResponse } from '../services/testRunService';
+import { useCallback, useEffect, useState } from 'react';
+import { ApiError } from '../services/apiClient';
+import { getTestRunDetail, type TestRunDetailRes } from '../services/testRunService';
+
+export type PollingState = 'IDLE' | 'IN_FLIGHT' | 'SCHEDULED' | 'TRANSIENT_ERROR' | 'TERMINAL_ERROR' | 'FINISHED';
 
 interface UseLiveRunProgressOptions {
   runId: string | null;
   pollIntervalMs?: number;
-  onFinished?: (finalProgress: TestRunProgressResponse) => void;
-  onError?: (error: Error) => void;
 }
+
+const MAX_TRANSIENT_FAILURES = 5;
+
+const isTerminalError = (error: unknown) => error instanceof ApiError
+  && (error.code === 'INVALID_RESPONSE'
+    || (error.httpStatus >= 400
+      && error.httpStatus < 500
+      && error.httpStatus !== 408
+      && error.httpStatus !== 429));
 
 export function useLiveRunProgress({
   runId,
-  pollIntervalMs = 2000,
-  onFinished,
-  onError,
+  pollIntervalMs = 3000,
 }: UseLiveRunProgressOptions) {
-  const [progress, setProgress] = useState<TestRunProgressResponse | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isPolling, setIsPolling] = useState<boolean>(false);
+  const [detail, setDetail] = useState<TestRunDetailRes | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const [pollingState, setPollingState] = useState<PollingState>('IDLE');
+  const [stale, setStale] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
 
-  // 최신 콜백 함수 참조 보존 (useEffect 의존성 배열 타이머 재시작 방지)
-  const onFinishedRef = useRef(onFinished);
-  const onErrorRef = useRef(onError);
-
-  useEffect(() => {
-    onFinishedRef.current = onFinished;
-    onErrorRef.current = onError;
-  }, [onFinished, onError]);
+  const refresh = useCallback(() => setRefreshToken((value) => value + 1), []);
 
   useEffect(() => {
-    // runId가 없으면 Polling 수행 안 함
-    if (!runId) {
-      setProgress(null);
-      setIsPolling(false);
-      return;
-    }
+    if (!runId || typeof document === 'undefined') return;
+    let active = true;
+    // visibility handler가 최신 종료 상태를 읽도록 effect 지역 변수로 관리한다.
+    let pollingStopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let controller: AbortController | undefined;
+    let inFlight = false;
+    let transientFailures = 0;
 
-    let isMounted = true;
-    setIsLoading(true);
-    setIsPolling(true);
+    const schedule = () => {
+      if (!active || pollingStopped) return;
+      setPollingState('SCHEDULED');
+      const delay = document.hidden
+        ? Math.max(pollIntervalMs, 10_000)
+        : pollIntervalMs;
+      timer = setTimeout(fetchNext, delay);
+    };
 
-    const fetchProgress = async () => {
+    const fetchNext = async () => {
+      if (!active || pollingStopped) return;
+      timer = undefined;
+      inFlight = true;
+      controller = new AbortController();
+      setPollingState('IN_FLIGHT');
       try {
-        const data = await getTestRunProgress(runId);
-        if (!isMounted) return;
-
-        setProgress(data);
-        setIsLoading(false);
-
-        // 실행 종료 조건 (FINISHED 또는 FAILED)
-        if (data.executionStatus === 'FINISHED' || data.executionStatus === 'FAILED') {
-          setIsPolling(false);
-          if (onFinishedRef.current) {
-            onFinishedRef.current(data);
-          }
+        const nextDetail = await getTestRunDetail(runId, controller.signal);
+        if (!active) return;
+        transientFailures = 0;
+        setDetail(nextDetail);
+        setError(null);
+        setStale(false);
+        if (nextDetail.status === 'FINISHED') {
+          pollingStopped = true;
+          setPollingState('FINISHED');
+          return;
         }
-      } catch (err) {
-        if (!isMounted) return;
-        setIsLoading(false);
-        setIsPolling(false);
-        const error = err instanceof Error ? err : new Error('Progress 조회 오류');
-        if (onErrorRef.current) {
-          onErrorRef.current(error);
+        schedule();
+      } catch (nextError) {
+        if (!active || controller.signal.aborted) return;
+        setError(nextError);
+        if (isTerminalError(nextError)) {
+          pollingStopped = true;
+          setPollingState('TERMINAL_ERROR');
+          return;
         }
+        setStale(true);
+        setPollingState('TRANSIENT_ERROR');
+        transientFailures += 1;
+        if (transientFailures >= MAX_TRANSIENT_FAILURES) {
+          pollingStopped = true;
+          setPollingState('TERMINAL_ERROR');
+          return;
+        }
+        schedule();
+      } finally {
+        inFlight = false;
       }
     };
 
-    // 1) 즉시 최초 1회 호출
-    fetchProgress();
+    const handleVisibilityChange = () => {
+      if (!active || pollingStopped || inFlight) return;
+      if (timer) clearTimeout(timer);
+      timer = undefined;
+      if (document.hidden) schedule();
+      else fetchNext();
+    };
 
-    // 2) pollIntervalMs 주기마다 Polling 실행
-    const timerId = setInterval(() => {
-      if (isPolling) {
-        fetchProgress();
-      }
-    }, pollIntervalMs);
-
-    // Cleanup: 컴포넌트 언마운트 또는 runId 변경 시 타이머 해제 (메모리 누수 방지!)
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    fetchNext();
     return () => {
-      isMounted = false;
-      clearInterval(timerId);
+      active = false;
+      if (timer) clearTimeout(timer);
+      controller?.abort();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [runId, pollIntervalMs, isPolling]);
+  }, [runId, pollIntervalMs, refreshToken]);
 
   return {
-    progress,
-    isLoading,
-    isPolling,
+    detail,
+    error,
+    stale,
+    autoRefreshStopped: pollingState === 'TERMINAL_ERROR',
+    isLoading: Boolean(runId) && detail === null && pollingState !== 'TERMINAL_ERROR',
+    refresh,
   };
 }

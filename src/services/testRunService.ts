@@ -1,56 +1,177 @@
 import { apiRequest } from './apiClient';
-import type { TestRun, ExecutionDetail } from '../types';
 
-// 1. 테스트 실행 생성 요청 Payload 타입
+// ─── OpenAPI 계약 기준 요청/응답 DTO ─────────────────────────────
+
+// POST /test-runs  요청 (TestRunCreateReq)
+export type EvaluationCheck = 'PROMPT_INJECTION' | 'PII_LEAKAGE' | 'HARMFUL_CONTENT';
+export type EvaluationStrictness = 'RELAXED' | 'STANDARD' | 'STRICT';
+
+export interface TargetReferenceReq {
+  type: 'HTTP_ENDPOINT';
+  identifier: string;
+  revision?: string;
+  model: string;
+}
+
+export interface TargetReferenceRes {
+  type: 'HTTP_ENDPOINT';
+  identifier: string;
+  revision: string | null;
+  model: string;
+}
+
+export interface EvaluationProfileReq {
+  checks: EvaluationCheck[];
+  strictness: EvaluationStrictness;
+}
+
 export interface CreateTestRunPayload {
-  suiteId: string;
-  baselineGuardrailId: string;
-  baselineGuardrailVersion: string;
-  candidateGuardrailId: string;
-  candidateGuardrailVersion: string;
+  testSuiteId: number;
+  target: TargetReferenceReq;
+  evaluationProfile: EvaluationProfileReq;
 }
 
-// 2. 테스트 실행 생성 응답 타입
+// POST /test-runs  응답 (TestRunCreateRes)
 export interface CreateTestRunResponse {
-  runId: string;
-  executionStatus: string;
+  id: number;
+  testSuiteId: number;
+  status: TestRunStatus;
+  testCaseCount: number;
+  target: TargetReferenceRes;
+  evaluationProfile: EvaluationProfileReq;
+  createdAt: string;
 }
 
-// 3. 테스트 실행 진행 상태 조회 응답 타입
-export interface TestRunProgressResponse {
-  runId: string;
-  executionStatus: 'QUEUED' | 'RUNNING' | 'FINISHED' | 'FAILED';
-  executedSnapshots: number;
-  totalSnapshots: number;
-  qualityGateStatus?: string;
+// ─── 공통 열거형 ─────────────────────────────────────────────────
+
+export type TestRunStatus = 'QUEUED' | 'PREPARING' | 'RUNNING' | 'FINISHED';
+export type ExecutionOutcome = 'COMPLETED' | 'ERROR' | 'INCOMPLETE';
+export type QualityGateStatus = 'PASS' | 'FAIL' | 'NOT_EVALUATED';
+
+// ─── GET /test-runs/{id}  상세 (TestRunDetailRes) ────────────────
+
+export interface TestRunProgressRes {
+  processedTestCaseCount: number;
+  percent: number; // 0 ~ 100
 }
 
-// 4. 테스트 실행 결과 조회 응답 타입
-export interface TestRunResultsResponse {
-  run: TestRun;
-  executionDetails: ExecutionDetail[];
+export interface QualityGateRes {
+  status: QualityGateStatus;
+  metrics: QualityGateMetricsRes | null;
 }
 
-// 5. TestRun 목록 조회 응답 타입 (Pagination)
+export interface QualityGateMetricsRes {
+  assertionPassRate: number;
+  executionSuccessRate: number;
+}
+
+export interface TestRunDetailRes {
+  id: number;
+  testSuiteId: number;
+  status: TestRunStatus;
+  testCaseCount: number;
+  progress: TestRunProgressRes;
+  target: TargetReferenceRes;
+  evaluationProfile: EvaluationProfileReq;
+  executionOutcome: ExecutionOutcome | null;
+  qualityGate: QualityGateRes | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  updatedAt: string;
+}
+
+// ─── GET /test-runs  목록 (TestRunListRes) ───────────────────────
+
+export interface TestRunListItemRes {
+  id: number;
+  testSuiteId: number;
+  status: TestRunStatus;
+  testCaseCount: number;
+  progress: TestRunProgressRes;
+  executionOutcome: ExecutionOutcome | null;
+  qualityGateStatus: QualityGateStatus | null;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  updatedAt: string;
+}
+
+export interface PageMetaRes {
+  number: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  hasPrevious: boolean;
+  hasNext: boolean;
+}
+
 export interface TestRunListApiResponse {
-  items: TestRun[];
-  page: {
-    number: number;
-    size: number;
-    totalElements: number;
-    totalPages: number;
-  };
+  items: TestRunListItemRes[];
+  page: PageMetaRes;
 }
+
+// ─── GET /test-runs/{id}/results  결과 목록 (TestRunResultListRes)
+
+export type TestExecutionResultStatus = 'SUCCEEDED' | 'FAILED' | 'TIMED_OUT' | 'NOT_STARTED';
+export type Action = 'ALLOW' | 'BLOCK';
+export type AssertionStatus = 'PASS' | 'FAIL';
+export type EvaluationOutcome = 'TRUE_POSITIVE' | 'TRUE_NEGATIVE' | 'FALSE_POSITIVE' | 'FALSE_NEGATIVE';
+export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+export type ExecutionFailureStage = 'APPLICATION_TARGET' | 'EVALUATOR';
+
+export interface ExecutionErrorDetailRes {
+  stage: ExecutionFailureStage;
+  code: string;
+  message: string;
+}
+
+export interface TestRunResultListItemRes {
+  testCaseSnapshotId: number;
+  name: string;
+  input: string;
+  expectedAction: Action;
+  severity: Severity;
+  category: string;
+  executionStatus: TestExecutionResultStatus;
+  evaluatorVerdict: Action | null;
+  assertionStatus: AssertionStatus | null;
+  evaluationOutcome: EvaluationOutcome | null;
+  error: ExecutionErrorDetailRes | null;
+}
+
+export interface TestRunResultListApiResponse {
+  items: TestRunResultListItemRes[];
+  page: PageMetaRes;
+}
+
+export interface EvaluatorMetricsRes {
+  truePositive: number;
+  trueNegative: number;
+  falsePositive: number;
+  falseNegative: number;
+  falsePositiveRate: number | null;
+  falseNegativeRate: number | null;
+}
+
+// ─── API 호출 함수 ───────────────────────────────────────────────
 
 /**
- * 1) 신규 테스트 Run 실행 요청 (POST /test-runs)
+ * 1) 신규 TestRun 실행 요청 (POST /test-runs)
+ * 202 Accepted를 반환합니다.
  */
 export async function createTestRun(
-  payload: CreateTestRunPayload
+  payload: CreateTestRunPayload,
+  idempotencyKey?: string,
 ): Promise<CreateTestRunResponse> {
+  const headers: Record<string, string> = {};
+  if (idempotencyKey) {
+    headers['Idempotency-Key'] = idempotencyKey;
+  }
   return apiRequest<CreateTestRunResponse>('/test-runs', {
     method: 'POST',
     body: JSON.stringify(payload),
+    headers,
   });
 }
 
@@ -60,31 +181,53 @@ export async function createTestRun(
 export async function listTestRuns(params?: {
   page?: number;
   size?: number;
-  status?: string;
+  testSuiteId?: number;
+  status?: TestRunStatus | TestRunStatus[];
 }): Promise<TestRunListApiResponse> {
   const query = new URLSearchParams();
   if (params?.page) query.append('page', params.page.toString());
   if (params?.size) query.append('size', params.size.toString());
-  if (params?.status) query.append('status', params.status);
+  if (params?.testSuiteId) query.append('testSuiteId', params.testSuiteId.toString());
+  if (params?.status) {
+    const statuses = Array.isArray(params.status) ? params.status : [params.status];
+    statuses.forEach((s) => query.append('status', s));
+  }
 
   const queryString = query.toString() ? `?${query.toString()}` : '';
   return apiRequest<TestRunListApiResponse>(`/test-runs${queryString}`);
 }
 
 /**
- * 3) 테스트 Run 진행 상태 조회 (GET /test-runs/{runId})
+ * 3) TestRun 상세 조회 — Polling용 (GET /test-runs/{testRunId})
+ * 어떤 상태에서든 200 OK를 반환합니다.
  */
-export async function getTestRunProgress(
-  runId: string
-): Promise<TestRunProgressResponse> {
-  return apiRequest<TestRunProgressResponse>(`/test-runs/${runId}`);
+export async function getTestRunDetail(
+  testRunId: number | string,
+  signal?: AbortSignal,
+): Promise<TestRunDetailRes> {
+  return apiRequest<TestRunDetailRes>(`/test-runs/${testRunId}`, { signal });
 }
 
 /**
- * 4) 테스트 Run 실행 결과 및 스냅샷 목록 조회 (GET /test-runs/{runId}/results)
+ * 4) TestRun 결과 목록 조회 (GET /test-runs/{testRunId}/results)
+ * FINISHED 상태에서만 200 OK를 반환합니다. 그 전에는 409 TEST_RUN_NOT_FINISHED입니다.
  */
 export async function getTestRunResults(
-  runId: string
-): Promise<TestRunResultsResponse> {
-  return apiRequest<TestRunResultsResponse>(`/test-runs/${runId}/results`);
+  testRunId: number | string,
+  params?: { page?: number; size?: number; evaluationOutcome?: EvaluationOutcome },
+): Promise<TestRunResultListApiResponse> {
+  const query = new URLSearchParams();
+  if (params?.page) query.append('page', params.page.toString());
+  if (params?.size) query.append('size', params.size.toString());
+  if (params?.evaluationOutcome) query.append('evaluationOutcome', params.evaluationOutcome);
+
+  const queryString = query.toString() ? `?${query.toString()}` : '';
+  return apiRequest<TestRunResultListApiResponse>(`/test-runs/${testRunId}/results${queryString}`);
+}
+
+/** FINISHED TestRun의 저장된 Evaluator 분류 지표를 조회합니다. */
+export async function getTestRunEvaluatorMetrics(
+  testRunId: number | string,
+): Promise<EvaluatorMetricsRes> {
+  return apiRequest<EvaluatorMetricsRes>(`/test-runs/${testRunId}/evaluator-metrics`);
 }

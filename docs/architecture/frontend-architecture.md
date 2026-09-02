@@ -2,195 +2,324 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-08-30
-> Scope: GitHub Issue #15
-> AS-IS baseline: `main@4cf1475a934a28f5eacbb919c7caf08e3d6d6b36`
-> Canonical product scope: `guardbench-backend/docs/product/mvp-scope.md` (`APPROVED`)
-> Canonical API: `guardbench-backend/docs/api/openapi.yaml` (`APPROVED`)
+> Last reviewed: 2026-09-02
+> Scope: GitHub Issues #34, #62
+> AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
+> Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
+> Product flows: [`../product/screen-spec.md`](../product/screen-spec.md), [`../product/user-flows.md`](../product/user-flows.md)
+> API consumption contract: [`../contracts/api-integration.md`](../contracts/api-integration.md)
 
-이 문서는 현재 GuardBench 프론트엔드의 구조와 책임을 기록하고, 승인된 제품·API 계약을 소비하기 위해 필요한 목표 경계와 별도 결정이 필요한 기술 선택을 구분한다. 현재 구조를 목표 아키텍처로 승인하지 않으며 특정 library 도입을 확정하지 않는다.
+이 문서는 현재 프론트엔드의 구조와 최신 OpenAPI를 소비하기 위한 목표 책임 경계를 구분한다. 특정 library 도입이나 대규모 폴더 이동을 승인하지 않으며, API schema와 backend의 evaluation·comparability 규칙을 프론트에서 다시 정의하지 않는다.
+
+API 요청·응답의 의미와 우선순위는 OpenAPI를 최우선으로 하고, 프론트엔드 소비 규칙은 [API 연동 계약](../contracts/api-integration.md)을 따른다. 이 문서는 해당 계약을 구현하기 위한 상태 소유권, 의존 방향과 계층 경계만 소유한다.
 
 ## 1. 구조 개요
 
 ```mermaid
 flowchart TD
-    Browser[브라우저] --> Main[src/main.tsx]
+    Browser --> Main[src/main.tsx]
     Main --> App[src/App.tsx]
     App --> Layout[layout]
     App --> Views[views]
-    Views --> Common[common components / modals]
-    Views --> Services[services]
-    Common --> Services
-    Views --> Mocks[mocks]
-    Common --> Mocks
-    Hooks[hooks] --> Services
-    Services --> Client[apiClient]
+    Views --> Common[common components]
+    Views --> Hooks[hooks / application orchestration]
+    Common --> Hooks
+    Hooks --> Services[endpoint services]
+    Services --> Mappers[DTO ↔ UI mapper]
+    Services --> Client[common API client]
     Client --> API[GuardBench REST API]
-    Views --> Types[types]
-    Common --> Types
-    Services --> Types
+    Fixtures[demo / test fixtures] -. explicit mode .-> Views
 ```
 
-### AS-IS
+목표 의존 방향은 상위 사용자 표현에서 하위 transport로 한 방향으로 흐른다.
 
-- `main.tsx`가 React `StrictMode` 아래 `App`을 root에 렌더링한다.
-- `App`은 공통 shell, 화면 선택, 선택 Run ID, 모바일 menu와 toast 상태를 소유한다.
-- `components/views`와 일부 modal이 API 호출, DTO 변환, loading/error와 사용자 표현을 함께 담당한다.
-- `services`는 endpoint별 함수를 제공하지만 DTO 일부가 `types`의 화면 모델에 의존한다.
-- `mocks`는 초기 화면 데이터이면서 API 오류 fallback 역할도 한다.
-- dependency injection, router, 전역 상태, error boundary와 server-state 계층은 없다.
+```text
+View / Form
+  → query·mutation hook 또는 application function
+  → endpoint service + mapper
+  → common API client
+  → OpenAPI
+```
 
-### TO-BE 경계
+하위 계층은 상위 화면을 import하지 않는다. OpenAPI에 없는 값을 mapper나 mock으로 보충해 실제 서버 값처럼 만들지 않는다.
 
-- 의존 방향은 화면 → hook/service/mapper → 공통 client → OpenAPI로 흐른다.
-- API DTO는 화면 component의 표시 요구와 분리하고 경계에서 명시적으로 mapping한다.
-- mock은 실제 API 실패를 숨기는 암묵적 fallback이 아니라 명시적 adapter 또는 fixture로 분리한다.
-- 화면이 API lifecycle을 표현하더라도 HTTP envelope parsing과 transport 오류 해석은 공통 client가 담당한다.
+## 2. 현재 구조 (`AS-IS`)
 
-구체적인 library와 폴더 재구성은 `미결정`이다.
+- `main.tsx`가 React `StrictMode` 아래 `App`을 렌더링한다.
+- `App`이 shell, 현재 view, 선택 Run ID, mobile menu와 toast를 소유한다.
+- router, 전역 server-state 계층과 전역 React error boundary는 없다.
+- `views`와 data-aware modal이 API 호출, loading/error, DTO 변환과 사용자 표현을 함께 담당한다.
+- `services`가 endpoint 함수와 수동 DTO를 소유하고 `apiClient`가 base URL, fetch와 envelope unwrap을 담당한다.
+- `useLiveRunProgress`가 Run 상세 Polling, abort, transient/terminal 오류와 자동 재시도 상한을 처리한다.
+- Suite/TestCase, Run 생성·목록·상세·결과·metrics 화면은 API의 data/empty/error/stale 상태를 구분한다.
+- `mockData`는 Architecture의 정적 설명 자료에만 남아 있다. API 화면은 실패를 mock 성공으로 대체하지 않는다.
 
-## 2. 실행과 환경 경계
+현재 코드는 최신 OpenAPI의 필수 model을 포함한 단일 Application Target, Evaluation Profile,
+Evaluator 결과와 확정 Quality Gate metrics를 사용한다. comparison DTO도 확정됐지만 선택 UI는 #30의
+별도 구현 범위로 남아 있다.
 
-### AS-IS
+## 3. 실행과 환경 경계
 
-- Vite가 개발·build·preview를 담당하고 TypeScript는 `tsc -b`로 build 전에 검사한다.
-- API base URL은 `VITE_API_BASE_URL` 또는 `/api/v1`이다.
-- Vite proxy 설정은 없으므로 `/api/v1`의 개발 연결 방식은 실행 환경에 의존한다.
-- build-time 환경 변수와 브라우저 runtime 설정을 분리하는 계층은 없다.
+### 현재 (`AS-IS`)
 
-### TO-BE
+- Vite가 dev/build/preview를 담당하고 `tsc -b`가 build 전 TypeScript를 검사한다.
+- `runtimeConfig`는 `VITE_DATA_MODE`와 `VITE_API_BASE_URL`을 읽는다.
+- data mode 기본값은 `api`, base URL 기본값은 `/api/v1`이다.
+- Vite proxy 설정이 없어 상대 base URL의 실제 연결은 배포 환경에 의존한다.
 
-- 브라우저에는 비밀 값을 포함하지 않는다.
-- API base URL, mock mode 등 공개 설정은 환경별 출처와 기본값을 명시하고 잘못된 실제 배포 설정을 조용히 mock으로 대체하지 않는다.
-- 환경별 mock 정책과 배포 설정은 [API 연동 계약](../contracts/api-integration.md) 및 별도 Decision이 소유한다.
+### 목표 (`TO-BE`)
 
-## 3. 화면 라우팅과 navigation
+- 브라우저 환경 변수에는 secret, provider credential과 내부 Evaluator 설정을 포함하지 않는다.
+- API와 demo mode를 명시적으로 구분하고 잘못된 API 설정을 mock으로 대체하지 않는다.
+- Application 자연어 응답은 public API와 frontend state에 포함하지 않는다.
+- build-time 설정, 배포별 주입과 runtime 변경이 필요한 설정의 경계를 문서화한다.
 
-### AS-IS
+production mock 허용 여부, 설정 누락 시 fail-fast와 runtime config 전달 방식은 `미결정`이다.
 
-- router 없이 `App.currentView` 값으로 6개 화면을 조건부 렌더링한다.
-- `selectedRunId`도 `App` 메모리에 있으며 기본값은 mock `#5001`이다.
-- 화면 이동은 callback prop으로 전달되고 URL은 바뀌지 않는다.
-- 뒤로 가기, 직접 링크, 새로고침 후 화면·Run 복원이 불가능하다.
-- sidebar, dashboard, 실행 이력과 생성 성공 callback이 동일한 로컬 전환 함수를 공유한다.
+## 4. Navigation과 화면 identity
 
-### TO-BE 책임
+### 현재 (`AS-IS`)
 
-- TestRun 상세 진입에는 서버 Run ID를 잃지 않는 navigation 상태가 필요하다.
-- navigation state와 화면 내부 modal/form state를 분리한다.
-- 직접 링크와 새로고침 복원을 도입한다면 URL이 화면 및 식별자의 canonical source가 되어야 한다.
-- 존재하지 않는 ID, 잘못된 URL과 정상 빈 결과를 구분한다.
+- 여섯 view를 `App.currentView`로 조건부 렌더링한다.
+- 선택 Run ID도 `App` memory에만 저장한다.
+- URL이 바뀌지 않아 직접 링크, browser history와 새로고침 복원이 불가능하다.
 
-router 도입 여부, URL 구조, query에 pagination/filter를 보존할지는 `미결정`이다.
+### 목표 책임 (`TO-BE`)
 
-## 4. 상태 소유권
+- 화면 identity와 resource identity를 local modal/form state와 분리한다.
+- Run 상세와 Regression 비교 진입에는 실제 Run ID를 보존한다.
+- `#5001` 같은 화면 장식 문자열을 API ID나 cache identity로 사용하지 않는다.
+- 잘못된 route/ID, resource 404와 정상 빈 collection을 구분한다.
+- navigation으로 Run이 바뀌면 이전 Run의 request와 Polling을 정리한다.
 
-| 상태 종류 | AS-IS 소유자 | 목표 경계 |
+router 도입, canonical URL, filter/page query 보존과 form draft 복원은 `미결정`이다.
+
+## 5. 상태 소유권
+
+서버 상태, 파생 표시 상태와 local interaction state를 구분한다.
+
+| 상태 | 서버 source of truth | 목표 소유 단위 | local state와 분리할 항목 |
+| --- | --- | --- | --- |
+| Suite 목록 | `GET /test-suites` | query + items/page/filter | 선택 card, 생성 modal |
+| Suite 상세 | `GET /test-suites/{id}` | Suite ID별 query | 편집 form draft |
+| TestCase 목록 | `GET /test-suites/{id}/test-cases` | Suite ID + page/filter | 선택 row, create/edit form |
+| TestCase 상세 | `GET /test-cases/{testCaseId}` | TestCase ID별 query | edit form draft |
+| Run 목록 | `GET /test-runs` | page/filter/sort별 query | 검색 input draft, 선택 Run |
+| Run 상세 | `GET /test-runs/{id}` | Run ID별 query/Polling | tab, 펼침 상태 |
+| Run 결과 | `GET /test-runs/{id}/results` | Run ID + page/filter/sort | 선택 result row |
+| Evaluator metrics | `GET /test-runs/{id}/evaluator-metrics` | Run ID별 독립 query | chart/table 표현 선택 |
+| Comparable Runs | `GET /test-runs/{id}/comparable-runs` | current Run ID + page | 선택 comparison Run |
+| Run comparison | `GET /test-runs/{currentRunId}/comparisons/{comparisonRunId}` | 두 Run ID 조합 | changed-only 등 UI filter |
+
+### 5.1 Query identity
+
+query identity는 endpoint 결과를 유일하게 결정하는 입력을 포함한다.
+
+- collection은 resource ID, page, size, sort와 server filter를 포함한다.
+- Run 상세·metrics는 Run ID를 포함한다.
+- comparison은 current Run ID와 comparison Run ID를 모두 포함한다.
+- 서로 다른 filter/page 결과를 같은 state에 합쳐 전체 collection처럼 취급하지 않는다.
+
+구체 cache key 형식과 library는 `미결정`이다. library가 없어도 이 identity 원칙은 유지한다.
+
+### 5.2 Nullable와 파생 상태
+
+- required + nullable field의 누락은 계약 불일치이고 명시적 `null`은 허용된 상태다.
+- `qualityGate: null`과 `qualityGate.status: NOT_EVALUATED`를 분리한다.
+- verdict가 없는 결과의 assertion/outcome을 FAIL이나 FP/FN으로 추정하지 않는다.
+- Result page 일부로 전체 Evaluator metrics나 Quality Gate를 다시 계산하지 않는다.
+- 화면용 label, percentage formatting과 badge는 원본 DTO를 바꾸지 않는 파생 상태다.
+
+## 6. API 계층과 mapper
+
+### 계층별 책임
+
+| 계층 | 책임 |
+| --- | --- |
+| common client | base URL, 공통 header, fetch, success envelope, `204`, transport/HTTP/API 오류 |
+| endpoint service | method, path/query/header/body와 API DTO |
+| mapper | API DTO를 화면 model로 손실 없이 변환 |
+| hook/application | query·mutation lifecycle, Polling, request identity, 취소와 동기화 |
+| view | 사용자 action과 loading/empty/error/stale/success 표현 |
+
+### DTO 원칙
+
+- OpenAPI schema와 enum을 source of truth로 사용한다.
+- API DTO와 화면 model을 분리한다.
+- 단일 Target을 legacy `baseline/candidate` 구조로 변환하지 않는다.
+- `evaluationProfile`을 Evaluator provider 설정이나 저장 resource ID로 바꾸지 않는다.
+- Application 자연어 응답, provider 원문, stack trace를 DTO에 추가하지 않는다.
+- comparison summary와 case별 change/classification은 서버 DTO를 보존하고 프론트에서 재분류하지 않는다.
+- unknown public error code도 stage/message와 함께 보존한다.
+
+수동 DTO 유지, OpenAPI type generation, runtime schema validation과 mapper 위치는 `미결정`이다.
+
+## 7. TestRun 생성 mutation
+
+```mermaid
+flowchart LR
+    Form[Suite + Target + Profile] --> Validate[Client validation]
+    Validate --> Map[TestRunCreateReq]
+    Map --> Key[Idempotency-Key]
+    Key --> Service[createTestRun]
+    Service --> Accepted[202 Accepted]
+    Accepted --> Detail[Run detail query]
+```
+
+- form draft와 server mutation 상태를 분리한다.
+- request body는 `testSuiteId`, URL/model/선택 revision을 가진 단일 `target`과 inline `evaluationProfile`만 포함한다.
+- 하나의 Profile strictness를 선택된 모든 checks에 공통 적용한다.
+- 같은 논리적 재전송은 같은 key와 body를 사용하고 다른 body에 key를 재사용하지 않는다.
+- `202`를 실행 완료로 처리하지 않는다.
+- 현재는 response의 Run ID로 Result Detail identity를 이동한다. `apiClient`가 `Location` header를 노출하지 않으므로 header 보존은 남은 계약 격차다.
+- `TEST_SUITE_EMPTY`는 활성 TestCase 준비 흐름으로 연결한다.
+- `IDEMPOTENCY_KEY_CONFLICT`는 같은 key를 다른 body에 사용한 충돌이므로 자동 재전송을 중단한다.
+- `EVALUATION_PROFILE_NOT_SUPPORTED`는 다른 Profile 조합 또는 Evaluator catalog 등록 흐름으로 연결한다.
+- network/timeout은 접수 여부가 불명일 수 있으므로 명시적 validation/API 거부와 구분한다.
+
+현재 화면은 payload fingerprint별 key를 보존하고 network 결과 불명에서는 재사용하며 성공 또는 명시적
+서버 거부 후 폐기한다. 화면 이탈 후 key 복원과 장기 보존은 `미결정`이다.
+
+## 8. Polling 구조
+
+Polling은 Run 상세 query의 lifecycle 조율이며 별도 Run 상태를 만들어내지 않는다.
+
+```mermaid
+stateDiagram-v2
+    [*] --> ImmediateFetch
+    ImmediateFetch --> Scheduled: QUEUED / PREPARING / RUNNING
+    Scheduled --> InFlight: next tick
+    InFlight --> Scheduled: 진행 상태
+    ImmediateFetch --> Finished: FINISHED
+    InFlight --> Finished: FINISHED
+    ImmediateFetch --> TransientError: 일시 transport 오류
+    InFlight --> TransientError: 일시 transport 오류
+    TransientError --> Scheduled: stale 표시 후 재시도
+    ImmediateFetch --> TerminalError: TEST_RUN_NOT_FOUND
+    InFlight --> TerminalError: TEST_RUN_NOT_FOUND
+    Scheduled --> Cancelled: Run 변경 / unmount
+    InFlight --> Cancelled: abort
+    Finished --> [*]
+    TerminalError --> [*]
+    Cancelled --> [*]
+```
+
+- Run ID가 바뀌면 timer와 in-flight request를 취소한다.
+- 요청이 겹치지 않도록 다음 fetch 예약과 현재 request 완료를 조율한다.
+- 늦게 도착한 이전 Run 응답은 폐기한다.
+- FINISHED에서 중단하고 results와 metrics query를 활성화한다.
+- 일시 오류 후 이전 detail을 유지하면 stale로 표시한다.
+- `TEST_RUN_NOT_FOUND` 같은 terminal API 오류와 일시 transport 오류를 분리한다.
+- results, evaluator-metrics 또는 비교 조회에서 `TEST_RUN_NOT_FINISHED`가 발생하면 terminal 오류나 empty로 확정하지 않고 Run detail을 다시 확인한다.
+
+interval, backoff, jitter, background tab과 최대 지속 시간은 `미결정`이다.
+
+## 9. 결과와 Evaluator 분석 경계
+
+Run이 FINISHED이면 detail과 별도로 results 및 evaluator-metrics를 조회한다.
+
+```text
+RunDetail
+├─ lifecycle / progress / outcome / Quality Gate
+├─ target / evaluationProfile
+├─ ResultCollection(page + filters)
+└─ EvaluatorMetrics(TP/TN/FP/FN + rates)
+```
+
+- detail, result collection과 metrics의 loading/error/stale 상태를 각각 보존한다.
+- results가 실패해도 이미 성공한 detail을 지우지 않는다.
+- metrics 실패를 Quality Gate 실패나 Run ERROR로 바꾸지 않는다.
+- result filter는 저장 결과 목록만 좁히며 metrics를 바꾸지 않는다.
+- `evaluationOutcome`의 TP/TN/FP/FN 분류는 서버 결과를 보존하며 verdict가 없으면 추정하지 않는다.
+- `APPLICATION_TARGET` 또는 `EVALUATOR` failure stage는 assertion과 다른 축으로 표시한다.
+- 원문 Application response는 frontend state, modal과 export에 포함하지 않는다.
+- results 또는 evaluator-metrics가 `TEST_RUN_NOT_FINISHED`를 반환하면 detail 상태를 다시 조회하고 진행 흐름으로 복귀한다.
+
+Quality Gate의 `assertionPassRate`와 `executionSuccessRate`는 detail DTO에서 보존하고 표시 단계에서만
+퍼센트로 변환한다. Gate status와 두 비율을 result page에서 재계산하지 않는다.
+
+## 10. Comparable Runs와 comparison 경계
+
+Regression은 현재 Run 자체의 Quality Gate와 독립적인 조회 기능이다.
+
+1. current Run ID로 comparable-runs를 조회한다.
+2. backend가 반환한 비교 후보만 선택 가능하게 한다.
+3. current/comparison Run ID 조합으로 comparison을 조회한다.
+4. Run을 바꾸면 후보, 선택과 comparison state를 함께 무효화한다.
+5. 비교 API는 저장 결과만 사용하며 Application/Evaluator를 재호출하지 않는다.
+6. `TEST_RUN_NOT_FINISHED`이면 관련 Run detail을 다시 확인한다.
+7. `TEST_RUNS_NOT_COMPARABLE`이면 comparison state를 비우고 comparable-runs를 재조회하거나 다른 후보를 선택하게 한다.
+
+comparability 규칙을 프론트에서 복제하거나 같은 Suite라는 이유로 후보를 추가하지 않는다. comparison
+응답의 summary count, 이전·현재 verdict, comparability status와 change type은 서버 값을 보존한다.
+`NOT_COMPARABLE` item의 nullable verdict/change type 표현은 backend #144에서 OpenAPI 3.0.3 도구
+호환성을 명확히 한 뒤 generated type 도입 시 재확인한다.
+
+## 11. Mutation 동기화
+
+| mutation | 성공 후 동기화 | 실패 원칙 |
 | --- | --- | --- |
-| 현재 화면·선택 Run | `App` | navigation 상태로 명시 |
-| 모바일 menu·toast | `App` | 공통 shell UI 상태 |
-| Suite/Run 목록 | 각 view | items와 page/filter를 하나의 서버 상태로 관리 |
-| TestCase 목록·form | `SuiteDetailModal` | 서버 collection과 form draft 분리 |
-| TestRun 결과 | `ResultDetailView` | detail, result page, 선택 Snapshot 분리 |
-| Polling | 미사용 `useLiveRunProgress` | Run ID별 lifecycle과 취소 책임 |
-| mock 데이터 | view 초기값/fallback | 명시적 환경 adapter 또는 test fixture |
+| Suite 생성 | 목록에 server response 반영 또는 관련 query 재조회 | validation을 form에 유지 |
+| Suite 수정 | 상세·목록의 관련 data 동기화 | 원래 server data를 성공으로 덮지 않음 |
+| TestCase 생성 | 현재 Suite의 collection/page 재동기화 | 임시 item을 실제 ID처럼 유지하지 않음 |
+| TestCase 수정 | 상세·목록의 동일 ID 갱신 | 과거 Snapshot 결과를 수정하지 않음 |
+| TestCase 삭제 | `204` 후 제거 또는 재조회 | 실패 시 성공 제거를 확정하지 않음 |
+| Run 생성 | 반환 Run ID의 detail query로 이동 | 접수 결과 불명과 명시적 거부 구분 |
 
-### 서버 상태 (`TO-BE`)
+낙관적 update, invalidate/refetch와 rollback 방식은 endpoint별로 결정한다. 어떤 방식이든 server response 이전에 성공을 확정하지 않는다.
 
-- idle, loading, success, empty, error, stale 상태를 구분한다.
-- server collection은 `items`와 pagination/filter metadata를 함께 보존한다.
-- request 식별자 또는 취소를 사용해 늦게 도착한 이전 응답이 새 화면 상태를 덮지 않게 한다.
-- 이전 성공 데이터를 유지하면 갱신 실패·stale 상태를 함께 표시한다.
-- derived UI 값은 원본 DTO를 변경하지 않고 계산한다.
-
-### 로컬 UI 상태
-
-- modal 열림, 선택 행, form draft, 검색 입력과 mobile menu는 서버 진실로 취급하지 않는다.
-- mutation 성공 전 로컬 상태를 확정할 경우 rollback 또는 재조회 책임을 명시한다.
-- 화면 이탈 시 form 보존 여부와 toast queue 정책은 UI 가이드의 Decision으로 남긴다.
-
-## 5. API 계층과 타입
-
-### AS-IS
-
-```text
-view/modal → endpoint service → apiClient → fetch
-```
-
-- `apiClient`가 base URL, 공통 header와 success envelope unwrap을 담당한다.
-- service가 endpoint와 query/body를 구성한다.
-- 일부 service DTO가 화면 `types`를 직접 사용하거나 `any`를 반환한다.
-- view가 mock fallback과 API→UI 변환을 직접 수행한다.
-- `204`, error code와 validation detail 처리 제약은 API 연동 계약에 기록돼 있다.
-
-### TO-BE
-
-```text
-view → query/mutation hook 또는 application function
-     → service + DTO mapper
-     → apiClient
-     → OpenAPI
-```
-
-- 공통 client: transport, envelope, 204, structured error, abort 경계
-- service: endpoint, header, query와 request/response DTO
-- mapper: DTO를 UI model로 변환하고 API에 없는 값을 생성하지 않음
-- hook/application function: request lifecycle, Polling, race와 cache/refresh 조율
-- view: 사용자 행동과 loading/empty/error/success 표현
-
-수동 DTO 유지 또는 OpenAPI 생성 타입 도입, mapper의 정확한 폴더 위치는 `미결정`이다.
-
-## 6. 컴포넌트 책임
-
-### AS-IS
-
-- `App`: shell과 navigation, toast orchestration
-- `layout`: sidebar/topbar 표시와 모바일 menu 동작
-- `views`: 화면 표시와 API 요청, mapping, filter, 오류 fallback
-- `common`: 표시 component와 modal. `SuiteDetailModal`은 API mutation과 form도 소유
-- `hooks`: Polling hook 하나가 있으나 화면에서 사용하지 않음
-
-### 목표 경계
-
-- view는 화면 단위 composition과 사용자 상태 표현을 소유한다.
-- 공통 표시 component는 API endpoint와 mock을 직접 알지 않는다.
-- data-aware modal은 자체 request lifecycle과 외부 갱신 계약을 명시한다.
-- toast는 성공·오류·데모를 같은 의미로 표현하지 않도록 message source와 severity를 구분한다.
-- hook은 timer cleanup뿐 아니라 in-flight request 취소와 Run 변경 race를 책임진다.
-
-prop drilling, context 또는 전역 store 선택은 실제 공유 범위와 테스트 필요가 확인된 뒤 결정한다.
-
-## 7. Polling 구조
-
-### AS-IS
-
-- `useLiveRunProgress`가 service를 반복 호출하지만 어떤 화면에도 연결되지 않는다.
-- hook 내부에 timer, loading, polling과 callback ref가 함께 있다.
-- 계약과 다른 상태·progress 타입을 사용한다.
-
-### TO-BE
-
-1. Run ID가 바뀌면 이전 timer와 요청을 취소한다.
-2. 상세를 즉시 조회하고 진행 상태이면 다음 조회를 예약한다.
-3. `FINISHED`에서 종료하고 outcome/Gate 및 결과 조회로 이어진다.
-4. 일시 오류와 terminal API 오류를 구분한다.
-5. 화면은 hook 결과를 progress 표시와 재시도 UI로 변환한다.
-
-간격, backoff, background tab과 최대 지속 시간은 API 연동 계약의 `미결정` 사항이다.
-
-## 8. 오류 경계
+## 12. 오류와 복구 경계
 
 | 경계 | 책임 |
 | --- | --- |
-| API client | network/abort/parsing/HTTP와 envelope 오류 구조화 |
-| service/mapper | endpoint code와 DTO 변환 오류에 context 부여 |
-| hook/application | 재시도, race, mutation 결과 불명과 상태 동기화 |
-| view | 사용자에게 loading/empty/error/retry를 표현 |
-| React error boundary | 예기치 않은 rendering 오류 격리와 복구 진입점 |
+| common client | network, abort, invalid response, HTTP/envelope 오류 구조화 |
+| endpoint service | endpoint context와 공개 code/field error 보존 |
+| mapper | 계약에 맞지 않는 shape를 정상 empty로 바꾸지 않음 |
+| hook/application | retry, stale, race, mutation 결과 불명 조율 |
+| view | 지속 오류, field error, empty와 재시도 표현 |
+| React error boundary | 예상하지 못한 render 오류 격리 |
 
-API 오류를 React error boundary에 맡기거나 rendering 오류를 toast만으로 숨기지 않는다. 현재 전역 error boundary는 없다. logging, 관측 도구, 오류 report와 사용자 메시지 정책은 `미결정`이다.
+- request abort를 실패 toast로 표시하지 않는다.
+- stale data에는 갱신 실패 상태를 함께 표시한다.
+- execution result의 `error.stage`와 HTTP request error를 같은 오류로 처리하지 않는다.
+- server가 공개하지 않은 provider 원문과 내부 예외를 노출하지 않는다.
+- unknown code는 버리지 않고 안전한 일반 표현과 진단 context를 유지한다.
 
-## 9. 폴더와 의존 규칙
+현재 global error boundary, logging/observability와 인증 오류 정책은 없다. 도구와 사용자 문구는 `미결정`이다.
+
+## 13. Demo, mock과 fixture
+
+- 실제 API mode와 demo mode를 runtime config에서 명시적으로 구분한다.
+- API data와 mock item을 같은 collection에 섞지 않는다.
+- API 실패·empty를 mock 성공으로 대체하지 않는다.
+- 정적 대시보드·아키텍처 자료에는 demo 출처를 표시한다.
+- test fixture는 OpenAPI의 required/nullable/error 조합을 따라야 하지만 contract test를 대신하지 않는다.
+- legacy Baseline/Candidate fixture는 새 TestRun 목표 model의 fixture로 재사용하지 않는다.
+
+fixture 위치, production demo 허용과 API/mock adapter interface는 `미결정`이다.
+
+## 14. Component 책임
+
+### 현재 (`AS-IS`)
+
+- `App`: shell, view 전환, 선택 Run과 toast
+- `layout`: sidebar/topbar와 mobile navigation
+- `views`: 화면 composition + request + mapping + 상태 표현
+- `common`: 표시 component와 data-aware modal 혼재
+- `hooks`: 미연결 Polling orchestration
+
+### 목표 (`TO-BE`)
+
+- view는 화면 composition과 사용자 상태 표현을 소유한다.
+- form은 draft/validation/submission을 소유하되 HTTP envelope를 해석하지 않는다.
+- common 표시 component는 endpoint, DTO와 mock을 직접 import하지 않는다.
+- data-aware modal은 query/mutation identity와 외부 갱신 계약을 명시한다.
+- Status component는 lifecycle, outcome, Quality Gate, assertion과 execution status의 의미를 합치지 않는다.
+- Snapshot 상세는 public result DTO만 사용하며 Application 원문을 요구하지 않는다.
+
+prop drilling, context와 전역 store 선택은 실제 공유 범위를 확인한 뒤 결정한다.
+
+## 15. 폴더와 의존 규칙
 
 ### 현재 구조
 
@@ -200,6 +329,8 @@ src/
 │  ├─ layout/
 │  ├─ views/
 │  └─ common/
+├─ config/
+├─ contracts/
 ├─ hooks/
 ├─ services/
 ├─ mocks/
@@ -210,100 +341,78 @@ src/
 
 ### 목표 규칙
 
-- `services`와 공통 client는 React component를 import하지 않는다.
-- mock은 production service에 암묵적으로 포함되지 않는다.
-- 공통 component는 특정 view 또는 endpoint를 import하지 않는다.
-- 화면 전용 model과 API DTO의 소유 위치를 구분한다.
-- 순환 import를 허용하지 않으며 하위 transport 계층이 상위 UI 계층을 참조하지 않는다.
-- 폴더 이동은 독립 구현 이슈에서 수행하고 문서만으로 대규모 재구성을 승인하지 않는다.
+- common client와 services는 React component를 import하지 않는다.
+- common display component는 특정 view/service를 import하지 않는다.
+- API DTO와 UI model의 소유 위치를 구분한다.
+- transport 계층이 UI 계층을 참조하지 않는다.
+- production service가 mock을 implicit fallback으로 import하지 않는다.
+- 순환 import를 허용하지 않는다.
+- 폴더 이동은 구현 이슈에서 검증 가능한 단위로 수행한다.
 
-## 10. 테스트 전략
+feature-based 폴더, query library와 generated API package 도입은 이 문서에서 확정하지 않는다.
 
-### AS-IS
+## 16. 테스트 전략
 
-- package script에는 `build`와 `lint`만 있고 unit/component/E2E test script가 없다.
-- Playwright dependency와 root `test_playwright.cjs`가 있지만 표준 test script 및 CI 계약은 확인되지 않는다.
-- 자동화된 regression·contract test 기반은 없다.
+### 현재 (`AS-IS`)
 
-### 목표 테스트 경계
+- package script는 `dev`, `build`, `lint`, `preview`를 제공하지만 자동화된 `test` script는 없다.
+- Playwright dependency와 `test_playwright.cjs`가 있지만 표준 test 실행 계약은 없다.
+- 현재 workflow는 `main` 대상 PR/push에서 build를 실행하고 `docs/**` 변경은 제외한다. `dev` 대상 문서 PR에는 CI check가 생성되지 않는다.
+- `src/contracts/openapiNullability.contract.ts`는 `tsc -b`에서 OpenAPI의 대표 required + nullable DTO 조합을 compile-time contract로 검증한다.
+- 자동화된 unit/component/E2E 기반과 OpenAPI fixture 기반 contract test는 없다.
 
-| 수준 | 검증 대상 |
+### 목표 검증 경계
+
+| 수준 | 주요 검증 |
 | --- | --- |
-| Unit | DTO mapper, status/outcome/Gate 해석, query와 error mapping |
-| Component | form validation, loading/empty/error, modal과 사용자 행동 |
-| Integration | 화면-service 연결, mutation 동기화, Polling 종료·취소·race |
-| Contract | fixture와 승인된 OpenAPI schema drift |
-| E2E | Suite 관리 → Run 접수 → 진행 → 결과 분석 핵심 여정 |
+| Unit | DTO mapper, nullable 상태, query serialization, error mapping |
+| Component | form validation, loading/empty/error/stale, status 구분 |
+| Integration | service 연결, mutation 동기화, Polling 취소·race |
+| Contract | OpenAPI fixture drift, required/nullable/additionalProperties |
+| E2E | Suite 준비 → Run 접수 → Polling → 결과·metrics 검토 |
 
-test framework, browser 도구, 실제 backend 사용 범위와 CI required check는 `미결정`이다. mock fixture는 OpenAPI를 대신하지 않으며 실제 계약과 drift를 검증해야 한다.
+반드시 포함할 대표 계약 조합은 다음과 같다.
 
-## 11. Baseline 저장 결과 방향 유의사항 (`DRAFT` / 백엔드 계약 대기)
+- Profile 전체의 단일 strictness와 복수 checks
+- `qualityGate: null`과 `NOT_EVALUATED + metrics: null`
+- execution failure와 assertion FAIL 분리
+- verdict/assertion/outcome nullable 조합
+- result filter empty와 전체 empty 구분
+- current Run 변경 시 metrics/comparison state 격리
+- Application 원문이 DTO·UI·log에 포함되지 않음
 
-프로젝트 구현 방향으로 Baseline 실행 결과를 미리 저장하고 TestRun에서는 Candidate만 실행하는 모델이 논의되고 있다. 이 방향은 현재 승인된 백엔드 MVP·OpenAPI의 “동일 Snapshot을 Baseline과 Candidate에 실행” 계약과 다르다. 따라서 이 문서에서는 현재 AS-IS 또는 승인된 TO-BE로 확정하지 않는다.
+test framework, 실제 backend 사용 범위와 CI required check는 `미결정`이다.
 
-백엔드 계약이 승인되기 전에는 다음을 결정하거나 구현 기준으로 사용하지 않는다.
+## 17. 구현 순서와 Decision
 
-- Baseline 결과 묶음의 이름, ID와 API endpoint
-- TestRun 생성 요청에서 Baseline을 참조하는 field
-- Baseline 결과 생성·갱신·선택 UI
-- 저장 Baseline과 TestSuite/TestCaseSnapshot의 호환성 규칙
-- Candidate-only progress와 execution outcome 계산
-- 결과 DTO에서 저장 Baseline을 표현하는 방식
-- Baseline 누락·불일치·오래된 결과의 오류 code와 사용자 처리
+| 순서 | 구현 범위 | 관련 이슈 |
+| --- | --- | --- |
+| 1 | 생성 DTO와 Application Target + Evaluation Profile form | #27 / #60 완료 |
+| 2 | Run detail/results DTO, mapper와 결과 화면 | #28 / #61 완료 |
+| 3 | Evaluator metrics query와 분석 화면 | #29 완료 |
+| 4 | comparable-runs와 comparison UI | #30 선택 구현 |
 
-방향이 승인되면 프론트엔드 아키텍처에는 다음 경계를 반영해야 한다.
+별도 Decision 후보:
 
-| 영향 영역 | 검토할 책임 |
-| --- | --- |
-| 서버 상태 | 재사용되는 Baseline 결과 참조와 현재 Candidate TestRun 상태를 별도 identity/lifecycle로 관리 |
-| form/navigation | Baseline 선택이 필요한지, 자동 결정되는지와 선택값 복원 방식 |
-| API 계층 | Baseline 조회·선택 DTO와 Candidate 실행 mutation 분리 |
-| mapper | 서버가 조합 결과를 반환하는지, 프론트가 두 응답을 조합하는지에 따른 책임 배치 |
-| cache/stale | Baseline 갱신·삭제 또는 TestCase 변경 시 관련 선택과 결과의 무효화 |
-| 결과 화면 | Baseline이 이번 Run에서 실행된 값이 아니라 저장된 기준 결과임을 출처와 함께 표시 |
-| 오류 경계 | Baseline 없음, Suite 불일치, 일부 결과 누락과 일시적 조회 실패 구분 |
-| 테스트 | Baseline 재사용, provenance, stale/불일치, Candidate-only 진행률과 비교 불가 case 검증 |
+- router와 URL 상태
+- OpenAPI generated type/runtime validation
+- query/cache library
+- Idempotency-Key 보존
+- Polling retry/backoff
+- global error boundary와 observability
+- explicit demo adapter
+- test framework와 CI
 
-현재 [화면 명세](../product/screen-spec.md)의 Baseline/Candidate 입력과 실행 표현은 코드 AS-IS이므로 구현이 바뀌기 전까지 유지한다. 백엔드 계약 승인 후 [사용자 흐름](../product/user-flows.md)과 [API 연동 계약](../contracts/api-integration.md)의 Baseline/Candidate TO-BE를 먼저 갱신하고, 이 문서에는 확정된 상태 소유권과 데이터 흐름만 반영한다.
+## 18. 검증 근거
 
-## 12. `main`과 `dev` 차이
-
-`dev`에는 CreateSuite modal, OpenAPI DTO, structured error, 204 처리, 결과 mapping과 수정된 Polling hook이 있으나 `main`에 미병합이다. 변경은 `App`, view, modal, hook, service와 type을 가로지르므로 단순 service 교체가 아니라 상태 소유권과 component 책임을 함께 바꾼다.
-
-병합 시 다음 AS-IS를 재검토한다.
-
-- Suite 생성 진입과 modal 책임
-- TestRun form과 DTO mapping
-- 결과 상세의 server state와 mock 의존
-- 목록 filter/pagination 소유권
-- `ApiError` 처리 위치
-- Polling hook의 타입과 화면 연결 여부
-
-## 13. 후속 구현·Decision 후보
-
-- URL router와 화면·Run 상태 복원
-- server state와 local UI state 분리
-- API DTO/UI mapper 및 OpenAPI 타입 생성 여부
-- request 취소, race와 stale 상태 처리
-- 명시적 mock adapter와 실제 API adapter 분리
-- structured error UI와 React error boundary
-- Polling 화면 연결과 재시도 orchestration
-- unit/component/integration/contract/E2E 기반 및 CI
-- Architecture 화면을 사용자 기능으로 유지할지 개발 문서로 분리
-- `dev` 변경의 `main` 통합과 문서 AS-IS 갱신
-- Baseline 저장 결과 모델의 백엔드 계약 승인 후 상태·API·cache 경계 갱신
-
-이 문서는 위 기술 선택이나 구현을 승인하지 않는다.
-
-## 14. 검증 근거
-
+- [`../api/openapi.yaml`](../api/openapi.yaml)
+- [`../contracts/api-integration.md`](../contracts/api-integration.md)
+- [`../product/screen-spec.md`](../product/screen-spec.md)
+- [`../product/user-flows.md`](../product/user-flows.md)
 - `src/main.tsx`, `src/App.tsx`
-- `src/components/layout`, `views`, `common`
-- `src/services`, `src/hooks`, `src/types`, `src/mocks`
+- `src/components/layout`, `src/components/views`, `src/components/common`
+- `src/config`, `src/services`, `src/hooks`, `src/types`, `src/mocks`
 - `package.json`, `vite.config.ts`, `tsconfig.app.json`
-- [화면 명세](../product/screen-spec.md)
-- [사용자 흐름](../product/user-flows.md)
-- [API 연동 계약](../contracts/api-integration.md)
-- `main...dev` 코드 차이
+- GitHub Issues #27, #28, #29, #30, #34
 
-실제 backend E2E, framework 도입과 코드 재구성은 이 Issue 범위에 포함하지 않았다.
+실제 코드 재구성, library 도입, backend E2E와 OpenAPI 변경은 이 Issue 범위에 포함하지 않는다.
