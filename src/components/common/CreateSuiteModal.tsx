@@ -20,6 +20,13 @@ type InitialCase = {
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 };
 
+type SuiteValidationField = 'name' | 'initialCaseName' | 'initialCaseInput' | 'initialCaseCategory' | 'request';
+
+type SuiteValidation = {
+  field: SuiteValidationField;
+  message: string;
+};
+
 const emptyInitialCase: InitialCase = {
   name: '',
   input: '',
@@ -33,16 +40,19 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
   const [description, setDescription] = useState('');
   const [isInitialCaseOpen, setIsInitialCaseOpen] = useState(false);
   const [initialCase, setInitialCase] = useState<InitialCase>(emptyInitialCase);
-  const [validationMessage, setValidationMessage] = useState<string | null>(null);
+  const [validation, setValidation] = useState<SuiteValidation | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const initialCaseNameRef = useRef<HTMLInputElement>(null);
+  const initialCaseInputRef = useRef<HTMLTextAreaElement>(null);
+  const initialCaseCategoryRef = useRef<HTMLInputElement>(null);
 
   const close = useCallback(() => {
     setName('');
     setDescription('');
     setIsInitialCaseOpen(false);
     setInitialCase(emptyInitialCase);
-    setValidationMessage(null);
+    setValidation(null);
     onClose();
   }, [onClose]);
 
@@ -50,19 +60,55 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
 
   if (!isOpen) return null;
 
+  const failValidation = (field: SuiteValidationField, message: string) => {
+    setValidation({ field, message });
+    requestAnimationFrame(() => {
+      const target = {
+        name: nameInputRef.current,
+        initialCaseName: initialCaseNameRef.current,
+        initialCaseInput: initialCaseInputRef.current,
+        initialCaseCategory: initialCaseCategoryRef.current,
+        request: null,
+      }[field];
+      target?.focus();
+    });
+  };
+
+  const clearValidation = (field: SuiteValidationField) => {
+    setValidation((current) => current?.field === field ? null : current);
+  };
+
+  const serverValidationField = (field: string): SuiteValidationField => {
+    if (field === 'name') return 'name';
+    if (field.endsWith('.name')) return 'initialCaseName';
+    if (field.endsWith('.input')) return 'initialCaseInput';
+    if (field.endsWith('.category')) return 'initialCaseCategory';
+    return 'request';
+  };
+
   const submit = async () => {
     if (!name.trim()) {
-      setValidationMessage('테스트 스위트 이름을 입력해 주세요.');
+      failValidation('name', '테스트 스위트 이름을 입력해 주세요.');
       return;
     }
 
-    if (isInitialCaseOpen && (!initialCase.name.trim() || !initialCase.input.trim() || !initialCase.category.trim())) {
-      setValidationMessage('초기 테스트 케이스의 이름, 입력값, 카테고리를 모두 입력해 주세요.');
-      return;
+    if (isInitialCaseOpen) {
+      if (!initialCase.name.trim()) {
+        failValidation('initialCaseName', '초기 테스트 케이스 이름을 입력해 주세요.');
+        return;
+      }
+      if (!initialCase.input.trim()) {
+        failValidation('initialCaseInput', '초기 테스트 케이스 입력값을 입력해 주세요.');
+        return;
+      }
+      if (!initialCase.category.trim()) {
+        failValidation('initialCaseCategory', '초기 테스트 케이스 카테고리를 입력해 주세요.');
+        return;
+      }
     }
 
     setIsSubmitting(true);
-    setValidationMessage(null);
+    setValidation(null);
     try {
       await createTestSuite({
         name: name.trim(),
@@ -81,11 +127,12 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
       close();
     } catch (error) {
       if (error instanceof ApiError && error.fieldErrors?.length) {
-        setValidationMessage(`[${error.code}] ${error.fieldErrors.map((fieldError) => fieldError.message).join(' ')}`);
+        const field = serverValidationField(error.fieldErrors[0].field);
+        failValidation(field, `[${error.code}] ${error.fieldErrors.map((fieldError) => fieldError.message).join(' ')}`);
       } else if (error instanceof ApiError) {
-        setValidationMessage(`[${error.code}] ${error.message}`);
+        failValidation('request', `[${error.code}] ${error.message}`);
       } else {
-        setValidationMessage(error instanceof Error ? error.message : '테스트 스위트를 생성하지 못했습니다.');
+        failValidation('request', error instanceof Error ? error.message : '테스트 스위트를 생성하지 못했습니다.');
       }
     } finally {
       setIsSubmitting(false);
@@ -135,8 +182,10 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                 value={name}
                 onChange={(event) => {
                   setName(event.target.value);
-                  setValidationMessage(null);
+                  clearValidation('name');
                 }}
+                aria-invalid={validation?.field === 'name'}
+                aria-describedby={validation?.field === 'name' ? 'create-suite-validation-summary' : undefined}
                 placeholder="예: Customer Support Safety"
                 className="w-full rounded-lg border border-[#dce1e6] bg-white p-2.5 text-sm outline-none focus:border-[#1a7f5a]"
               />
@@ -164,7 +213,10 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
               </div>
               <button
                 type="button"
-                onClick={() => setIsInitialCaseOpen((previous) => !previous)}
+                onClick={() => {
+                  if (isInitialCaseOpen && validation?.field.startsWith('initialCase')) setValidation(null);
+                  setIsInitialCaseOpen((previous) => !previous);
+                }}
                 aria-expanded={isInitialCaseOpen}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-[#dce1e6] bg-white px-3 py-2 text-xs font-bold text-[#253545] hover:bg-[#eef1f4]"
               >
@@ -177,21 +229,27 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                 <div>
                   <label htmlFor="initial-case-name" className="mb-1 block font-bold text-[#4e5a68]">케이스 이름 *</label>
                   <input
+                    ref={initialCaseNameRef}
                     id="initial-case-name"
                     type="text"
                     value={initialCase.name}
-                    onChange={(event) => setInitialCase({ ...initialCase, name: event.target.value })}
+                    onChange={(event) => { setInitialCase({ ...initialCase, name: event.target.value }); clearValidation('initialCaseName'); }}
+                    aria-invalid={validation?.field === 'initialCaseName'}
+                    aria-describedby={validation?.field === 'initialCaseName' ? 'create-suite-validation-summary' : undefined}
                     placeholder="예: 개인정보 탈취 요청 차단"
                     className="w-full rounded-lg border border-[#dce1e6] bg-white p-2.5 outline-none focus:border-[#1a7f5a]"
                   />
                 </div>
                 <div>
-                  <label htmlFor="initial-case-category" className="mb-1 block font-bold text-[#4e5a68]">카테고리</label>
+                  <label htmlFor="initial-case-category" className="mb-1 block font-bold text-[#4e5a68]">카테고리 *</label>
                   <input
+                    ref={initialCaseCategoryRef}
                     id="initial-case-category"
                     type="text"
                     value={initialCase.category}
-                    onChange={(event) => setInitialCase({ ...initialCase, category: event.target.value })}
+                    onChange={(event) => { setInitialCase({ ...initialCase, category: event.target.value }); clearValidation('initialCaseCategory'); }}
+                    aria-invalid={validation?.field === 'initialCaseCategory'}
+                    aria-describedby={validation?.field === 'initialCaseCategory' ? 'create-suite-validation-summary' : undefined}
                     placeholder="예: PII"
                     className="w-full rounded-lg border border-[#dce1e6] bg-white p-2.5 outline-none focus:border-[#1a7f5a]"
                   />
@@ -199,10 +257,13 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                 <div className="sm:col-span-2">
                   <label htmlFor="initial-case-input" className="mb-1 block font-bold text-[#4e5a68]">입력 프롬프트 *</label>
                   <textarea
+                    ref={initialCaseInputRef}
                     id="initial-case-input"
                     rows={3}
                     value={initialCase.input}
-                    onChange={(event) => setInitialCase({ ...initialCase, input: event.target.value })}
+                    onChange={(event) => { setInitialCase({ ...initialCase, input: event.target.value }); clearValidation('initialCaseInput'); }}
+                    aria-invalid={validation?.field === 'initialCaseInput'}
+                    aria-describedby={validation?.field === 'initialCaseInput' ? 'create-suite-validation-summary' : undefined}
                     placeholder="LLM에 전달할 입력 텍스트"
                     className="w-full resize-y rounded-lg border border-[#dce1e6] bg-white p-2.5 outline-none focus:border-[#1a7f5a]"
                   />
@@ -237,12 +298,12 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
             )}
           </section>
 
-          {validationMessage && (
-            <div className="shrink-0 rounded-xl border border-[#f0ddb0] bg-[#fff5e8] px-4 py-3 text-xs text-[#805100]">
+          {validation && (
+            <div id="create-suite-validation-summary" className="shrink-0 rounded-xl border border-[#f0ddb0] bg-[#fff5e8] px-4 py-3 text-xs text-[#805100]">
               <p className="mb-1 font-bold">입력 또는 요청을 확인해 주세요.</p>
               <div className="flex items-center gap-2">
                 <AlertCircle size={16} className="shrink-0" />
-                {validationMessage}
+                {validation.message}
               </div>
             </div>
           )}

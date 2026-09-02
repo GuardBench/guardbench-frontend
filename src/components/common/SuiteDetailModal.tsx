@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Severity, TestCase, TestSuite } from '../../types';
 import { X, Plus, Trash2, Edit2, AlertCircle, Loader2 } from 'lucide-react';
 import { getTestCases, createTestCase, deleteTestCase } from '../../services/testCaseService';
-import { presentApiError } from '../../services/apiClient';
+import { ApiError, presentApiError } from '../../services/apiClient';
 import { RequestErrorBanner } from './RequestErrorBanner';
 import { useDialogFocus } from '../../hooks/useDialogFocus';
 import { LAYER_CLASS } from '../../config/layers';
@@ -14,6 +14,13 @@ interface SuiteDetailModalProps {
   onNotify: (msg: string) => void;
 }
 
+type AddCaseValidationField = 'name' | 'input' | 'category' | 'request';
+
+type AddCaseValidation = {
+  field: AddCaseValidationField;
+  message: string;
+};
+
 export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClose, onNotify }) => {
   const [cases, setCases] = useState<TestCase[]>([]);
   const [casesOwnerSuiteId, setCasesOwnerSuiteId] = useState<string | null>(null);
@@ -21,6 +28,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   const [loadError, setLoadError] = useState<unknown>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [isAdding, setIsAdding] = useState(false);
+  const [addValidation, setAddValidation] = useState<AddCaseValidation | null>(null);
   const [newCase, setNewCase] = useState<Partial<TestCase>>({
     name: '',
     input: '',
@@ -28,6 +36,9 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     severity: 'HIGH',
     category: 'PII',
   });
+  const caseNameRef = useRef<HTMLInputElement>(null);
+  const caseInputRef = useRef<HTMLTextAreaElement>(null);
+  const caseCategoryRef = useRef<HTMLInputElement>(null);
   const dialogRef = useDialogFocus({ isOpen: suite !== null, onClose });
 
   useEffect(() => {
@@ -73,20 +84,56 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   const isCurrentSuiteLoaded = casesOwnerSuiteId === suite.id;
   const visibleCases = isCurrentSuiteLoaded ? cases : [];
 
+  const failAddValidation = (field: AddCaseValidationField, message: string) => {
+    setAddValidation({ field, message });
+    requestAnimationFrame(() => {
+      const target = {
+        name: caseNameRef.current,
+        input: caseInputRef.current,
+        category: caseCategoryRef.current,
+        request: null,
+      }[field];
+      target?.focus();
+    });
+  };
+
+  const clearAddValidation = (field: AddCaseValidationField) => {
+    setAddValidation((current) => current?.field === field ? null : current);
+  };
+
+  const addCaseServerField = (field: string): AddCaseValidationField => {
+    if (field.endsWith('name')) return 'name';
+    if (field.endsWith('input')) return 'input';
+    if (field.endsWith('category')) return 'category';
+    return 'request';
+  };
+
   const handleAddCase = async () => {
-    if (!newCase.name || !newCase.input) {
-      onNotify('테스트 케이스 이름과 입력값을 모두 입력해 주세요.');
+    const name = newCase.name?.trim() ?? '';
+    const input = newCase.input?.trim() ?? '';
+    const category = newCase.category?.trim() ?? '';
+    if (!name) {
+      failAddValidation('name', '테스트 케이스 이름을 입력해 주세요.');
+      return;
+    }
+    if (!input) {
+      failAddValidation('input', '테스트 케이스 입력값을 입력해 주세요.');
+      return;
+    }
+    if (!category) {
+      failAddValidation('category', '테스트 케이스 카테고리를 입력해 주세요.');
       return;
     }
 
+    setAddValidation(null);
     try {
       const cleanSuiteId = suite.id.replace('suite-', '');
       const response = await createTestCase(cleanSuiteId, {
-        name: newCase.name,
-        input: newCase.input,
+        name,
+        input,
         expectedAction: newCase.expectedAction || 'BLOCK',
         severity: newCase.severity || 'HIGH',
-        category: newCase.category || 'PII',
+        category,
       });
 
       const created: TestCase = {
@@ -102,10 +149,16 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
       setCases((currentCases) => [...currentCases, created]);
       setCasesOwnerSuiteId(suite.id);
       setIsAdding(false);
+      setAddValidation(null);
       setNewCase({ name: '', input: '', expectedAction: 'BLOCK', severity: 'HIGH', category: 'PII' });
       onNotify(`새 테스트 케이스 '${created.name}'가 추가되었습니다 (POST /test-suites/${cleanSuiteId}/test-cases).`);
     } catch (error) {
       const presented = presentApiError(error, '테스트 케이스를 추가하지 못했습니다.');
+      if (error instanceof ApiError && error.fieldErrors?.length) {
+        failAddValidation(addCaseServerField(error.fieldErrors[0].field), presented.message);
+      } else {
+        failAddValidation('request', presented.message);
+      }
       onNotify(`[추가 실패 · ${presented.code}] ${presented.message}`);
     }
   };
@@ -177,7 +230,10 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
               소속 테스트 케이스 목록 ({visibleCases.length}개)
             </h3>
             <button
-              onClick={() => setIsAdding(!isAdding)}
+              onClick={() => {
+                setIsAdding(!isAdding);
+                setAddValidation(null);
+              }}
               disabled={!isCurrentSuiteLoaded || isLoading}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545] disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -191,32 +247,44 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
               <h4 className="text-xs font-extrabold text-[#1a7f5a]">새 TestCase 추가</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
-                  <label className="block text-[11px] font-bold text-[#4e5a68] mb-1">케이스 이름</label>
+                  <label htmlFor="new-case-name" className="block text-[11px] font-bold text-[#4e5a68] mb-1">케이스 이름 *</label>
                   <input
+                    ref={caseNameRef}
+                    id="new-case-name"
                     type="text"
                     placeholder="예: 카드번호 유출 시도"
                     value={newCase.name || ''}
-                    onChange={(e) => setNewCase({ ...newCase, name: e.target.value })}
+                    onChange={(e) => { setNewCase({ ...newCase, name: e.target.value }); clearAddValidation('name'); }}
+                    aria-invalid={addValidation?.field === 'name'}
+                    aria-describedby={addValidation?.field === 'name' ? 'add-case-validation-summary' : undefined}
                     className="w-full p-2.5 rounded-lg border border-[#dce1e6] bg-white outline-none focus:border-[#1a7f5a]"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-[#4e5a68] mb-1">카테고리</label>
+                  <label htmlFor="new-case-category" className="block text-[11px] font-bold text-[#4e5a68] mb-1">카테고리 *</label>
                   <input
+                    ref={caseCategoryRef}
+                    id="new-case-category"
                     type="text"
                     placeholder="예: PII, PROMPT INJECTION"
                     value={newCase.category || ''}
-                    onChange={(e) => setNewCase({ ...newCase, category: e.target.value })}
+                    onChange={(e) => { setNewCase({ ...newCase, category: e.target.value }); clearAddValidation('category'); }}
+                    aria-invalid={addValidation?.field === 'category'}
+                    aria-describedby={addValidation?.field === 'category' ? 'add-case-validation-summary' : undefined}
                     className="w-full p-2.5 rounded-lg border border-[#dce1e6] bg-white outline-none focus:border-[#1a7f5a]"
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-bold text-[#4e5a68] mb-1">입력 프롬프트 (Input)</label>
+                  <label htmlFor="new-case-input" className="block text-[11px] font-bold text-[#4e5a68] mb-1">입력 프롬프트 (Input) *</label>
                   <textarea
+                    ref={caseInputRef}
+                    id="new-case-input"
                     rows={2}
                     placeholder="LLM에 전달할 입력 텍스트"
                     value={newCase.input || ''}
-                    onChange={(e) => setNewCase({ ...newCase, input: e.target.value })}
+                    onChange={(e) => { setNewCase({ ...newCase, input: e.target.value }); clearAddValidation('input'); }}
+                    aria-invalid={addValidation?.field === 'input'}
+                    aria-describedby={addValidation?.field === 'input' ? 'add-case-validation-summary' : undefined}
                     className="w-full p-2.5 rounded-lg border border-[#dce1e6] bg-white outline-none focus:border-[#1a7f5a]"
                   />
                 </div>
@@ -245,6 +313,11 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                   </select>
                 </div>
               </div>
+              {addValidation && (
+                <div id="add-case-validation-summary" className="rounded-lg border border-[#e7c47f] bg-[#fff7e8] px-3 py-2 text-xs font-semibold text-[#78501b]">
+                  {addValidation.message}
+                </div>
+              )}
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   onClick={handleAddCase}

@@ -14,6 +14,13 @@ interface NewRunViewProps {
   onRunCreated?: (runId: string) => void;
 }
 
+type RunValidationField = 'suite' | 'endpoint' | 'model' | 'checks';
+
+type RunValidation = {
+  field: RunValidationField;
+  message: string;
+};
+
 const CHECK_OPTIONS: Array<{ value: EvaluationCheck; label: string; help: string }> = [
   { value: 'PROMPT_INJECTION', label: 'Prompt Injection', help: '지시 탈취나 우회 시도' },
   { value: 'PII_LEAKAGE', label: 'PII Leakage', help: '개인정보 노출 응답' },
@@ -74,10 +81,14 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
   const [model, setModel] = useState('');
   const [checks, setChecks] = useState<EvaluationCheck[]>(CHECK_OPTIONS.map((option) => option.value));
   const [strictness, setStrictness] = useState<EvaluationStrictness>('STANDARD');
-  const [validation, setValidation] = useState<string | null>(null);
+  const [validation, setValidation] = useState<RunValidation | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<unknown>(null);
   const idempotencyAttempt = useRef<{ fingerprint: string; key: string } | null>(null);
+  const suiteRef = useRef<HTMLSelectElement>(null);
+  const endpointRef = useRef<HTMLInputElement>(null);
+  const modelRef = useRef<HTMLInputElement>(null);
+  const firstCheckRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -117,14 +128,27 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
     setValidation(null);
   };
 
+  const failValidation = (field: RunValidationField, message: string) => {
+    setValidation({ field, message });
+    requestAnimationFrame(() => {
+      const target = {
+        suite: suiteRef.current,
+        endpoint: endpointRef.current,
+        model: modelRef.current,
+        checks: firstCheckRef.current,
+      }[field];
+      target?.focus();
+    });
+  };
+
   const handleRun = async () => {
     setValidation(null);
     setSubmitError(null);
-    if (!suiteId) return setValidation('테스트 스위트를 선택해 주세요.');
-    if (caseCount === 0) return setValidation('빈 Suite는 실행할 수 없습니다. TestCase를 먼저 추가해 주세요.');
-    if (!isHttpEndpoint(normalizedEndpoint)) return setValidation('http:// 또는 https://로 시작하는 유효한 Application URL을 입력해 주세요.');
-    if (!normalizedModel) return setValidation('Application 요청에 사용할 Model 식별자를 입력해 주세요.');
-    if (checks.length === 0) return setValidation('평가할 보안 항목을 하나 이상 선택해 주세요.');
+    if (!suiteId) return failValidation('suite', '테스트 스위트를 선택해 주세요.');
+    if (caseCount === 0) return failValidation('suite', '빈 Suite는 실행할 수 없습니다. TestCase를 먼저 추가해 주세요.');
+    if (!isHttpEndpoint(normalizedEndpoint)) return failValidation('endpoint', 'http:// 또는 https://로 시작하는 유효한 Application URL을 입력해 주세요.');
+    if (!normalizedModel) return failValidation('model', 'Application 요청에 사용할 Model 식별자를 입력해 주세요.');
+    if (checks.length === 0) return failValidation('checks', '평가할 보안 항목을 하나 이상 선택해 주세요.');
 
     setSubmitting(true);
     const payload = {
@@ -176,7 +200,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
             <label htmlFor="run-suite" className="mb-2 block text-xs font-bold text-[#4e5a68]">테스트 스위트</label>
             {suiteLoading && !hasLoadedSuites ? <p className="text-xs text-[#697586]">스위트 목록을 불러오는 중...</p> : suites.length === 0
               ? hasLoadedSuites && <p className="text-xs text-[#697586]">등록된 테스트 스위트가 없습니다. 먼저 스위트를 생성해 주세요.</p>
-              : <select id="run-suite" value={suiteId} onChange={(event) => { setSuiteId(Number(event.target.value)); setValidation(null); }} className={fieldClass}>
+              : <select ref={suiteRef} id="run-suite" value={suiteId} onChange={(event) => { setSuiteId(Number(event.target.value)); setValidation(null); }} aria-invalid={validation?.field === 'suite'} aria-describedby={validation?.field === 'suite' ? 'run-validation-summary' : undefined} className={fieldClass}>
                 {suites.map((suite) => <option key={suite.id} value={suite.id}>{suite.name} · {suite.caseCount} cases</option>)}
               </select>}
             {selectedSuite && caseCount === 0 && <p className="mt-2 text-xs font-semibold text-[#9a5b13]">이 Suite에는 TestCase가 없어 실행할 수 없습니다.</p>}
@@ -188,12 +212,12 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
             <div className="space-y-4">
               <div>
                 <label htmlFor="run-endpoint" className="mb-2 block text-xs font-bold text-[#4e5a68]">HTTP Endpoint URL <span className="text-[#b83b34]">필수</span></label>
-                <input id="run-endpoint" type="url" value={endpoint} onChange={(event) => { setEndpoint(event.target.value); setValidation(null); }} placeholder="https://example.com/v1/chat/completions" className={fieldClass} />
+                <input ref={endpointRef} id="run-endpoint" type="url" value={endpoint} onChange={(event) => { setEndpoint(event.target.value); setValidation(null); }} aria-invalid={validation?.field === 'endpoint'} aria-describedby={validation?.field === 'endpoint' ? 'run-validation-summary' : undefined} placeholder="https://example.com/v1/chat/completions" className={fieldClass} />
                 <p className="mt-1.5 text-[11px] text-[#697586]">OpenAI-compatible Chat Completions의 전체 HTTP 또는 HTTPS URL을 입력합니다.</p>
               </div>
               <div>
                 <label htmlFor="run-model" className="mb-2 block text-xs font-bold text-[#4e5a68]">Model <span className="text-[#b83b34]">필수</span></label>
-                <input id="run-model" value={model} onChange={(event) => { setModel(event.target.value); setValidation(null); }} placeholder="예: example-model" className={fieldClass} />
+                <input ref={modelRef} id="run-model" value={model} onChange={(event) => { setModel(event.target.value); setValidation(null); }} aria-invalid={validation?.field === 'model'} aria-describedby={validation?.field === 'model' ? 'run-validation-summary' : undefined} placeholder="예: example-model" className={fieldClass} />
                 <p className="mt-1.5 text-[11px] text-[#697586]">Application이 Chat Completions 요청 body에서 인식하는 모델 식별자입니다.</p>
               </div>
               <div>
@@ -206,10 +230,10 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
           <div className="pt-6">
             <h2 className="text-base font-bold text-[#17202a]">3. Evaluation Profile</h2>
             <p className="mb-4 mt-1 text-xs text-[#697586]">평가 항목을 선택하고 모든 항목에 적용할 엄격도를 정합니다.</p>
-            <fieldset>
+            <fieldset aria-invalid={validation?.field === 'checks'} aria-describedby={validation?.field === 'checks' ? 'run-validation-summary' : undefined}>
               <legend className="mb-2 text-xs font-bold text-[#4e5a68]">Checks <span className="text-[#b83b34]">1개 이상</span></legend>
-              <div className="grid gap-2 sm:grid-cols-3">{CHECK_OPTIONS.map((option) => <label key={option.value} className={`cursor-pointer rounded-xl border p-3 ${checks.includes(option.value) ? 'border-[#1a7f5a] bg-[#f0faf6]' : 'border-[#dce1e6]'}`}>
-                <span className="flex items-center gap-2 text-xs font-bold"><input type="checkbox" checked={checks.includes(option.value)} onChange={() => toggleCheck(option.value)} className="accent-[#1a7f5a]" />{option.label}</span>
+              <div className="grid gap-2 sm:grid-cols-3">{CHECK_OPTIONS.map((option, index) => <label key={option.value} className={`cursor-pointer rounded-xl border p-3 ${checks.includes(option.value) ? 'border-[#1a7f5a] bg-[#f0faf6]' : 'border-[#dce1e6]'}`}>
+                <span className="flex items-center gap-2 text-xs font-bold"><input ref={index === 0 ? firstCheckRef : undefined} type="checkbox" checked={checks.includes(option.value)} onChange={() => toggleCheck(option.value)} className="accent-[#1a7f5a]" />{option.label}</span>
                 <span className="mt-1.5 block pl-5 text-[10px] text-[#697586]">{option.help}</span>
               </label>)}</div>
             </fieldset>
@@ -232,7 +256,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
             <div className="py-3"><dt className="text-[#697586]">Evaluation Profile</dt><dd className="mt-1 font-bold">{checks.length ? CHECK_OPTIONS.filter((option) => checks.includes(option.value)).map((option) => option.label).join(', ') : '선택 필요'}</dd><dd className="mt-1 text-[10px] text-[#697586]">Strictness: {strictness}</dd></div>
           </dl>
           <div className="flex gap-2 rounded-xl bg-[#eef8f4] p-3.5 text-[11px] leading-relaxed text-[#27634f]"><ShieldCheck size={16} className="shrink-0" /><span>각 Snapshot은 Application에서 1회 실행됩니다. Evaluator 설정은 GuardBench가 내부에서 관리합니다.</span></div>
-          {validation && <div id="run-validation-summary" className="rounded-xl border border-[#e7c47f] bg-[#fff7e8] px-4 py-3 text-xs font-semibold text-[#78501b]">{validation}</div>}
+          {validation && <div id="run-validation-summary" className="rounded-xl border border-[#e7c47f] bg-[#fff7e8] px-4 py-3 text-xs font-semibold text-[#78501b]">{validation.message}</div>}
           {submitError !== null && <RequestErrorBanner
             error={submitError}
             fallbackMessage="테스트 실행 요청에 실패했습니다."
