@@ -12,6 +12,8 @@ npm run openapi:sync -- --backend-path ../guardbench-backend --ref origin/dev
 ```
 
 이 명령은 사본과 `openapi.source.json`의 source commit 및 SHA-256을 함께 갱신한다.
+기존 Windows clone에서 `.gitattributes` 적용 전 CRLF 사본이 남아 검증이 실패해도 같은 동기화
+명령을 다시 실행하면 canonical LF 사본으로 안전하게 정규화된다.
 
 ## 검증
 

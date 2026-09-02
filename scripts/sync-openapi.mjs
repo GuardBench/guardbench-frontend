@@ -9,9 +9,30 @@ const TARGET_FILE = resolve('docs/api/openapi.yaml');
 const METADATA_FILE = resolve('docs/api/openapi.source.json');
 
 const [mode, ...rawArgs] = process.argv.slice(2);
+const failUsage = (message) => {
+  console.error(`OpenAPI sync option error: ${message}`);
+  process.exit(2);
+};
 const valueOf = (name, fallback) => {
   const index = rawArgs.indexOf(name);
-  return index >= 0 ? rawArgs[index + 1] : fallback;
+  if (index >= 0) {
+    const value = rawArgs[index + 1];
+    if (!value || value.startsWith('--')) {
+      failUsage(`${name} 옵션 값이 필요합니다.`);
+    }
+    return value;
+  }
+
+  const assignment = rawArgs.find((arg) => arg.startsWith(`${name}=`));
+  if (assignment !== undefined) {
+    const value = assignment.slice(name.length + 1);
+    if (!value) {
+      failUsage(`${name} 옵션 값이 필요합니다.`);
+    }
+    return value;
+  }
+
+  return fallback;
 };
 
 const backendPath = resolve(valueOf('--backend-path', '../guardbench-backend'));
