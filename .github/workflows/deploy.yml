@@ -3,7 +3,10 @@ name: Frontend CI and Dev Deploy
 on:
   pull_request:
     branches:
+      - dev
       - main
+    # 일반 문서는 source build 대상에서 제외하고, docs/api 계약은
+    # openapi-contract.yml이 별도로 검증한다.
     paths-ignore:
       - 'docs/**'
       - '**/*.md'
@@ -35,6 +38,9 @@ jobs:
 
       - name: Install Dependencies
         run: npm ci
+
+      - name: Lint Project
+        run: npm run lint
 
       - name: Build Project
         run: npm run build
