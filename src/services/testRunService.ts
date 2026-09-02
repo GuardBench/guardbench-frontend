@@ -57,7 +57,12 @@ export interface TestRunProgressRes {
 
 export interface QualityGateRes {
   status: QualityGateStatus;
-  metrics: Record<string, unknown> | null;
+  metrics: QualityGateMetricsRes | null;
+}
+
+export interface QualityGateMetricsRes {
+  assertionPassRate: number;
+  executionSuccessRate: number;
 }
 
 export interface TestRunDetailRes {
