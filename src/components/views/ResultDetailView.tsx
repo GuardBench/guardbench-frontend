@@ -47,12 +47,9 @@ const OUTCOME_FILTERS: Array<{ value: OutcomeFilter; label: string }> = [
   { value: 'TRUE_NEGATIVE', label: 'True Negative' },
 ];
 
-const rateLabel = (rate: number | null) => rate === null ? '분모 없음' : `${(rate * 100).toFixed(1)}%`;
+const percentageLabel = (rate: number) => `${(Math.floor(rate * 10_000) / 100).toFixed(2)}%`;
 
-const qualityRateLabel = (rate: number) => new Intl.NumberFormat('ko-KR', {
-  style: 'percent',
-  maximumFractionDigits: 1,
-}).format(rate);
+const rateLabel = (rate: number | null) => rate === null ? '분모 없음' : percentageLabel(rate);
 
 const updatedAtLabel = (updatedAt: string | undefined) => updatedAt
   ? new Intl.DateTimeFormat('ko-KR', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(updatedAt))
@@ -237,13 +234,15 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
         <small className="font-bold opacity-80">QUALITY GATE</small><h2 className="my-4 text-2xl font-black">{gateTitle}</h2>
         {metrics ? <>
           <dl className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-white/10 p-3"><dt className="text-[10px] font-bold opacity-80">Assertion 통과율</dt><dd className="mt-1 text-xl font-black">{qualityRateLabel(metrics.assertionPassRate)}</dd></div>
-            <div className="rounded-xl bg-white/10 p-3"><dt className="text-[10px] font-bold opacity-80">실행 성공률</dt><dd className="mt-1 text-xl font-black">{qualityRateLabel(metrics.executionSuccessRate)}</dd></div>
+            <div className="rounded-xl bg-white/10 p-3"><dt className="text-[10px] font-bold opacity-80">Assertion 통과율</dt><dd className="mt-1 text-xl font-black">{percentageLabel(metrics.assertionPassRate)}</dd></div>
+            <div className="rounded-xl bg-white/10 p-3"><dt className="text-[10px] font-bold opacity-80">실행 성공률</dt><dd className="mt-1 text-xl font-black">{percentageLabel(metrics.executionSuccessRate)}</dd></div>
           </dl>
-          <p className="mt-3 text-[11px] opacity-80">서버가 저장한 현재 Run 지표입니다. 각 비율의 Gate 기준은 95%입니다.</p>
-        </> : <p className="text-xs opacity-90">{detail?.qualityGate?.status === 'NOT_EVALUATED'
+          <p className="mt-3 text-[11px] opacity-80">서버가 저장한 현재 Run 지표와 Quality Gate 판정입니다.</p>
+        </> : <p className="text-xs opacity-90">{!detail
+          ? 'Quality Gate 정보를 불러오는 중입니다.'
+          : detail.qualityGate?.status === 'NOT_EVALUATED'
           ? '평가 가능한 Assertion이 없어 Quality Gate 지표를 계산하지 않았습니다.'
-          : detail?.qualityGate ? 'Quality Gate 지표가 제공되지 않았습니다.' : '실행 종료 후 Quality Gate 지표가 결정됩니다.'}</p>}
+          : detail.qualityGate ? 'Quality Gate 지표가 제공되지 않았습니다.' : '실행 종료 후 Quality Gate 지표가 결정됩니다.'}</p>}
       </article>
       <article className="rounded-2xl border border-[#e5e9ee] bg-white p-6">
         <div className="mb-4 flex items-center justify-between"><h2 className="text-sm font-bold">실행 정보</h2><div className="flex gap-2">{detail?.executionOutcome ? <StatusPill kind="execution" status={detail.executionOutcome} /> : <span className="rounded-full bg-[#eef1f4] px-2.5 py-1 text-[10px] font-extrabold text-[#8fa0ad]">결정 전</span>}<StatusPill kind="gate" status={gateStatus} /></div></div>
