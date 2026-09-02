@@ -5,6 +5,7 @@ import {
   getComparableTestRuns,
   getTestRunComparison,
   type ComparableTestRunListItemRes,
+  type ComparableTestRunListRes,
   type RegressionChangeType,
   type TestRunComparisonRes,
 } from '../../services/regressionService';
@@ -43,6 +44,8 @@ const verdictLabel = (value: 'ALLOW' | 'BLOCK' | null) => value ?? '—';
 
 export function RegressionComparisonSection({ runId }: RegressionComparisonSectionProps) {
   const [candidates, setCandidates] = useState<ComparableTestRunListItemRes[]>([]);
+  const [candidatePage, setCandidatePage] = useState(1);
+  const [candidatePageMeta, setCandidatePageMeta] = useState<ComparableTestRunListRes['page'] | null>(null);
   const [selectedComparisonId, setSelectedComparisonId] = useState('');
   const [comparison, setComparison] = useState<TestRunComparisonRes | null>(null);
   const [changedOnly, setChangedOnly] = useState(true);
@@ -55,22 +58,29 @@ export function RegressionComparisonSection({ runId }: RegressionComparisonSecti
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
+    setCandidatePage(1);
+  }, [runId]);
+
+  useEffect(() => {
     if (!runId) return;
     let active = true;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     setCandidatesLoading(true);
     setCandidatesError(null);
     setNotFinished(false);
     setHasLoadedCandidates(false);
     setCandidates([]);
+    setCandidatePageMeta(null);
     setSelectedComparisonId('');
     setComparison(null);
     setComparisonError(null);
 
-    getComparableTestRuns(runId, { page: 1, size: 100 })
+    getComparableTestRuns(runId, { page: candidatePage, size: 20 })
       .then((response) => {
         if (!active) return;
         setCandidates(response.items);
+        setCandidatePageMeta(response.page);
         setSelectedComparisonId(response.items[0] ? String(response.items[0].id) : '');
         setHasLoadedCandidates(true);
       })
@@ -79,6 +89,9 @@ export function RegressionComparisonSection({ runId }: RegressionComparisonSecti
         if (error instanceof ApiError && error.code === 'TEST_RUN_NOT_FINISHED') {
           setNotFinished(true);
           setHasLoadedCandidates(true);
+          retryTimer = setTimeout(() => {
+            if (active) setReloadToken((value) => value + 1);
+          }, 2000);
           return;
         }
         setCandidatesError(error);
@@ -87,8 +100,11 @@ export function RegressionComparisonSection({ runId }: RegressionComparisonSecti
         if (active) setCandidatesLoading(false);
       });
 
-    return () => { active = false; };
-  }, [runId, reloadToken]);
+    return () => {
+      active = false;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [runId, candidatePage, reloadToken]);
 
   useEffect(() => {
     if (!runId || !selectedComparisonId) {
@@ -149,7 +165,7 @@ export function RegressionComparisonSection({ runId }: RegressionComparisonSecti
 
       {notFinished && (
         <div className="rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]">
-          현재 Run이 종료된 뒤 비교 가능한 과거 Run을 확인할 수 있습니다.
+          현재 Run이 종료된 뒤 비교 가능한 과거 Run을 자동으로 다시 확인합니다.
         </div>
       )}
 
@@ -161,7 +177,7 @@ export function RegressionComparisonSection({ runId }: RegressionComparisonSecti
         />
       )}
 
-      {candidatesLoading && (
+      {candidatesLoading && !notFinished && (
         <div className="flex items-center gap-2 py-4 text-xs text-[#697586]">
           <Loader2 size={14} className="animate-spin" /> 비교 가능한 과거 Run을 확인하고 있습니다.
         </div>
@@ -189,6 +205,29 @@ export function RegressionComparisonSection({ runId }: RegressionComparisonSecti
                 </option>
               ))}
             </select>
+            {candidatePageMeta && candidatePageMeta.totalPages > 1 && (
+              <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-[#697586]">
+                <span>{candidatePageMeta.number} / {candidatePageMeta.totalPages} 페이지 · 총 {candidatePageMeta.totalElements}개</span>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    disabled={!candidatePageMeta.hasPrevious || candidatesLoading}
+                    onClick={() => setCandidatePage((page) => Math.max(1, page - 1))}
+                    className="rounded-lg border border-[#dce1e6] px-2.5 py-1 font-bold disabled:opacity-40"
+                  >
+                    이전
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!candidatePageMeta.hasNext || candidatesLoading}
+                    onClick={() => setCandidatePage((page) => page + 1)}
+                    className="rounded-lg border border-[#dce1e6] px-2.5 py-1 font-bold disabled:opacity-40"
+                  >
+                    다음
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {selectedCandidate && (
