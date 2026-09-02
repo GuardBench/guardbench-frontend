@@ -22,8 +22,7 @@ type RunValidation = {
 };
 
 const CHECK_OPTIONS: Array<{ value: EvaluationCheck; label: string; help: string }> = [
-  { value: 'PROMPT_INJECTION', label: 'Prompt Injection', help: '지시 탈취나 우회 시도' },
-  { value: 'PII_LEAKAGE', label: 'PII Leakage', help: '개인정보 노출 응답' },
+  { value: 'PII_LEAKAGE', label: 'PII Leakage', help: '개인정보 노출 응답 · 고정 정책' },
   { value: 'HARMFUL_CONTENT', label: 'Harmful Content', help: '유해하거나 위험한 콘텐츠' },
 ];
 
@@ -229,16 +228,17 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
 
           <div className="pt-6">
             <h2 className="text-base font-bold text-[#17202a]">3. Evaluation Profile</h2>
-            <p className="mb-4 mt-1 text-xs text-[#697586]">평가 항목을 선택하고 모든 항목에 적용할 엄격도를 정합니다.</p>
+            <p className="mb-4 mt-1 text-xs text-[#697586]">평가할 보안 항목을 선택합니다. Harmful Content는 Strictness를 적용하고 PII Leakage는 고정 정책으로 평가합니다.</p>
             <fieldset aria-invalid={validation?.field === 'checks'} aria-describedby={validation?.field === 'checks' ? 'run-validation-summary' : undefined}>
               <legend className="mb-2 text-xs font-bold text-[#4e5a68]">Checks <span className="text-[#b83b34]">1개 이상</span></legend>
-              <div className="grid gap-2 sm:grid-cols-3">{CHECK_OPTIONS.map((option, index) => <label key={option.value} className={`cursor-pointer rounded-xl border p-3 ${checks.includes(option.value) ? 'border-[#1a7f5a] bg-[#f0faf6]' : 'border-[#dce1e6]'}`}>
+              <div className="grid gap-2 sm:grid-cols-2">{CHECK_OPTIONS.map((option, index) => <label key={option.value} className={`cursor-pointer rounded-xl border p-3 ${checks.includes(option.value) ? 'border-[#1a7f5a] bg-[#f0faf6]' : 'border-[#dce1e6]'}`}>
                 <span className="flex items-center gap-2 text-xs font-bold"><input ref={index === 0 ? firstCheckRef : undefined} type="checkbox" checked={checks.includes(option.value)} onChange={() => toggleCheck(option.value)} className="accent-[#1a7f5a]" />{option.label}</span>
                 <span className="mt-1.5 block pl-5 text-[10px] text-[#697586]">{option.help}</span>
               </label>)}</div>
             </fieldset>
             <fieldset className="mt-5">
-              <legend className="mb-2 text-xs font-bold text-[#4e5a68]">통합 Strictness</legend>
+              <legend className="mb-2 text-xs font-bold text-[#4e5a68]">Strictness</legend>
+              <p className="mb-2 text-[11px] text-[#697586]">Harmful Content 평가에 적용됩니다. PII Leakage는 선택한 Strictness와 무관하게 고정 정책을 사용합니다.</p>
               <div className="grid gap-2 sm:grid-cols-3">{STRICTNESS_OPTIONS.map((option) => <label key={option.value} className={`cursor-pointer rounded-xl border p-3 ${strictness === option.value ? 'border-[#1a7f5a] bg-[#f0faf6]' : 'border-[#dce1e6]'}`}>
                 <span className="flex items-center gap-2 text-xs font-bold"><input type="radio" name="strictness" checked={strictness === option.value} onChange={() => setStrictness(option.value)} className="accent-[#1a7f5a]" />{option.label}</span>
                 <span className="mt-1.5 block pl-5 text-[10px] text-[#697586]">{option.help}</span>
@@ -253,7 +253,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
             <div className="flex justify-between gap-4 py-3"><dt className="text-[#697586]">TestSuite</dt><dd className="text-right font-bold">{selectedSuite?.name || '—'}</dd></div>
             <div className="flex justify-between py-3"><dt className="text-[#697586]">예상 실행 수</dt><dd className="font-bold">{caseCount}회</dd></div>
             <div className="py-3"><dt className="text-[#697586]">Application</dt><dd className="mt-1 break-all font-bold">{normalizedEndpoint || '—'}</dd><dd className="mt-1 text-[10px] text-[#697586]">Model: {normalizedModel || '입력 필요'}</dd>{normalizedRevision && <dd className="mt-1 text-[10px] text-[#697586]">Revision: {normalizedRevision}</dd>}</div>
-            <div className="py-3"><dt className="text-[#697586]">Evaluation Profile</dt><dd className="mt-1 font-bold">{checks.length ? CHECK_OPTIONS.filter((option) => checks.includes(option.value)).map((option) => option.label).join(', ') : '선택 필요'}</dd><dd className="mt-1 text-[10px] text-[#697586]">Strictness: {strictness}</dd></div>
+            <div className="py-3"><dt className="text-[#697586]">Evaluation Profile</dt><dd className="mt-1 font-bold">{checks.length ? CHECK_OPTIONS.filter((option) => checks.includes(option.value)).map((option) => option.label).join(', ') : '선택 필요'}</dd><dd className="mt-1 text-[10px] text-[#697586]">{checks.includes('HARMFUL_CONTENT') ? `Strictness: ${strictness}` : 'PII 고정 정책'}</dd></div>
           </dl>
           <div className="flex gap-2 rounded-xl bg-[#eef8f4] p-3.5 text-[11px] leading-relaxed text-[#27634f]"><ShieldCheck size={16} className="shrink-0" /><span>각 Snapshot은 Application에서 1회 실행됩니다. Evaluator 설정은 GuardBench가 내부에서 관리합니다.</span></div>
           {validation && <div id="run-validation-summary" className="rounded-xl border border-[#e7c47f] bg-[#fff7e8] px-4 py-3 text-xs font-semibold text-[#78501b]">{validation.message}</div>}
