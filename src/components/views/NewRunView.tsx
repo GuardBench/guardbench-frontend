@@ -42,9 +42,17 @@ function submitErrorMessage(error: unknown): string {
     return '이전 요청과 충돌했습니다. 입력을 확인한 뒤 새로 시도해 주세요.';
   }
   if (error instanceof ApiError && error.code === 'EVALUATION_PROFILE_NOT_SUPPORTED') {
-    return '선택한 Checks와 Strictness 조합을 지원하는 Evaluator 설정이 없습니다. Evaluation Profile을 변경하거나 관리자에게 문의해 주세요.';
+    return '선택한 Checks와 Strictness 조합을 지원하는 Evaluator 설정이 없습니다.';
   }
   return '테스트 실행 요청에 실패했습니다.';
+}
+
+function hasSubmitErrorMessage(error: unknown): error is ApiError {
+  return error instanceof ApiError && [
+    'TEST_SUITE_EMPTY',
+    'IDEMPOTENCY_KEY_CONFLICT',
+    'EVALUATION_PROFILE_NOT_SUPPORTED',
+  ].includes(error.code);
 }
 
 function createIdempotencyKey(): string {
@@ -127,7 +135,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
         ...(normalizedRevision ? { revision: normalizedRevision } : {}),
         model: normalizedModel,
       },
-      evaluationProfile: { checks, strictness },
+      evaluationProfile: { checks: [...checks].sort(), strictness },
     };
     const fingerprint = JSON.stringify(payload);
     if (idempotencyAttempt.current?.fingerprint !== fingerprint) {
@@ -225,8 +233,14 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
           </dl>
           <div className="flex gap-2 rounded-xl bg-[#eef8f4] p-3.5 text-[11px] leading-relaxed text-[#27634f]"><ShieldCheck size={16} className="shrink-0" /><span>각 Snapshot은 Application에서 1회 실행됩니다. Evaluator 설정은 GuardBench가 내부에서 관리합니다.</span></div>
           {validation && <div id="run-validation-summary" className="rounded-xl border border-[#e7c47f] bg-[#fff7e8] px-4 py-3 text-xs font-semibold text-[#78501b]">{validation}</div>}
-          {submitError !== null && <RequestErrorBanner error={submitError} fallbackMessage={submitErrorMessage(submitError)} />}
-          {submitError instanceof ApiError && submitError.code === 'EVALUATION_PROFILE_NOT_SUPPORTED' && <p className="rounded-xl bg-[#fff7e8] px-4 py-3 text-xs leading-relaxed text-[#78501b]">다른 Checks 또는 Strictness 조합으로 다시 시도하세요. 필요한 평가 조합이라면 관리자에게 Evaluator catalog 등록을 요청해야 합니다.</p>}
+          {submitError !== null && <RequestErrorBanner
+            error={submitError}
+            fallbackMessage="테스트 실행 요청에 실패했습니다."
+            messageOverride={hasSubmitErrorMessage(submitError) ? submitErrorMessage(submitError) : undefined}
+            helpMessage={submitError instanceof ApiError && submitError.code === 'EVALUATION_PROFILE_NOT_SUPPORTED'
+              ? '다른 Checks 또는 Strictness 조합으로 다시 시도하세요. 필요한 평가 조합이라면 관리자에게 Evaluator catalog 등록을 요청해야 합니다.'
+              : undefined}
+          />}
           <button type="button" onClick={handleRun} disabled={!canSubmit} aria-describedby={validation ? 'run-validation-summary' : undefined} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#1a7f5a] py-3 text-sm font-bold text-white hover:bg-[#146648] disabled:cursor-not-allowed disabled:opacity-50"><Play size={16} />{submitting ? '실행 요청 중...' : '테스트 실행 요청'}</button>
         </aside>
       </div>
