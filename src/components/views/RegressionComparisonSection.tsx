@@ -216,7 +216,7 @@ export function RegressionComparisonSection({ runId }: RegressionComparisonSecti
         <RequestErrorBanner
           error={comparisonError}
           fallbackMessage="선택한 Run과의 Regression 비교를 불러오지 못했습니다."
-          onRetry={() => setSelectedComparisonId((value) => value)}
+          onRetry={refresh}
         />
       )}
 
