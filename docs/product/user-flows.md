@@ -142,16 +142,17 @@ flowchart TD
 `TestRunCreateReq`로 전송한다. 접수 성공 시 Run 상세로 이동하며 결과 불명 network 오류에서는 동일
 payload와 Idempotency-Key를 유지한다.
 
-### 4.3 접수와 멱등성 (`TO-BE`)
+### 4.3 접수와 멱등성 (`AS-IS`)
 
 1. 한 논리적 제출 시도에 하나의 Idempotency-Key를 연결한다.
 2. 사용자가 제출하면 같은 key와 request body로 한 번 접수한다.
 3. `202 Accepted`를 받으면 실행 완료가 아니라 안전한 접수 성공으로 표시한다.
-4. response의 Run ID와 Location을 사용해 상세 조회로 이동한다.
+4. 현재는 response의 Run ID로 상세 조회에 이동한다. Location header 보존은 남은 계약 격차다.
 5. 응답을 받지 못해 결과가 불명확한 경우 동일 body 재전송에 같은 key를 사용한다.
 6. 다른 body에 같은 key를 재사용하지 않는다.
 
-key 생성, 저장, 화면 이탈 후 복원과 폐기 시점은 `미결정`이다.
+현재 key는 payload fingerprint별로 메모리에 보존하며 network 결과 불명에서 재사용하고 성공 또는
+명시적 서버 거부 후 폐기한다. 화면 이탈 후 복원과 장기 보존은 `미결정`이다.
 
 ### 4.4 생성 오류 분기
 

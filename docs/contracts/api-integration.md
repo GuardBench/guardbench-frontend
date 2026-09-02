@@ -230,11 +230,11 @@ timeout 값, 자동 재시도 대상, 인증·권한 오류 UX, runtime schema v
 1. 한 논리적 제출 시도에 하나의 `Idempotency-Key`를 부여한다.
 2. 응답을 확인하지 못해 동일 body를 재전송할 때 같은 key를 사용한다.
 3. key는 선택 header지만 중복 실행 방지 정책을 별도 Decision으로 확정한다.
-4. `202 Accepted`의 `TestRunCreateRes`와 `Location`을 보존하고 상세 조회로 이동한다.
+4. 현재는 `202 Accepted`의 `TestRunCreateRes`에 포함된 Run ID로 상세 조회에 이동한다. `Location` header 보존은 `apiClient`가 response header를 노출할 때까지 남은 계약 격차다.
 5. 같은 key와 같은 body의 재전송은 기존 Run의 현재 status를 반환할 수 있다.
 6. `TEST_SUITE_EMPTY`, `IDEMPOTENCY_KEY_CONFLICT`, `EVALUATION_PROFILE_NOT_SUPPORTED`를 일반 network 오류와 구분한다.
 
-key 생성 형식, 저장 위치, 복원과 폐기 시점은 `미결정`이다. OpenAPI에 없는 TTL을 이 문서에서 확정하지 않는다.
+현재 구현은 payload fingerprint별 key를 메모리에 보존하고 network 결과 불명에서는 재사용하며, 성공 또는 명시적 서버 거부 후 폐기한다. 화면 이탈 후 복원, 장기 보존과 OpenAPI에 없는 TTL은 `미결정`이다.
 
 ## 6. Run lifecycle, outcome과 Quality Gate
 

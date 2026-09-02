@@ -137,7 +137,7 @@ TestSuite
 | 영역 | 입력 | 상태와 validation |
 | --- | --- | --- |
 | TestSuite | 실제 Suite ID | loading, empty, 조회 오류와 선택 상태 |
-| Application | HTTP/HTTPS URL | 필수, OpenAPI URI/pattern 적용 |
+| Application | HTTP/HTTPS URL | 필수, URL parsing과 HTTP/HTTPS protocol 검사 |
 | Application model | Chat Completions request의 모델 식별자 | 필수, 공백 문자열 금지 |
 | Application revision | 배포·모델·commit 식별 문자열 | 선택, 공백 문자열 금지 |
 | Evaluation checks | Prompt Injection, PII Leakage, Harmful Content | Profile에서 최소 1개, 중복 불가 |
