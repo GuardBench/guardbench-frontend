@@ -314,7 +314,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                 </div>
               </div>
               {addValidation && (
-                <div id="add-case-validation-summary" role="alert" className="rounded-lg border border-[#e7c47f] bg-[#fff7e8] px-3 py-2 text-xs font-semibold text-[#78501b]">
+                <div id="add-case-validation-summary" className="rounded-lg border border-[#e7c47f] bg-[#fff7e8] px-3 py-2 text-xs font-semibold text-[#78501b]">
                   {addValidation.message}
                 </div>
               )}

@@ -299,7 +299,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
           </section>
 
           {validation && (
-            <div id="create-suite-validation-summary" role="alert" className="shrink-0 rounded-xl border border-[#f0ddb0] bg-[#fff5e8] px-4 py-3 text-xs text-[#805100]">
+            <div id="create-suite-validation-summary" className="shrink-0 rounded-xl border border-[#f0ddb0] bg-[#fff5e8] px-4 py-3 text-xs text-[#805100]">
               <p className="mb-1 font-bold">입력 또는 요청을 확인해 주세요.</p>
               <div className="flex items-center gap-2">
                 <AlertCircle size={16} className="shrink-0" />

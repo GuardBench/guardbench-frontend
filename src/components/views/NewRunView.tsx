@@ -230,10 +230,10 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
           <div className="pt-6">
             <h2 className="text-base font-bold text-[#17202a]">3. Evaluation Profile</h2>
             <p className="mb-4 mt-1 text-xs text-[#697586]">평가 항목을 선택하고 모든 항목에 적용할 엄격도를 정합니다.</p>
-            <fieldset>
+            <fieldset aria-invalid={validation?.field === 'checks'} aria-describedby={validation?.field === 'checks' ? 'run-validation-summary' : undefined}>
               <legend className="mb-2 text-xs font-bold text-[#4e5a68]">Checks <span className="text-[#b83b34]">1개 이상</span></legend>
               <div className="grid gap-2 sm:grid-cols-3">{CHECK_OPTIONS.map((option, index) => <label key={option.value} className={`cursor-pointer rounded-xl border p-3 ${checks.includes(option.value) ? 'border-[#1a7f5a] bg-[#f0faf6]' : 'border-[#dce1e6]'}`}>
-                <span className="flex items-center gap-2 text-xs font-bold"><input ref={index === 0 ? firstCheckRef : undefined} type="checkbox" checked={checks.includes(option.value)} onChange={() => toggleCheck(option.value)} aria-invalid={validation?.field === 'checks'} aria-describedby={validation?.field === 'checks' ? 'run-validation-summary' : undefined} className="accent-[#1a7f5a]" />{option.label}</span>
+                <span className="flex items-center gap-2 text-xs font-bold"><input ref={index === 0 ? firstCheckRef : undefined} type="checkbox" checked={checks.includes(option.value)} onChange={() => toggleCheck(option.value)} className="accent-[#1a7f5a]" />{option.label}</span>
                 <span className="mt-1.5 block pl-5 text-[10px] text-[#697586]">{option.help}</span>
               </label>)}</div>
             </fieldset>
@@ -256,7 +256,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
             <div className="py-3"><dt className="text-[#697586]">Evaluation Profile</dt><dd className="mt-1 font-bold">{checks.length ? CHECK_OPTIONS.filter((option) => checks.includes(option.value)).map((option) => option.label).join(', ') : '선택 필요'}</dd><dd className="mt-1 text-[10px] text-[#697586]">Strictness: {strictness}</dd></div>
           </dl>
           <div className="flex gap-2 rounded-xl bg-[#eef8f4] p-3.5 text-[11px] leading-relaxed text-[#27634f]"><ShieldCheck size={16} className="shrink-0" /><span>각 Snapshot은 Application에서 1회 실행됩니다. Evaluator 설정은 GuardBench가 내부에서 관리합니다.</span></div>
-          {validation && <div id="run-validation-summary" role="alert" className="rounded-xl border border-[#e7c47f] bg-[#fff7e8] px-4 py-3 text-xs font-semibold text-[#78501b]">{validation.message}</div>}
+          {validation && <div id="run-validation-summary" className="rounded-xl border border-[#e7c47f] bg-[#fff7e8] px-4 py-3 text-xs font-semibold text-[#78501b]">{validation.message}</div>}
           {submitError !== null && <RequestErrorBanner
             error={submitError}
             fallbackMessage="테스트 실행 요청에 실패했습니다."
