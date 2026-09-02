@@ -32,7 +32,10 @@
 
 백엔드 API의 요청·응답 스키마를 이 저장소에서 다시 정의하지 않는다. 프론트엔드 문서는 화면이 승인된 OpenAPI를 어떻게 소비하고 사용자에게 표현하는지 기록한다.
 
-로컬 OpenAPI는 프론트엔드 구현 기준으로 사용하는 동기화 사본이다. 백엔드 계약이 변경되면 동기화 Issue 또는 PR에 출처 commit을 기록하고 두 파일의 drift를 확인한 뒤 관련 프론트엔드 문서를 함께 갱신한다.
+로컬 OpenAPI는 프론트엔드 구현 기준으로 사용하는 동기화 사본이다. 출처 commit과 SHA-256은
+[`api/openapi.source.json`](api/openapi.source.json)에 기록하며, 동기화와 검증 절차는
+[`api/README.md`](api/README.md)를 따른다. 백엔드 계약이 변경되면 사본과 관련 DTO·화면·문서를
+같은 변경 흐름에서 검토한다.
 
 API 관련 문서의 책임은 다음 순서로 좁아진다.
 
@@ -54,7 +57,8 @@ OpenAPI
 
 | 문서 | 상태 | 목적 |
 | --- | --- | --- |
-| [OpenAPI](api/openapi.yaml) | `APPROVED` | 프론트엔드가 소비하는 endpoint와 공개 schema의 canonical copy다. |
+| [OpenAPI](api/openapi.yaml) | `APPROVED` | 백엔드 canonical source에서 검증 가능하게 동기화한 계약 사본이다. |
+| [OpenAPI 사본 관리](api/README.md) | `APPROVED` | source metadata, 동기화·검증과 drift 탐지 절차를 정의한다. |
 | [화면 및 기능 명세](product/screen-spec.md) | `AS-IS` / `TO-BE` / `미결정` | 6개 현재 화면과 Application Target·Evaluator·Regression 목표 화면을 구분한다. |
 | [사용자 흐름](product/user-flows.md) | `AS-IS` / `TO-BE` / `미결정` | Suite 준비부터 Run 접수·Polling·결과·Evaluator 분석·선택적 비교까지 연결한다. |
 | [API 연동 계약](contracts/api-integration.md) | `AS-IS` / `TO-BE` / `미결정` | 요청 구성, DTO mapping, 오류, Polling, metrics, comparison과 비공개 정책을 정의한다. |
