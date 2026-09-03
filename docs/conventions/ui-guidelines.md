@@ -115,8 +115,9 @@ Polling interval, 장시간 실행 안내와 background tab 표현은 `미결정
 
 - Suite 이름만으로 빈 Suite를 생성할 수 있다.
 - 초기 TestCase 추가는 선택 action으로 제공한다.
-- 현재 MVP UI는 초기 TestCase 한 건을 지원하며, OpenAPI의 최대 100건 허용을 UI가 모두 입력받아야 한다는 의미로 해석하지 않는다.
+- 현재 MVP UI는 초기 TestCase를 단건 또는 일괄 등록으로 최대 1,000건까지 지원한다.
 - 초기 TestCase를 포함하면 전체가 원자적으로 생성되고 하나라도 유효하지 않으면 Suite도 생성되지 않음을 오류 시 명확히 한다.
+- 일괄 등록은 JSON 배열 붙여넣기와 UTF-8 CSV 업로드를 지원하고, 제출 전 항목 수와 오류를 미리 보여 준다. CSV는 표준 헤더와 지정한 한국어 별칭을 지원하며, 같은 API 필드에 대응하는 열이 둘 이상이면 오류로 처리한다. Excel 파일 업로드는 MVP 범위가 아니다.
 
 ### 6.3 TestRun 생성
 

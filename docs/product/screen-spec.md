@@ -103,9 +103,9 @@ TestSuite 목록을 확인하고 Run에서 사용할 TestCase를 관리한다.
 Suite 생성은 두 형태를 모두 허용한다.
 
 - `testCases`를 생략하거나 `null`, 빈 배열로 보내 빈 Suite를 먼저 생성한다.
-- 최대 100개의 초기 TestCase를 함께 보내 Suite와 하나의 트랜잭션에서 원자적으로 생성한다. 초기 TestCase 하나라도 유효하지 않으면 Suite를 포함한 전체 요청이 실패한다.
+- 최대 1,000개의 초기 TestCase를 함께 보내 Suite와 하나의 트랜잭션에서 원자적으로 생성한다. 초기 TestCase 하나라도 유효하지 않으면 Suite를 포함한 전체 요청이 실패한다.
 
-현재 MVP 화면은 이름만 입력하면 빈 Suite를 생성하고, 사용자가 초기 TestCase 추가를 선택하면 한 건을 같은 생성 요청에 포함한다. OpenAPI는 최대 100건까지 허용하지만 UI가 한 번에 몇 건을 지원할지는 API 제약과 별개의 제품 범위다. 생성 후에는 두 경우 모두 동일한 TestCase 관리 화면을 사용한다.
+현재 MVP 화면은 이름만 입력하면 빈 Suite를 생성하고, 사용자가 초기 TestCase 추가를 선택하면 단건 입력 또는 JSON 배열 붙여넣기·UTF-8 CSV 업로드로 최대 1,000건을 같은 생성 요청에 포함한다. 생성 후에는 두 경우 모두 동일한 TestCase 관리 화면을 사용한다.
 
 pagination/filter UX, 삭제 확인 방식과 mutation 후 재조회 정책은 `미결정`이다.
 
