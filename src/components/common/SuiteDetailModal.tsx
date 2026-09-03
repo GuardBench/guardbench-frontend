@@ -476,16 +476,16 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-[#e5e9ee] bg-[#fafbfb] flex items-center justify-between gap-4">
+        <div className="grid grid-cols-3 items-center gap-3 border-t border-[#e5e9ee] bg-[#fafbfb] p-4">
           <button
             type="button"
             onClick={openDeleteConfirmation}
             disabled={isDeleting}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-[#e7aaa5] bg-[#fff0ef] px-4 py-2 text-xs font-bold text-[#a82f2a] hover:bg-[#ffe0de] disabled:cursor-not-allowed disabled:opacity-50"
+            className="justify-self-start inline-flex items-center gap-1.5 rounded-xl border border-[#e7aaa5] bg-[#fff0ef] px-4 py-2 text-xs font-bold text-[#a82f2a] hover:bg-[#ffe0de] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Trash2 size={14} /> 스위트 삭제
           </button>
-          <nav aria-label="테스트 케이스 페이지네이션" className="flex items-center gap-1">
+          <nav aria-label="테스트 케이스 페이지네이션" className="justify-self-center -translate-x-3 flex items-center gap-1">
             <button
               type="button"
               onClick={() => setPage(Math.max(1, (visiblePageMeta?.number ?? page) - 1))}
@@ -520,7 +520,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
           </nav>
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545]"
+            className="justify-self-end px-4 py-2 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545]"
           >
             닫기
           </button>
