@@ -1,16 +1,18 @@
 import { apiRequest } from './apiClient';
 
 // 1. TestSuite 생성 요청
+export interface TestCaseCreatePayload {
+  name: string;
+  input: string;
+  expectedAction: 'ALLOW' | 'BLOCK';
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  category: string;
+}
+
 export interface CreateTestSuitePayload {
   name: string;
   description?: string | null;
-  testCases?: Array<{
-    name: string;
-    input: string;
-    expectedAction: 'ALLOW' | 'BLOCK';
-    severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
-    category: string;
-  }>;
+  testCases?: TestCaseCreatePayload[];
 }
 
 // 2. TestSuite 목록 조회 응답 (Pagination)
