@@ -146,6 +146,10 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
         key={selectedSuite?.id ?? 'closed'}
         suite={selectedSuite}
         onClose={() => setSelectedSuite(null)}
+        onDeleted={() => {
+          setSelectedSuite(null);
+          setReloadToken((token) => token + 1);
+        }}
         onNotify={onNotify}
       />
       <CreateSuiteModal

@@ -81,3 +81,12 @@ export async function updateTestSuite(
     body: JSON.stringify(payload),
   });
 }
+
+/**
+ * TestSuite 및 현재 소속 TestCase 삭제 (DELETE /test-suites/{suiteId})
+ */
+export async function deleteTestSuite(testSuiteId: string | number): Promise<void> {
+  return apiRequest<void>(`/test-suites/${testSuiteId}`, {
+    method: 'DELETE',
+  });
+}
