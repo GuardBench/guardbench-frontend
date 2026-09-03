@@ -3,7 +3,7 @@ import { apiRequest } from './apiClient';
 // ─── OpenAPI 계약 기준 요청/응답 DTO ─────────────────────────────
 
 // POST /test-runs  요청 (TestRunCreateReq)
-export type EvaluationCheck = 'PROMPT_INJECTION' | 'PII_LEAKAGE' | 'HARMFUL_CONTENT';
+export type EvaluationCheck = 'PII_LEAKAGE' | 'HARMFUL_CONTENT';
 export type EvaluationStrictness = 'RELAXED' | 'STANDARD' | 'STRICT';
 
 export interface TargetReferenceReq {

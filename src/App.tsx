@@ -7,6 +7,7 @@ import { SuitesView } from './components/views/SuitesView';
 import { NewRunView } from './components/views/NewRunView';
 import { RunsView } from './components/views/RunsView';
 import { ResultDetailView } from './components/views/ResultDetailView';
+import { RegressionComparisonSection } from './components/views/RegressionComparisonSection';
 import { ArchitectureView } from './components/views/ArchitectureView';
 import { runtimeConfig } from './config/runtimeConfig';
 import { LAYER_CLASS } from './config/layers';
@@ -87,11 +88,14 @@ export function App() {
             />
           )}
           {currentView === 'result' && (
-            <ResultDetailView
-              key={selectedRunId}
-              selectedRunId={selectedRunId}
-              onGoNewRun={() => handleSelectView('new-run')}
-            />
+            <div className="space-y-6">
+              <ResultDetailView
+                key={selectedRunId}
+                selectedRunId={selectedRunId}
+                onGoNewRun={() => handleSelectView('new-run')}
+              />
+              <RegressionComparisonSection runId={selectedRunId} />
+            </div>
           )}
           {currentView === 'architecture' && <ArchitectureView />}
         </main>
