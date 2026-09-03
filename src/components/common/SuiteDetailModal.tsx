@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Severity, TestCase, TestSuite } from '../../types';
 import { X, Plus, Trash2, Edit2, AlertCircle, Loader2 } from 'lucide-react';
 import { getTestCases, createTestCase, deleteTestCase } from '../../services/testCaseService';
+import { deleteTestSuite } from '../../services/testSuiteService';
 import { ApiError, presentApiError } from '../../services/apiClient';
 import { RequestErrorBanner } from './RequestErrorBanner';
 import { useDialogFocus } from '../../hooks/useDialogFocus';
@@ -11,6 +12,7 @@ import { LAYER_CLASS } from '../../config/layers';
 interface SuiteDetailModalProps {
   suite: TestSuite | null;
   onClose: () => void;
+  onDeleted: () => void;
   onNotify: (msg: string) => void;
 }
 
@@ -21,13 +23,16 @@ type AddCaseValidation = {
   message: string;
 };
 
-export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClose, onNotify }) => {
+export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClose, onDeleted, onNotify }) => {
   const [cases, setCases] = useState<TestCase[]>([]);
   const [casesOwnerSuiteId, setCasesOwnerSuiteId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<unknown>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [isAdding, setIsAdding] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<unknown>(null);
   const [addValidation, setAddValidation] = useState<AddCaseValidation | null>(null);
   const [newCase, setNewCase] = useState<Partial<TestCase>>({
     name: '',
@@ -39,7 +44,16 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   const caseNameRef = useRef<HTMLInputElement>(null);
   const caseInputRef = useRef<HTMLTextAreaElement>(null);
   const caseCategoryRef = useRef<HTMLInputElement>(null);
+  const cancelDeleteRef = useRef<HTMLButtonElement>(null);
+  const deleteInFlightRef = useRef(false);
   const dialogRef = useDialogFocus({ isOpen: suite !== null, onClose });
+  const deleteConfirmDialogRef = useDialogFocus({
+    isOpen: isDeleteConfirmOpen,
+    onClose: () => {
+      if (!isDeleting) setIsDeleteConfirmOpen(false);
+    },
+    initialFocusRef: cancelDeleteRef,
+  });
 
   useEffect(() => {
     if (!suite) return undefined;
@@ -176,9 +190,36 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     }
   };
 
+  const openDeleteConfirmation = () => {
+    setDeleteError(null);
+    setIsDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteSuite = async () => {
+    if (deleteInFlightRef.current) return;
+
+    deleteInFlightRef.current = true;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      const cleanSuiteId = suite.id.replace('suite-', '');
+      await deleteTestSuite(cleanSuiteId);
+      deleteInFlightRef.current = false;
+      setIsDeleting(false);
+      onNotify(`테스트 스위트 '${suite.name}'가 삭제되었습니다.`);
+      onDeleted();
+    } catch (error) {
+      deleteInFlightRef.current = false;
+      setIsDeleting(false);
+      setDeleteError(error);
+      const presented = presentApiError(error, `'${suite.name}' 삭제에 실패했습니다.`);
+      onNotify(`[스위트 삭제 실패 · ${presented.code}] ${presented.message}`);
+    }
+  };
+
   return createPortal(
     <div className={`fixed inset-0 ${LAYER_CLASS.dialog} flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-rise`}>
-      <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="suite-detail-title" tabIndex={-1} className="relative z-10 w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#e5e9ee] flex flex-col max-h-[90vh]">
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-hidden={isDeleteConfirmOpen} aria-labelledby="suite-detail-title" tabIndex={-1} className="relative z-10 w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-[#e5e9ee] flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="p-6 border-b border-[#e5e9ee] flex justify-between items-start bg-[#fafbfb]">
           <div className="flex items-center gap-3">
@@ -390,7 +431,15 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-[#e5e9ee] bg-[#fafbfb] flex justify-end">
+        <div className="p-4 border-t border-[#e5e9ee] bg-[#fafbfb] flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={openDeleteConfirmation}
+            disabled={isDeleting}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-[#e7aaa5] bg-[#fff0ef] px-4 py-2 text-xs font-bold text-[#a82f2a] hover:bg-[#ffe0de] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Trash2 size={14} /> 스위트 삭제
+          </button>
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545]"
@@ -399,6 +448,59 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
           </button>
         </div>
       </section>
+      {isDeleteConfirmOpen && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-4">
+          <section
+            ref={deleteConfirmDialogRef}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-suite-title"
+            aria-describedby="delete-suite-description"
+            tabIndex={-1}
+            className="w-full max-w-md rounded-2xl border border-[#f1c4bf] bg-white p-6 shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#fff0ef] text-[#bd3b35]">
+                <Trash2 size={19} />
+              </div>
+              <div>
+                <h2 id="delete-suite-title" className="text-base font-extrabold text-[#17202a]">테스트 스위트를 삭제할까요?</h2>
+                <p id="delete-suite-description" className="mt-2 text-xs leading-relaxed text-[#586473]">
+                  <b className="text-[#17202a]">{suite.name}</b>과 현재 소속된 TestCase가 영구 삭제됩니다. 기존 Run과 Snapshot, 실행·평가 결과는 유지됩니다.
+                </p>
+              </div>
+            </div>
+            {deleteError !== null && (
+              <div className="mt-4">
+                <RequestErrorBanner
+                  error={deleteError}
+                  fallbackMessage="테스트 스위트를 삭제하지 못했습니다."
+                  onRetry={handleDeleteSuite}
+                />
+              </div>
+            )}
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                ref={cancelDeleteRef}
+                type="button"
+                onClick={() => setIsDeleteConfirmOpen(false)}
+                disabled={isDeleting}
+                className="rounded-lg border border-[#dce1e6] px-4 py-2 text-xs font-bold text-[#4e5a68] hover:bg-[#f5f7f8] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteSuite}
+                disabled={isDeleting}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#bd3b35] px-4 py-2 text-xs font-bold text-white hover:bg-[#9f2f2a] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isDeleting && <Loader2 size={14} className="animate-spin" />} {isDeleting ? '삭제 중...' : '삭제하기'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>,
     document.body,
   );
