@@ -11,6 +11,23 @@ export const TEST_CASE_CSV_HEADERS = [
   'category',
 ] as const;
 
+type TestCaseCsvHeader = typeof TEST_CASE_CSV_HEADERS[number];
+
+const testCaseCsvHeaderAliases: Record<TestCaseCsvHeader, readonly string[]> = {
+  name: ['name', '테스트 케이스명', '테스트 케이스 이름'],
+  input: ['input', '프롬프트', '입력 프롬프트'],
+  expectedAction: ['expectedAction', '처리 방식'],
+  severity: ['severity', 'Severity'],
+  category: ['category', '카테고리'],
+};
+
+const expectedActionAliases: Record<string, TestCaseCreatePayload['expectedAction']> = {
+  ALLOW: 'ALLOW',
+  BLOCK: 'BLOCK',
+  허용: 'ALLOW',
+  차단: 'BLOCK',
+};
+
 export type BulkImportIssue = {
   row: number | null;
   message: string;
@@ -81,6 +98,50 @@ const validateRecords = (records: Array<Record<string, unknown>>, firstDataRow: 
   return { cases, issues };
 };
 
+const resolveCsvHeaders = (headers: string[]): { resolved: Record<TestCaseCsvHeader, string> | null; issues: BulkImportIssue[] } => {
+  const resolved = {} as Record<TestCaseCsvHeader, string>;
+  const issues: BulkImportIssue[] = [];
+
+  TEST_CASE_CSV_HEADERS.forEach((field) => {
+    const matches = testCaseCsvHeaderAliases[field].filter((header) => headers.includes(header));
+    if (matches.length === 0) {
+      issues.push({
+        row: null,
+        message: `CSV ${field} 열이 없습니다. 허용 헤더: ${testCaseCsvHeaderAliases[field].join(', ')}`,
+      });
+      return;
+    }
+    if (matches.length > 1) {
+      issues.push({
+        row: null,
+        message: `CSV ${field}에 대응하는 열이 여러 개입니다: ${matches.join(', ')}. 하나만 남겨 주세요.`,
+      });
+      return;
+    }
+    resolved[field] = matches[0];
+  });
+
+  return { resolved: issues.length === 0 ? resolved : null, issues };
+};
+
+const normalizeCsvRecord = (
+  record: Record<string, unknown>,
+  headers: Record<TestCaseCsvHeader, string>,
+  detailCategoryHeader: string | undefined,
+): Record<string, unknown> => {
+  const category = valueOf(record, headers.category);
+  const detailCategory = detailCategoryHeader ? valueOf(record, detailCategoryHeader) : '';
+  const expectedAction = valueOf(record, headers.expectedAction);
+
+  return {
+    name: valueOf(record, headers.name),
+    input: valueOf(record, headers.input),
+    expectedAction: expectedActionAliases[expectedAction] ?? expectedAction,
+    severity: valueOf(record, headers.severity),
+    category: [category, detailCategory].filter(Boolean).join(' / '),
+  };
+};
+
 export const parseInitialTestCasesJson = (source: string): BulkImportResult => {
   let parsed: unknown;
   try {
@@ -125,18 +186,19 @@ export const parseInitialTestCasesCsv = (source: string): BulkImportResult => {
     transformHeader: (header) => header.replace(/^\uFEFF/, '').trim(),
   });
   const headers = parsed.meta.fields ?? [];
-  const missingHeaders = TEST_CASE_CSV_HEADERS.filter((header) => !headers.includes(header));
-  const issues: BulkImportIssue[] = [];
-
-  if (missingHeaders.length > 0) {
-    issues.push({ row: null, message: `CSV header가 없습니다: ${missingHeaders.join(', ')}` });
-  }
+  const headerResult = resolveCsvHeaders(headers);
+  const issues = [...headerResult.issues];
   parsed.errors.forEach((error) => {
     issues.push({ row: error.row === undefined ? null : error.row + 2, message: `CSV ${rowLabel(error.row === undefined ? null : error.row + 2)}${error.message}` });
   });
-  if (issues.length > 0) return { cases: [], issues };
+  const resolvedHeaders = headerResult.resolved;
+  if (issues.length > 0 || !resolvedHeaders) return { cases: [], issues };
 
-  return validateRecords(parsed.data as Array<Record<string, unknown>>, 2);
+  const detailCategoryHeader = headers.includes('세부 유형') ? '세부 유형' : undefined;
+  const records = (parsed.data as Array<Record<string, unknown>>).map((record) => (
+    normalizeCsvRecord(record, resolvedHeaders, detailCategoryHeader)
+  ));
+  return validateRecords(records, 2);
 };
 
 export const testCaseCsvTemplate = () => [

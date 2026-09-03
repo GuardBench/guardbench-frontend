@@ -190,7 +190,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
       return;
     }
     if (bulkIssues.length > 0) {
-      failValidation('bulk', '대량 입력의 오류를 수정한 뒤 다시 미리보기를 확인해 주세요.');
+      failValidation('bulk', '일괄 등록 항목의 오류를 수정한 뒤 다시 미리보기를 확인해 주세요.');
       return;
     }
 
@@ -230,7 +230,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
         });
         if (Object.keys(serverErrors).length > 0) {
           setBulkServerErrors(serverErrors);
-          failValidation('bulk', `[${error.code}] 대량 입력 항목을 확인해 주세요.`);
+          failValidation('bulk', `[${error.code}] 일괄 등록 항목을 확인해 주세요.`);
         } else {
           const field = serverValidationField(error.fieldErrors[0].field);
           failValidation(field, `[${error.code}] ${error.fieldErrors.map((fieldError) => fieldError.message).join(' ')}`);
@@ -338,7 +338,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                   aria-expanded={isBulkInputOpen}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-[#dce1e6] bg-white px-3 py-2 text-xs font-bold text-[#253545] hover:bg-[#eef1f4]"
                 >
-                  <FileUp size={14} /> {isBulkInputOpen ? '대량 입력 닫기' : '대량 입력'}
+                  <FileUp size={14} /> {isBulkInputOpen ? '일괄 등록 닫기' : '일괄 등록'}
                 </button>
               </div>
             </div>
@@ -420,7 +420,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
               <div className="mt-4 space-y-4 border-t border-[#e5e9ee] pt-4">
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                   <div>
-                    <h4 className="text-xs font-extrabold text-[#1a7f5a]">초기 TestCase 대량 입력</h4>
+                    <h4 className="text-xs font-extrabold text-[#1a7f5a]">초기 TestCase 일괄 등록</h4>
                     <p className="mt-1 text-[11px] text-[#697586]">JSON 배열을 붙여넣거나 UTF-8 CSV 파일을 올릴 수 있습니다. 최대 {MAX_INITIAL_TEST_CASES}개입니다.</p>
                   </div>
                   <button type="button" onClick={downloadCsvTemplate} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#dce1e6] bg-white px-3 py-2 text-[11px] font-bold text-[#253545] hover:bg-[#eef1f4]">
@@ -428,7 +428,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                   </button>
                 </div>
 
-                <div className="flex gap-2" role="group" aria-label="대량 입력 방식">
+                <div className="flex gap-2" role="group" aria-label="일괄 등록 방식">
                   <button
                     type="button"
                     aria-pressed={bulkInputMode === 'json'}
@@ -479,12 +479,15 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                     aria-describedby={validation?.field === 'bulk' ? 'create-suite-validation-summary' : undefined}
                     className="block w-full rounded-lg border border-[#dce1e6] bg-white p-2 text-xs file:mr-3 file:rounded-md file:border-0 file:bg-[#eef1f4] file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[#253545]"
                   />
-                  <p className="mt-2 text-[11px] text-[#697586]">필수 열: name, input, expectedAction, severity, category{csvFileName ? ` · ${csvFileName}` : ''}</p>
+                  <div className="mt-2 space-y-0.5 text-[11px] text-[#697586]">
+                    <p>기본 열: name, input, expectedAction, severity, category{csvFileName ? ` · ${csvFileName}` : ''}</p>
+                    <p>별칭: 테스트 케이스명/테스트 케이스 이름, 프롬프트/입력 프롬프트, 처리 방식, Severity, 카테고리. 세부 유형은 카테고리에 합칩니다.</p>
+                  </div>
                 </div>}
 
                 {(bulkCases.length > 0 || bulkIssues.length > 0) && <div className="rounded-xl border border-[#dce1e6] bg-white">
                   <div className="flex items-center justify-between gap-3 border-b border-[#e5e9ee] px-3 py-2 text-xs">
-                    <span className="font-bold text-[#17202a]">대량 입력 미리보기 · 정상 {bulkCases.length}개 / 오류 {bulkIssues.length}개</span>
+                    <span className="font-bold text-[#17202a]">일괄 등록 미리보기 · 정상 {bulkCases.length}개 / 오류 {bulkIssues.length}개</span>
                     <button type="button" onClick={clearBulkInput} className="text-[11px] font-bold text-[#697586] hover:text-[#bd3b35]">비우기</button>
                   </div>
                   {bulkIssues.length > 0 && <ul className="space-y-1 border-b border-[#e5e9ee] bg-[#fff7e8] px-3 py-2 text-[11px] text-[#78501b]">
