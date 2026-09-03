@@ -14,8 +14,8 @@ import { useLiveRunProgress } from '../../hooks/useLiveRunProgress';
 import { useDialogFocus } from '../../hooks/useDialogFocus';
 import { LAYER_CLASS } from '../../config/layers';
 import { RequestErrorBanner } from '../common/RequestErrorBanner';
+import { RunProgressStepper } from '../common/RunProgressStepper';
 import { StatusPill } from '../common/StatusPill';
-import { progressStatusLabel } from '../common/statusLabels';
 
 interface ResultDetailViewProps {
   selectedRunId?: string;
@@ -50,10 +50,6 @@ const OUTCOME_FILTERS: Array<{ value: OutcomeFilter; label: string }> = [
 const percentageLabel = (rate: number) => `${(Math.floor(rate * 10_000) / 100).toFixed(2)}%`;
 
 const rateLabel = (rate: number | null) => rate === null ? '분모 없음' : percentageLabel(rate);
-
-const updatedAtLabel = (updatedAt: string | undefined) => updatedAt
-  ? new Intl.DateTimeFormat('ko-KR', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(updatedAt))
-  : '확인 중';
 
 export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunId, onGoNewRun }) => {
   const [results, setResults] = useState<TestRunResultListItemRes[]>([]);
@@ -223,7 +219,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
 
     {notFinishedRace && !detailLoading
       ? <div className="flex items-center gap-2 rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]"><AlertCircle size={14} />{raceRecoveryExhausted ? '결과 준비 상태를 확인하지 못했습니다. 다시 시도해 주세요.' : '실행은 종료됐지만 결과가 아직 준비되지 않았습니다. 자동으로 다시 확인하고 있습니다.'}</div>
-      : notFinished && !detailLoading && <div className="flex items-center gap-2 rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]"><AlertCircle size={14} />{detail?.status ? progressStatusLabel(detail.status) : '상태 확인 중'} · {detail?.progress.processedTestCaseCount ?? 0}/{detail?.testCaseCount ?? 0}건 처리 · {detail?.progress.percent.toFixed(0) ?? 0}% · 마지막 갱신 {updatedAtLabel(detail?.updatedAt)}</div>}
+      : detail && !detailLoading && <RunProgressStepper status={detail.status} processedCount={detail.progress.processedTestCaseCount} totalCount={detail.testCaseCount} percent={detail.progress.percent} updatedAt={detail.updatedAt} compact={detail.status === 'FINISHED'} />}
     {autoRefreshStopped && detail && !detailLoading && <div className="rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs font-bold text-[#78501b]">자동 갱신이 중단됐습니다. 다시 시도를 눌러주세요.</div>}
     {detailError !== null && detail && !detailLoading && <RequestErrorBanner error={detailError} fallbackMessage="최신 실행 상세를 불러오지 못했습니다." stale={detailStale} onRetry={refreshAll} />}
     {resultsError !== null && !resultsLoading && <RequestErrorBanner error={resultsError} fallbackMessage="Snapshot 결과를 불러오지 못했습니다." stale={hasLoadedResults} onRetry={refreshAll} />}
