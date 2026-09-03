@@ -40,8 +40,8 @@ export async function getTestCases(
   params?: { page?: number; size?: number; name?: string; category?: string }
 ): Promise<TestCaseListApiResponse> {
   const query = new URLSearchParams();
-  if (params?.page) query.append('page', params.page.toString());
-  if (params?.size) query.append('size', params.size.toString());
+  if (params?.page !== undefined) query.append('page', params.page.toString());
+  if (params?.size !== undefined) query.append('size', params.size.toString());
   if (params?.name) query.append('name', params.name);
   if (params?.category) query.append('category', params.category);
 

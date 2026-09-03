@@ -2,12 +2,33 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Severity, TestCase, TestSuite } from '../../types';
 import { X, Plus, Trash2, Edit2, AlertCircle, Loader2 } from 'lucide-react';
-import { getTestCases, createTestCase, deleteTestCase } from '../../services/testCaseService';
+import { getTestCases, createTestCase, deleteTestCase, type TestCaseListApiResponse } from '../../services/testCaseService';
 import { deleteTestSuite } from '../../services/testSuiteService';
 import { ApiError, presentApiError } from '../../services/apiClient';
 import { RequestErrorBanner } from './RequestErrorBanner';
 import { useDialogFocus } from '../../hooks/useDialogFocus';
 import { LAYER_CLASS } from '../../config/layers';
+
+const TEST_CASE_PAGE_SIZE = 20;
+
+const pageItems = (currentPage: number, totalPages: number): Array<number | 'ellipsis'> => {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+
+  const pages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+  if (currentPage <= 3) {
+    pages.add(2);
+    pages.add(3);
+    pages.add(4);
+  }
+  if (currentPage >= totalPages - 2) {
+    pages.add(totalPages - 3);
+    pages.add(totalPages - 2);
+    pages.add(totalPages - 1);
+  }
+
+  const sorted = [...pages].filter((page) => page >= 1 && page <= totalPages).sort((a, b) => a - b);
+  return sorted.flatMap((page, index) => index > 0 && page - sorted[index - 1] > 1 ? ['ellipsis', page] : [page]);
+};
 
 interface SuiteDetailModalProps {
   suite: TestSuite | null;
@@ -26,6 +47,8 @@ type AddCaseValidation = {
 export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClose, onDeleted, onNotify }) => {
   const [cases, setCases] = useState<TestCase[]>([]);
   const [casesOwnerSuiteId, setCasesOwnerSuiteId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState<TestCaseListApiResponse['page'] | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<unknown>(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -54,18 +77,24 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     },
     initialFocusRef: cancelDeleteRef,
   });
+  const suiteId = suite?.id;
 
   useEffect(() => {
-    if (!suite) return undefined;
+    if (!suiteId) return undefined;
 
     let isMounted = true;
     const fetchCases = async () => {
       setIsLoading(true);
       setLoadError(null);
       try {
-        const cleanSuiteId = suite.id.replace('suite-', '');
-        const res = await getTestCases(cleanSuiteId);
+        const cleanSuiteId = suiteId.replace('suite-', '');
+        const res = await getTestCases(cleanSuiteId, { page, size: TEST_CASE_PAGE_SIZE });
         if (isMounted) {
+          // A deletion can make the requested last page invalid between requests.
+          if (res.items.length === 0 && res.page.totalElements > 0 && res.page.totalPages > 0 && res.page.number > res.page.totalPages) {
+            setPage(res.page.totalPages);
+            return;
+          }
           const mappedCases: TestCase[] = res.items.map((item) => ({
             id: `tc-${item.id}`,
             name: item.name,
@@ -76,7 +105,8 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             createdAt: item.createdAt || '방금 전',
           }));
           setCases(mappedCases);
-          setCasesOwnerSuiteId(suite.id);
+          setCasesOwnerSuiteId(suiteId);
+          setPageMeta(res.page);
         }
       } catch (error) {
         if (isMounted) {
@@ -91,12 +121,14 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     return () => {
       isMounted = false;
     };
-  }, [suite, reloadToken]);
+  }, [suiteId, page, reloadToken]);
 
   if (!suite) return null;
 
   const isCurrentSuiteLoaded = casesOwnerSuiteId === suite.id;
   const visibleCases = isCurrentSuiteLoaded ? cases : [];
+  const visiblePageMeta = isCurrentSuiteLoaded ? pageMeta : null;
+  const totalCaseCount = visiblePageMeta?.totalElements;
 
   const failAddValidation = (field: AddCaseValidationField, message: string) => {
     setAddValidation({ field, message });
@@ -160,8 +192,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
         createdAt: response.createdAt || '방금 전',
       };
 
-      setCases((currentCases) => [...currentCases, created]);
-      setCasesOwnerSuiteId(suite.id);
+      setReloadToken((token) => token + 1);
       setIsAdding(false);
       setAddValidation(null);
       setNewCase({ name: '', input: '', expectedAction: 'BLOCK', severity: 'HIGH', category: 'PII' });
@@ -181,8 +212,8 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     try {
       const cleanCaseId = id.replace('tc-', '');
       await deleteTestCase(cleanCaseId);
-      // 삭제 성공 시에만 UI 상태 업데이트
-      setCases((currentCases) => currentCases.filter((c) => c.id !== id));
+      // 삭제 뒤 서버 메타데이터를 다시 읽어, 비어 버린 마지막 페이지는 자동으로 이전 페이지로 이동한다.
+      setReloadToken((token) => token + 1);
       onNotify(`테스트 케이스 '${name}'가 삭제되었습니다.`);
     } catch (error) {
       const presented = presentApiError(error, `'${name}' 삭제에 실패했습니다.`);
@@ -267,9 +298,14 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
           )}
           {/* Header & Add Button */}
           <div className="flex justify-between items-center">
-            <h3 className="text-sm font-bold text-[#17202a]">
-              소속 테스트 케이스 목록 ({visibleCases.length}개)
-            </h3>
+            <div>
+              <h3 className="text-sm font-bold text-[#17202a]">
+                소속 테스트 케이스 목록 ({totalCaseCount ?? '—'}개)
+              </h3>
+              {isCurrentSuiteLoaded && isLoading && (
+                <p role="status" className="mt-1 text-[11px] text-[#697586]">현재 페이지를 갱신하는 중입니다.</p>
+              )}
+            </div>
             <button
               onClick={() => {
                 setIsAdding(!isAdding);
@@ -372,6 +408,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
 
           {/* TestCase Table */}
           <div className="border border-[#e5e9ee] rounded-xl overflow-hidden">
+            <div className="max-h-[38vh] overflow-auto">
             <table className="w-full text-xs text-left border-collapse">
               <thead>
                 <tr className="bg-[#fafbfb] border-b border-[#e5e9ee] text-[#7a8592] font-bold uppercase text-[10px]">
@@ -418,7 +455,14 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                     </td>
                   </tr>
                 ))}
-                {isCurrentSuiteLoaded && visibleCases.length === 0 && (
+                {!isCurrentSuiteLoaded && isLoading && (
+                  <tr>
+                    <td colSpan={5} className="p-8 text-center text-[#697586]">
+                      테스트 케이스 목록을 불러오는 중입니다.
+                    </td>
+                  </tr>
+                )}
+                {isCurrentSuiteLoaded && visibleCases.length === 0 && !isLoading && (
                   <tr>
                     <td colSpan={5} className="p-8 text-center text-[#697586]">
                       등록된 테스트 케이스가 없습니다.
@@ -427,11 +471,12 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-[#e5e9ee] bg-[#fafbfb] flex items-center justify-between gap-3">
+        <div className="p-4 border-t border-[#e5e9ee] bg-[#fafbfb] flex items-center justify-between gap-4">
           <button
             type="button"
             onClick={openDeleteConfirmation}
@@ -440,6 +485,39 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
           >
             <Trash2 size={14} /> 스위트 삭제
           </button>
+          <nav aria-label="테스트 케이스 페이지네이션" className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPage(Math.max(1, (visiblePageMeta?.number ?? page) - 1))}
+              disabled={!visiblePageMeta?.hasPrevious || isLoading}
+              className="rounded-lg border border-[#dce1e6] px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              이전
+            </button>
+            {visiblePageMeta && pageItems(visiblePageMeta.number, visiblePageMeta.totalPages).map((item, index) => item === 'ellipsis' ? (
+              <span key={`ellipsis-${index}`} aria-hidden="true" className="px-1 text-xs text-[#697586]">…</span>
+            ) : (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setPage(item)}
+                disabled={isLoading}
+                aria-current={item === visiblePageMeta.number ? 'page' : undefined}
+                aria-label={`${item}페이지`}
+                className={`min-w-8 rounded-lg px-2 py-2 text-xs font-bold disabled:cursor-not-allowed ${item === visiblePageMeta.number ? 'bg-[#17202a] text-white' : 'text-[#4e5a68] hover:bg-[#eef1f4]'}`}
+              >
+                {item}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setPage((visiblePageMeta?.number ?? page) + 1)}
+              disabled={!visiblePageMeta?.hasNext || isLoading}
+              className="rounded-lg border border-[#dce1e6] px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              다음
+            </button>
+          </nav>
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545]"
