@@ -16,6 +16,7 @@ const titleMap: Record<ViewType, string> = {
   'new-run': '새 테스트 실행',
   runs: '실행 이력',
   result: '결과 상세',
+  regression: 'Regression 상세',
   architecture: '아키텍처',
 };
 
@@ -23,7 +24,6 @@ export const Topbar: React.FC<TopbarProps> = ({ currentView, isMobileMenuOpen, o
   return (
     <header className={`sticky top-0 ${LAYER_CLASS.topbar} h-[72px] px-6 lg:px-8 bg-white/85 backdrop-blur-md border-b border-[#e5e9ee] flex items-center justify-between`}>
       <div className="flex items-center gap-3">
-        {/* P2. aria-expanded 및 aria-controls 추가 */}
         <button
           onClick={onToggleMobileMenu}
           aria-expanded={isMobileMenuOpen}
