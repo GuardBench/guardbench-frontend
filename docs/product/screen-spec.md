@@ -2,9 +2,9 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-09-02
-> Scope: GitHub Issues #33, #62
-> AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
+> Last reviewed: 2026-09-04
+> Scope: GitHub Issues #33, #62, #72
+> Implementation baseline: PR #88 (`agent/72-regression-result-detail-docs`)
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 > API consumption contract: [`../contracts/api-integration.md`](../contracts/api-integration.md)
 
@@ -14,7 +14,7 @@
 
 | 표기 | 의미 |
 | --- | --- |
-| `AS-IS` | 기준 commit의 코드에서 관찰되는 현재 동작 |
+| `AS-IS` | 기준 구현에서 관찰되는 현재 동작 |
 | `TO-BE` | 최신 OpenAPI에서 직접 도출되는 목표 동작 |
 | `미결정` | OpenAPI만으로 확정할 수 없는 제품·UI 정책 |
 | `데모` | 실제 API나 영속 상태가 아닌 정적 표현 |
@@ -31,12 +31,13 @@
 | 테스트 스위트 | `SuitesView` | Sidebar | Suite와 TestCase 관리 |
 | 새 테스트 실행 | `NewRunView` | Sidebar / 다시 실행 | TestSuite + Application Target + Evaluation Profile 제출 |
 | 실행 이력 | `RunsView` | Sidebar | Run lifecycle/outcome/Gate 조회와 상세 진입 |
-| 결과 상세 | `ResultDetailView` | Run 행 / 생성 완료 | 현재 Run 결과와 Evaluator 분석 확인 |
+| 결과 상세 | `ResultDetailView` + `RegressionSummaryEntry` | Run 행 / 생성 완료 | 현재 Run 결과를 이해하고 Regression 상세로 진입 |
+| Regression 상세 | `RegressionDetailView` | Result Detail의 `회귀 상세 보기` | comparable Run 선택과 Regression 변화 상세 분석 |
 | 아키텍처 | `ArchitectureView` | Sidebar | 정적 설명 자료 |
 
 현재는 `App`의 local state로 화면과 선택 Run을 관리하며 URL route가 없다. 새로고침, browser back/forward와 직접 URL 진입은 화면 상태를 복원하지 않는다. (`AS-IS`)
 
-라우팅 방식, URL 구조와 filter/page 보존은 `미결정`이다. 다만 어떤 방식을 선택해도 실제 Run ID와 화면 장식 ID를 분리하고, 화면 이동 시 이전 요청과 Polling을 정리해야 한다. (`TO-BE`)
+Regression Detail도 기존 navigation 구조에 맞춰 `regression` local view로 분리한다. 이 화면 분리를 위해 새 routing library를 도입하지 않는다. 라우팅 방식, URL 구조와 filter/page 보존은 `미결정`이다. 다만 어떤 방식을 선택해도 실제 Run ID와 화면 장식 ID를 분리하고, 화면 이동 시 이전 요청과 Polling을 정리해야 한다. (`TO-BE`)
 
 ## 3. 공통 화면 상태
 
@@ -157,8 +158,7 @@ TestSuite
 - 접수 후 즉시 Run 상세 화면 또는 진행 확인 흐름으로 이동한다.
 - `TEST_SUITE_EMPTY`, `IDEMPOTENCY_KEY_CONFLICT`, `EVALUATION_PROFILE_NOT_SUPPORTED`, validation과 network 결과 불명을 구분한다.
 
-생성 후 Result Detail로 이동한다. network 결과 불명에서는 동일 payload/key를 유지하며 화면 이탈 후
-복원과 장기 보존은 `미결정`이다.
+생성 후 Result Detail로 이동한다. network 결과 불명에서는 동일 payload/key를 유지하며 화면 이탈 후 복원과 장기 보존은 `미결정`이다.
 
 ## 7. 실행 이력
 
@@ -198,15 +198,17 @@ filter URL 보존, 진행 Run 자동 갱신과 refresh interval은 `미결정`�
 
 ### 목적
 
-현재 Run의 Application 실행 상태, Evaluation Profile, Evaluator 판정과 Quality Gate를 확인한다. Regression은 같은 화면의 기본 판정에 섞지 않고 별도 비교 흐름으로 제공한다.
+현재 Run 자체의 Application 실행 상태, Evaluator 판정, Assertion과 Quality Gate를 이해한다. Regression은 이 화면의 기본 판정에 섞지 않고 **요약/진입점만 제공**하며, 상세 비교는 별도 Regression Detail에서 수행한다.
 
 ### 현재 동작 (`AS-IS`)
 
-- Run 상세와 결과 endpoint를 호출한다.
+- `ResultDetailView`가 Run 상세와 결과 endpoint를 호출한다.
 - 단일 Application 실행, Evaluator verdict, assertion과 evaluation outcome을 표시한다.
 - 결과 page metadata와 server filter를 사용하고 Evaluator metrics를 별도로 조회한다.
 - Quality Gate의 확정된 두 metrics를 서버 값 그대로 표시한다.
-- Application 자연어 응답과 legacy Baseline/Candidate diff를 표시하지 않는다.
+- `RegressionSummaryEntry`가 comparable historical Run 존재 여부를 간단히 조회하고 `회귀 상세 보기` action을 제공한다.
+- Result Detail에서는 전체 Regression case table을 렌더링하지 않는다.
+- Application 자연어 응답과 legacy 한 Run 내부 Baseline/Candidate diff를 표시하지 않는다.
 
 ### 8.1 Run 요약 (`AS-IS`)
 
@@ -217,9 +219,7 @@ filter URL 보존, 진행 Run 자동 갱신과 refresh interval은 `미결정`�
 - Quality Gate status
 - created/started/completed/updated 시각
 
-`qualityGate: null`은 아직 결정 전이고 `NOT_EVALUATED + metrics: null`은 종료됐지만 평가 가능한
-Assertion이 없는 상태다. PASS/FAIL에서는 `assertionPassRate`와 `executionSuccessRate`를 표시하되
-프론트에서 Gate status를 다시 계산하지 않는다.
+`qualityGate: null`은 아직 결정 전이고 `NOT_EVALUATED + metrics: null`은 종료됐지만 평가 가능한 Assertion이 없는 상태다. PASS/FAIL에서는 `assertionPassRate`와 `executionSuccessRate`를 표시하되 프론트에서 Gate status를 다시 계산하지 않는다.
 
 ### 8.2 개별 결과 (`AS-IS`)
 
@@ -269,23 +269,56 @@ Assertion이 없는 상태다. PASS/FAIL에서는 `assertionPassRate`와 `execut
 
 Evaluator metrics는 현재 Result Detail에서 Quality Gate와 구분된 review section으로 표시한다.
 
-## 9. Regression 비교
+### 8.4 Regression 요약/진입점 (`AS-IS`)
 
-### 목적 (`TO-BE`)
+`RegressionSummaryEntry`는 Result Detail의 보조 컴포넌트다.
 
-현재 Run과 backend가 비교 가능하다고 반환한 과거 FINISHED Run의 저장 결과를 비교한다. 현재 Run의 Quality Gate와 별도 기능이다.
+- `GET /api/v1/test-runs/{testRunId}/comparable-runs`를 작은 page size로 조회해 비교 가능한 historical Run 존재 여부와 개수를 확인한다.
+- 현재 Run이 아직 종료되지 않았으면 완료 후 재확인한다.
+- 비교 가능한 Run이 없으면 상세 진입 action을 비활성화한다.
+- 비교 가능한 Run이 있으면 `회귀 상세 보기`로 `RegressionDetailView`에 진입한다.
+- 이 컴포넌트에서 case-level comparison table을 렌더링하지 않는다.
+
+## 9. Regression 상세
+
+### 목적 (`AS-IS`)
+
+현재 Run과 backend가 comparable로 반환한 과거 FINISHED Run의 저장 결과를 전용 화면에서 비교한다. Quality Gate와 Regression은 독립된 기능이다.
 
 ### 화면 흐름
 
-1. 현재 Run에서 `GET /api/v1/test-runs/{testRunId}/comparable-runs`를 조회한다.
+```text
+Result Detail
+→ RegressionSummaryEntry
+→ 회귀 상세 보기
+→ Regression Detail
+→ comparable historical Run 선택
+→ comparison summary 확인
+→ 변화 case 탐색
+→ case-level Previous / Current 비교
+```
+
+Regression Detail은 기존 `RegressionComparisonSection`과 `regressionService`를 재사용한다.
+
+1. `GET /api/v1/test-runs/{testRunId}/comparable-runs`를 조회한다.
 2. backend가 반환한 후보만 page 단위로 표시한다.
 3. 과거 Run의 target, evaluationProfile과 completedAt을 비교 맥락으로 표시한다.
-4. 후보를 선택해 comparisons endpoint를 조회한다.
-5. Application이나 Evaluator를 다시 실행하는 것처럼 표현하지 않는다.
+4. 후보를 선택해 `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}`를 조회한다.
+5. summary의 `totalCases`, `changedCount`, `unchangedCount`, `regressedCount`, `improvedCount`, `notComparableCount`를 서버 값 그대로 표시한다.
+6. case-level에서 Expected, Previous/Current verdict, `comparabilityStatus`, `changeType`을 동일 컨텍스트에서 확인한다.
+7. changed-only filter 등으로 변화 case를 우선 탐색할 수 있게 한다.
+8. Application이나 Evaluator를 다시 실행하지 않는다.
 
-`TestRunComparisonRes`는 Run ID, 전체·변경·유지·개선·악화·비교 불가 count와 case별 item을
-반환한다. 각 item은 Expected, 이전·현재 verdict, `COMPARABLE`/`NOT_COMPARABLE`과 확정 change type을
-포함한다. UI는 서버 classification을 재계산하지 않으며 구현은 #30에서 선택 범위로 추적한다.
+`TestRunComparisonRes`의 summary와 item은 backend classification을 source of truth로 사용한다. 프론트는 comparable 여부나 `changeType`을 재계산하지 않는다.
+
+### UX 원칙
+
+- Result Detail은 현재 Run 자체를 이해하는 화면이고 Regression Detail은 변화 분석을 위한 drill-down 화면이다.
+- Regression Detail은 Regression/Improvement/변화 case를 우선 탐색할 수 있게 한다.
+- 한 case를 볼 때 Expected, Previous verdict, Current verdict, comparability와 change type을 같은 맥락에서 비교한다.
+- 현재 데이터만으로 표현할 수 있다면 `ALLOW → BLOCK`, `BLOCK → ALLOW`, `ALLOW → ALLOW`, `BLOCK → BLOCK` 같은 action transition을 보조 표현으로 사용할 수 있다. 이를 위해 신규 backend 집계 API를 요구하지 않는다.
+- Quality Gate와 Regression을 하나의 PASS/FAIL로 합치지 않는다.
+- Regression Detail은 Result Detail의 drill-down이므로 Sidebar에 별도 1차 메뉴를 추가하지 않아도 된다.
 
 ## 10. 아키텍처 화면
 
@@ -313,9 +346,10 @@ interval, backoff, background tab과 최대 지속 시간은 `미결정`이다.
 | 범위 | 이슈 | 문서 기준 |
 | --- | --- | --- |
 | 새 TestRun 생성 | #27 / #60 완료 | §6 |
-| Run 결과 상세 | #28 / #61 완료 | §8.1~8.2 |
+| Run 결과 상세 | #28 / #61 완료 | §8.1~8.3 |
+| Regression 진입/상세 화면 분리 | #72 / PR #88 | §8.4, §9 |
+| Regression comparison API 소비 | #30 / PR #71 완료 | §9 |
 | Evaluator 분석 | #29 완료 | §8.3 |
-| Regression 비교 | #30 | §9 |
 | API 빈 결과·오류·mock | #19 | §3 및 API 연동 계약 |
 
 ## 13. 검증 근거
@@ -323,12 +357,17 @@ interval, backoff, background tab과 최대 지속 시간은 `미결정`이다.
 - [`../api/openapi.yaml`](../api/openapi.yaml)
 - [`../contracts/api-integration.md`](../contracts/api-integration.md)
 - `src/App.tsx`
-- `src/components/views/`
+- `src/components/views/ResultDetailView.tsx`
+- `src/components/views/RegressionSummaryEntry.tsx`
+- `src/components/views/RegressionDetailView.tsx`
+- `src/components/views/RegressionComparisonSection.tsx`
 - `src/components/common/`
+- `src/services/regressionService.ts`
 - `src/services/`
 - `src/hooks/useLiveRunProgress.ts`
 - `src/types/index.ts`
 - `src/mocks/mockData.ts`
-- GitHub Issues #19, #27, #28, #29, #30, #33
+- GitHub Issues #19, #27, #28, #29, #30, #33, #72
+- GitHub PR #71, #88
 
-이 문서는 프론트엔드 코드 또는 OpenAPI를 변경하지 않는다.
+이 문서는 OpenAPI 계약을 변경하지 않는다.

@@ -68,7 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView, isO
         <div className="text-[#647686] text-[10px] font-extrabold tracking-wider px-3 mb-2">WORKSPACE</div>
         <nav className="space-y-1" aria-label="주 메뉴">
           {navItems.map((item) => {
-            const isActive = currentView === item.view;
+            const isActive = currentView === item.view || (item.view === 'result' && currentView === 'regression');
             return (
               <button
                 key={item.view}

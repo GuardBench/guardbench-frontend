@@ -2,9 +2,9 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-09-02
-> Scope: GitHub Issues #32, #62
-> AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
+> Last reviewed: 2026-09-04
+> Scope: GitHub Issues #32, #62, #72
+> Implementation baseline: PR #88 (`agent/72-regression-result-detail-docs`)
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 
 이 문서는 GuardBench 프론트엔드가 승인된 OpenAPI를 화면에서 소비하는 경계를 정의한다. API endpoint, schema, enum, validation과 오류 code의 소유자는 OpenAPI다. 이 문서는 schema를 다시 정의하지 않고 DTO를 화면 상태로 변환하는 원칙과 사용자 표현 책임만 소유한다.
@@ -30,8 +30,7 @@
 | Quality Gate metrics | 고정 regression 지표 타입 | `assertionPassRate`, `executionSuccessRate` 또는 `null` |
 | Regression | 현재 Run 안에서 변화 계산 | 비교 가능한 과거 Run과 저장 결과를 별도 endpoint로 비교 |
 
-핵심 생성·결과·Evaluator 구현은 #27~#29와 #60~#61에서 완료됐고 Regression UI는 #30에서 선택
-범위로 추적한다.
+핵심 생성·결과·Evaluator 구현은 #27~#29와 #60~#61에서 완료됐다. Regression comparison API 소비는 #30/PR #71에서 구현됐고, #72/PR #88에서는 **Result Detail의 요약/진입점과 별도 Regression Detail 화면**으로 UI 책임을 분리한다.
 
 ### 2.1 사용자가 선택하는 실행·평가 입력
 
@@ -57,10 +56,7 @@ Quality Gate에는 서로 다른 두 종류의 `null`이 있다.
 | `qualityGate.status: NOT_EVALUATED`, `metrics: null` | Run은 종료됐지만 Gate를 계산할 수 없었다. | 종료된 평가 불가 상태로 표현하고 진행 중 상태와 구분한다. |
 | `qualityGate.status: PASS` 또는 `FAIL` | 현재 Run의 assertion 집계를 바탕으로 Gate가 결정됐다. | PASS/FAIL 상태는 표시할 수 있지만 metrics의 세부 카드 구성은 확정된 필드만 사용한다. |
 
-`QualityGateRes.metrics`는 필드 자체는 required지만 값은 nullable이다. 값이 있으면
-`additionalProperties: false`인 객체이며 `assertionPassRate`와 `executionSuccessRate` 두 필드를 모두
-포함한다. 두 값은 0~1의 서버 저장 비율이다. OpenAPI는 두 비율이 각각 0.95 이상이면 PASS,
-하나라도 미만이면 FAIL이라고 정의한다.
+`QualityGateRes.metrics`는 필드 자체는 required지만 값은 nullable이다. 값이 있으면 `additionalProperties: false`인 객체이며 `assertionPassRate`와 `executionSuccessRate` 두 필드를 모두 포함한다. 두 값은 0~1의 서버 저장 비율이다. OpenAPI는 두 비율이 각각 0.95 이상이면 PASS, 하나라도 미만이면 FAIL이라고 정의한다.
 
 따라서 프론트엔드는 다음을 지킨다.
 
@@ -82,8 +78,9 @@ Quality Gate에는 서로 다른 두 종류의 `null`이 있다.
 | Run 진행·요약 | 결과 상세 또는 실행 이력 | `GET /api/v1/test-runs/{testRunId}` | 즉시 조회 후 `FINISHED`까지 Polling한다. |
 | 개별 평가 결과 | 결과 상세 | `GET /api/v1/test-runs/{testRunId}/results` | `FINISHED` 이후 조회하고 실행·평가·assertion 상태를 분리한다. |
 | Evaluator 분류 지표 | Evaluator 검토 | `GET /api/v1/test-runs/{testRunId}/evaluator-metrics` | 서버가 집계한 TP/TN/FP/FN과 rate를 source of truth로 사용한다. |
-| 비교 후보 | Regression 비교 | `GET /api/v1/test-runs/{testRunId}/comparable-runs` | 프론트에서 비교 가능 조건을 재구현하지 않는다. |
-| 저장 결과 비교 | Regression 비교 | `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}` | 서버 summary count와 case별 comparability/change type을 그대로 사용한다. |
+| Regression 진입 가능 여부 | Result Detail `RegressionSummaryEntry` | `GET /api/v1/test-runs/{testRunId}/comparable-runs` | 작은 page로 comparable Run 존재 여부를 확인하고 상세 진입 상태만 결정한다. |
+| 비교 후보 | Regression Detail | `GET /api/v1/test-runs/{testRunId}/comparable-runs` | Backend가 반환한 candidate만 표시하고 프론트에서 비교 가능 조건을 재구현하지 않는다. |
+| 저장 결과 비교 | Regression Detail | `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}` | 서버 summary count와 case별 comparability/change type을 그대로 사용하고 변화 case를 우선 탐색한다. |
 
 대시보드와 아키텍처 화면에는 전용 API가 없다. 정적 또는 mock 자료를 실제 서버 집계나 최신 도메인 상태로 표현하지 않는다.
 
@@ -324,15 +321,37 @@ Evaluator metrics endpoint는 한 Run의 저장된 Expected와 Evaluator verdict
 
 ## 10. Comparable Runs와 Regression
 
+Regression comparison API 소비는 MVP 필수다. UI는 `Result Detail summary/entry → Regression Detail`의 두 단계로 분리한다.
+
+### 10.1 Result Detail summary/entry
+
+`RegressionSummaryEntry`는 comparison 전체 결과를 보여주는 컴포넌트가 아니다.
+
+1. 현재 Run의 `comparable-runs` endpoint를 작은 page size로 조회한다.
+2. `page.totalElements`를 이용해 comparable historical Run 존재 여부와 개수를 표현한다.
+3. 현재 Run이 완료되지 않았으면 `TEST_RUN_NOT_FINISHED`를 진행 상태로 처리하고 재확인한다.
+4. comparable Run이 없으면 상세 진입 action을 비활성화한다.
+5. comparable Run이 있으면 `회귀 상세 보기` action으로 `RegressionDetailView`에 진입한다.
+6. Result Detail에서 case-level comparison table이나 Regression classification을 다시 계산하지 않는다.
+
+### 10.2 Regression Detail
+
+기존 `RegressionComparisonSection`과 `regressionService`를 재사용한다.
+
 1. 현재 Run의 `comparable-runs` endpoint가 반환한 후보만 표시한다.
 2. 같은 Suite라는 이유만으로 프론트가 후보를 추가하지 않는다.
 3. 선택한 후보와 current Run을 comparisons endpoint로 조회한다.
 4. summary의 `totalCases`, `changedCount`, `unchangedCount`, `improvedCount`, `regressedCount`, `notComparableCount`를 보존한다.
 5. 각 item의 `snapshotId`, `testCaseId`, `name`, `input`, `expectedAction`, `comparisonVerdict`, `currentVerdict`, `comparabilityStatus`, `changeType`을 보존한다.
 6. `COMPARABLE`/`NOT_COMPARABLE`과 `NO_CHANGE`, `SECURITY_REGRESSION`, `USABILITY_REGRESSION`, `IMPROVEMENT`, `POLICY_BEHAVIOR_CHANGED`를 서버 분류 그대로 표시한다.
-7. 비교 과정에서 Application이나 Evaluator를 다시 실행하는 것처럼 표현하지 않는다.
+7. changed-only filter처럼 변화 case를 우선 탐색할 수 있게 한다. filter/tab 표현을 바꾸더라도 프론트에서 change type을 재분류하지 않는다.
+8. 한 case의 Expected, comparison/current verdict, comparability와 change type은 동일 비교 컨텍스트에서 연결해 보여준다.
+9. 현재 item 데이터만으로 가능한 `ALLOW → BLOCK`, `BLOCK → ALLOW` 같은 action transition은 UI 보조 표현으로 파생할 수 있지만, 이를 위해 신규 backend 집계 API를 요구하지 않는다.
+10. 비교 과정에서 Application이나 Evaluator를 다시 실행하는 것처럼 표현하지 않는다.
 
-비교 가능 여부는 backend가 소유한다. Quality Gate는 현재 Run 자체의 판정이며 Regression은 두 Run의 저장 결과 비교이므로 하나의 status나 metric으로 합치지 않는다.
+비교 가능 여부와 Regression classification은 backend가 소유한다. Quality Gate는 현재 Run 자체의 판정이며 Regression은 두 Run의 저장 결과 비교이므로 하나의 status나 metric으로 합치지 않는다.
+
+화면 분리는 API 계약을 변경하지 않는다. Result Detail과 Regression Detail이 동일한 `regressionService`를 사용해 같은 backend source of truth를 소비한다.
 
 ## 11. Pagination과 filter
 
@@ -382,10 +401,15 @@ URL에 filter/page를 보존할지와 filter 변경 시 page 초기화 방식은
 - `src/services/testSuiteService.ts`
 - `src/services/testCaseService.ts`
 - `src/services/testRunService.ts`
+- `src/services/regressionService.ts`
 - `src/hooks/useLiveRunProgress.ts`
 - `src/components/views/NewRunView.tsx`
 - `src/components/views/RunsView.tsx`
 - `src/components/views/ResultDetailView.tsx`
-- GitHub Issues #27, #28, #29, #30, #32
+- `src/components/views/RegressionSummaryEntry.tsx`
+- `src/components/views/RegressionDetailView.tsx`
+- `src/components/views/RegressionComparisonSection.tsx`
+- GitHub Issues #27, #28, #29, #30, #32, #72
+- GitHub PR #71, #88
 
-실제 backend와의 end-to-end 검증 및 프론트엔드 구현 수정은 이 문서 Issue의 범위가 아니다.
+이 문서는 OpenAPI 계약을 변경하지 않는다.

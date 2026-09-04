@@ -7,7 +7,8 @@ import { SuitesView } from './components/views/SuitesView';
 import { NewRunView } from './components/views/NewRunView';
 import { RunsView } from './components/views/RunsView';
 import { ResultDetailView } from './components/views/ResultDetailView';
-import { RegressionComparisonSection } from './components/views/RegressionComparisonSection';
+import { RegressionSummaryEntry } from './components/views/RegressionSummaryEntry';
+import { RegressionDetailView } from './components/views/RegressionDetailView';
 import { ArchitectureView } from './components/views/ArchitectureView';
 import { runtimeConfig } from './config/runtimeConfig';
 import { LAYER_CLASS } from './config/layers';
@@ -38,9 +39,15 @@ export function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleOpenRegression = () => {
+    if (!selectedRunId) return;
+    setCurrentView('regression');
+    setIsMobileMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="min-h-screen flex bg-[#f6f7f9] text-[#17202a]">
-      {/* Sidebar */}
       <Sidebar
         currentView={currentView}
         onSelectView={handleSelectView}
@@ -48,7 +55,6 @@ export function App() {
         onClose={() => setIsMobileMenuOpen(false)}
       />
 
-      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar
           currentView={currentView}
@@ -94,14 +100,22 @@ export function App() {
                 selectedRunId={selectedRunId}
                 onGoNewRun={() => handleSelectView('new-run')}
               />
-              <RegressionComparisonSection runId={selectedRunId} />
+              <RegressionSummaryEntry
+                runId={selectedRunId}
+                onOpenDetail={handleOpenRegression}
+              />
             </div>
+          )}
+          {currentView === 'regression' && (
+            <RegressionDetailView
+              runId={selectedRunId}
+              onBack={() => handleSelectView('result')}
+            />
           )}
           {currentView === 'architecture' && <ArchitectureView />}
         </main>
       </div>
 
-      {/* Floating Toast Notification */}
       {toastMessage && (
         <div className={`fixed bottom-6 right-6 ${LAYER_CLASS.toast} bg-[#14231d] text-white px-4 py-3 rounded-xl shadow-2xl text-xs font-semibold animate-rise flex items-center gap-2`}>
           <span>✓</span>
