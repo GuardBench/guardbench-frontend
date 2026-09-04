@@ -1,7 +1,6 @@
 import { apiRequest } from './apiClient';
 import type {
   Action,
-  EvaluationProfileReq,
   PageMetaRes,
   TargetReferenceRes,
 } from './testRunService';
@@ -10,7 +9,6 @@ export interface ComparableTestRunListItemRes {
   id: number;
   testSuiteId: number;
   target: TargetReferenceRes;
-  evaluationProfile: EvaluationProfileReq;
   completedAt: string;
 }
 
