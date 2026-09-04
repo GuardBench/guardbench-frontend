@@ -19,6 +19,7 @@ export function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const currentView = route.view;
+  const layoutView = route.view === 'invalid-run' ? route.sourceView : route.view;
   const selectedRunId = 'runId' in route ? route.runId : '';
 
   useEffect(() => {
@@ -60,7 +61,7 @@ export function App() {
   return (
     <div className="min-h-screen flex bg-[#f6f7f9] text-[#17202a]">
       <Sidebar
-        currentView={currentView}
+        currentView={layoutView}
         onSelectView={handleSelectView}
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
@@ -68,7 +69,7 @@ export function App() {
 
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar
-          currentView={currentView}
+          currentView={layoutView}
           isMobileMenuOpen={isMobileMenuOpen}
           onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           onHelpClick={() => {
@@ -78,6 +79,18 @@ export function App() {
         />
 
         <main className="flex-1 p-6 sm:p-8 max-w-[1500px] w-full mx-auto">
+          {currentView === 'invalid-run' && (
+            <section role="alert" className="rounded-xl border border-red-200 bg-white p-6 space-y-3">
+              <h1 className="text-xl font-bold">잘못된 실행 주소입니다.</h1>
+              <p className="text-sm text-[#697586]">Run ID가 올바르지 않습니다. 실행 이력에서 확인할 실행을 선택해 주세요.</p>
+              <button
+                onClick={() => navigate({ view: 'runs' })}
+                className="rounded-lg bg-[#14231d] px-4 py-2 text-sm font-bold text-white"
+              >
+                실행 이력으로 이동
+              </button>
+            </section>
+          )}
           {runtimeConfig.dataMode === 'demo' && (
             <div className="mb-5 rounded-xl border border-[#e6c979] bg-[#fff7e8] px-4 py-3 text-xs font-bold text-[#78501b]">
               DEMO 데이터 모드입니다. 화면의 데모·정적 정보는 실제 API 결과가 아닙니다.

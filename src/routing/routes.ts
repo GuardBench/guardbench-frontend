@@ -7,6 +7,7 @@ export type AppRoute =
   | { view: 'runs' }
   | { view: 'result'; runId: string }
   | { view: 'regression'; runId: string }
+  | { view: 'invalid-run'; pathname: string; sourceView: 'result' | 'regression' }
   | { view: 'architecture' };
 
 const staticPaths: Record<Exclude<ViewType, 'result' | 'regression'>, string> = {
@@ -24,9 +25,10 @@ const normalizePathname = (pathname: string) => {
 
 const decodeRunId = (encodedRunId: string) => {
   try {
-    return decodeURIComponent(encodedRunId);
+    const runId = decodeURIComponent(encodedRunId);
+    return /^[1-9]\d*$/.test(runId) && BigInt(runId) <= 9223372036854775807n ? runId : null;
   } catch {
-    return encodedRunId;
+    return null;
   }
 };
 
@@ -39,15 +41,26 @@ export const parseRoute = (pathname: string): AppRoute => {
   if (path === '/architecture') return { view: 'architecture' };
 
   const regressionMatch = path.match(/^\/runs\/([^/]+)\/regression$/);
-  if (regressionMatch) return { view: 'regression', runId: decodeRunId(regressionMatch[1]) };
+  if (regressionMatch) {
+    const runId = decodeRunId(regressionMatch[1]);
+    return runId === null
+      ? { view: 'invalid-run', pathname, sourceView: 'regression' }
+      : { view: 'regression', runId };
+  }
 
   const resultMatch = path.match(/^\/runs\/([^/]+)$/);
-  if (resultMatch) return { view: 'result', runId: decodeRunId(resultMatch[1]) };
+  if (resultMatch) {
+    const runId = decodeRunId(resultMatch[1]);
+    return runId === null
+      ? { view: 'invalid-run', pathname, sourceView: 'result' }
+      : { view: 'result', runId };
+  }
 
   return { view: 'dashboard' };
 };
 
 export const routePath = (route: AppRoute): string => {
+  if (route.view === 'invalid-run') return route.pathname;
   if (route.view === 'result') return `/runs/${encodeURIComponent(route.runId)}`;
   if (route.view === 'regression') return `/runs/${encodeURIComponent(route.runId)}/regression`;
   return staticPaths[route.view];
