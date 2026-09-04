@@ -1,7 +1,6 @@
 import { apiRequest } from './apiClient';
 import type {
   Action,
-  EvaluationProfileReq,
   PageMetaRes,
   TargetReferenceRes,
 } from './testRunService';
@@ -10,8 +9,6 @@ export interface ComparableTestRunListItemRes {
   id: number;
   testSuiteId: number;
   target: TargetReferenceRes;
-  /** Backend #173/#178 merge 전 조회 응답 호환용. */
-  evaluationProfile: EvaluationProfileReq;
   completedAt: string;
 }
 
