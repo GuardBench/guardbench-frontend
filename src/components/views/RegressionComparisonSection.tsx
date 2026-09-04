@@ -49,6 +49,7 @@ export function RegressionComparisonSection({ runId }: RegressionComparisonSecti
   const [selectedComparisonId, setSelectedComparisonId] = useState('');
   const [comparison, setComparison] = useState<TestRunComparisonRes | null>(null);
   const [changedOnly, setChangedOnly] = useState(true);
+  const [includeNotComparable, setIncludeNotComparable] = useState(false);
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [candidatesError, setCandidatesError] = useState<unknown>(null);
@@ -134,10 +135,17 @@ export function RegressionComparisonSection({ runId }: RegressionComparisonSecti
   const selectedCandidate = candidates.find((candidate) => String(candidate.id) === selectedComparisonId);
   const visibleItems = useMemo(() => {
     if (!comparison) return [];
-    return changedOnly
-      ? comparison.items.filter((item) => item.changeType !== 'NO_CHANGE')
-      : comparison.items;
-  }, [changedOnly, comparison]);
+
+    return comparison.items.filter((item) => {
+      if (item.comparabilityStatus === 'NOT_COMPARABLE') {
+        return includeNotComparable;
+      }
+      if (changedOnly) {
+        return item.changeType !== 'NO_CHANGE';
+      }
+      return true;
+    });
+  }, [changedOnly, comparison, includeNotComparable]);
 
   const refresh = () => setReloadToken((value) => value + 1);
 
@@ -283,17 +291,28 @@ export function RegressionComparisonSection({ runId }: RegressionComparisonSecti
             ))}
           </div>
 
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-xs font-bold text-[#17202a]">Snapshot 비교 결과</div>
-            <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-[#4e5a68]">
-              <input
-                type="checkbox"
-                checked={changedOnly}
-                onChange={(event) => setChangedOnly(event.target.checked)}
-                className="accent-[#1a7f5a]"
-              />
-              변경/비교 불가만 보기
-            </label>
+            <div className="flex flex-wrap items-center gap-4">
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-[#4e5a68]">
+                <input
+                  type="checkbox"
+                  checked={changedOnly}
+                  onChange={(event) => setChangedOnly(event.target.checked)}
+                  className="accent-[#1a7f5a]"
+                />
+                변화가 있는 케이스만 보기
+              </label>
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-[#4e5a68]">
+                <input
+                  type="checkbox"
+                  checked={includeNotComparable}
+                  onChange={(event) => setIncludeNotComparable(event.target.checked)}
+                  className="accent-[#1a7f5a]"
+                />
+                비교 불가 포함
+              </label>
+            </div>
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-[#e5e9ee]">
