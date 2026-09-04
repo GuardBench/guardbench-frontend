@@ -2,9 +2,6 @@ import { apiRequest } from './apiClient';
 
 // ─── OpenAPI 계약 기준 요청/응답 DTO ─────────────────────────────
 
-export type EvaluationCheck = 'PII_LEAKAGE' | 'HARMFUL_CONTENT';
-export type EvaluationStrictness = 'RELAXED' | 'STANDARD' | 'STRICT';
-
 export interface TargetReferenceReq {
   type: 'HTTP_ENDPOINT';
   identifier: string;
@@ -19,16 +16,6 @@ export interface TargetReferenceRes {
   model: string;
 }
 
-/**
- * Legacy 조회 응답 호환용 타입.
- * 신규 TestRun 생성 요청에서는 더 이상 사용하지 않는다.
- * Backend #173/#178 merge 후 조회 응답에서도 제거되면 함께 삭제한다.
- */
-export interface EvaluationProfileReq {
-  checks: EvaluationCheck[];
-  strictness: EvaluationStrictness;
-}
-
 export interface CreateTestRunPayload {
   testSuiteId: number;
   target: TargetReferenceReq;
@@ -40,7 +27,6 @@ export interface CreateTestRunResponse {
   status: TestRunStatus;
   testCaseCount: number;
   target: TargetReferenceRes;
-  evaluationProfile?: EvaluationProfileReq;
   createdAt: string;
 }
 
@@ -70,7 +56,6 @@ export interface TestRunDetailRes {
   testCaseCount: number;
   progress: TestRunProgressRes;
   target: TargetReferenceRes;
-  evaluationProfile: EvaluationProfileReq;
   executionOutcome: ExecutionOutcome | null;
   qualityGate: QualityGateRes | null;
   createdAt: string;
