@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ViewType } from './types';
 import { Sidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
@@ -12,12 +12,21 @@ import { RegressionDetailView } from './components/views/RegressionDetailView';
 import { ArchitectureView } from './components/views/ArchitectureView';
 import { runtimeConfig } from './config/runtimeConfig';
 import { LAYER_CLASS } from './config/layers';
+import { parseRoute, routeForView, routePath, type AppRoute } from './routing/routes';
 
 export function App() {
-  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
-  const [selectedRunId, setSelectedRunId] = useState<string>('');
+  const [route, setRoute] = useState<AppRoute>(() => parseRoute(window.location.pathname));
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const currentView = route.view;
+  const layoutView = route.view === 'invalid-run' ? route.sourceView : route.view;
+  const selectedRunId = 'runId' in route ? route.runId : '';
+
+  useEffect(() => {
+    const syncRoute = () => setRoute(parseRoute(window.location.pathname));
+    window.addEventListener('popstate', syncRoute);
+    return () => window.removeEventListener('popstate', syncRoute);
+  }, []);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -26,30 +35,33 @@ export function App() {
     }, 2800);
   };
 
-  const handleSelectView = (view: ViewType) => {
-    setCurrentView(view);
+  const navigate = useCallback((nextRoute: AppRoute) => {
+    const nextPath = routePath(nextRoute);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, '', nextPath);
+    }
+    setRoute(nextRoute);
     setIsMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const handleSelectView = (view: ViewType) => {
+    navigate(routeForView(view, selectedRunId));
   };
 
   const handleSelectRun = (runId: string) => {
-    setSelectedRunId(runId);
-    setCurrentView('result');
-    setIsMobileMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    navigate({ view: 'result', runId });
   };
 
   const handleOpenRegression = () => {
     if (!selectedRunId) return;
-    setCurrentView('regression');
-    setIsMobileMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    navigate({ view: 'regression', runId: selectedRunId });
   };
 
   return (
     <div className="min-h-screen flex bg-[#f6f7f9] text-[#17202a]">
       <Sidebar
-        currentView={currentView}
+        currentView={layoutView}
         onSelectView={handleSelectView}
         isOpen={isMobileMenuOpen}
         onClose={() => setIsMobileMenuOpen(false)}
@@ -57,7 +69,7 @@ export function App() {
 
       <div className="flex-1 flex flex-col min-w-0">
         <Topbar
-          currentView={currentView}
+          currentView={layoutView}
           isMobileMenuOpen={isMobileMenuOpen}
           onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           onHelpClick={() => {
@@ -67,6 +79,18 @@ export function App() {
         />
 
         <main className="flex-1 p-6 sm:p-8 max-w-[1500px] w-full mx-auto">
+          {currentView === 'invalid-run' && (
+            <section role="alert" className="rounded-xl border border-red-200 bg-white p-6 space-y-3">
+              <h1 className="text-xl font-bold">잘못된 실행 주소입니다.</h1>
+              <p className="text-sm text-[#697586]">Run ID가 올바르지 않습니다. 실행 이력에서 확인할 실행을 선택해 주세요.</p>
+              <button
+                onClick={() => navigate({ view: 'runs' })}
+                className="rounded-lg bg-[#14231d] px-4 py-2 text-sm font-bold text-white"
+              >
+                실행 이력으로 이동
+              </button>
+            </section>
+          )}
           {runtimeConfig.dataMode === 'demo' && (
             <div className="mb-5 rounded-xl border border-[#e6c979] bg-[#fff7e8] px-4 py-3 text-xs font-bold text-[#78501b]">
               DEMO 데이터 모드입니다. 화면의 데모·정적 정보는 실제 API 결과가 아닙니다.
@@ -109,7 +133,7 @@ export function App() {
           {currentView === 'regression' && (
             <RegressionDetailView
               runId={selectedRunId}
-              onBack={() => handleSelectView('result')}
+              onBack={() => navigate({ view: 'result', runId: selectedRunId })}
             />
           )}
           {currentView === 'architecture' && <ArchitectureView />}
