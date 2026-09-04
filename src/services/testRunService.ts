@@ -16,6 +16,15 @@ export interface TargetReferenceRes {
   model: string;
 }
 
+/**
+ * 새 backend 계약에는 존재하지 않는 legacy 화면 호환 타입이다.
+ * Result Detail에서 잔존 profile UI가 제거되면 함께 삭제한다.
+ */
+export interface EvaluationProfileReq {
+  checks: string[];
+  strictness: string;
+}
+
 export interface CreateTestRunPayload {
   testSuiteId: number;
   target: TargetReferenceReq;
@@ -49,7 +58,7 @@ export interface QualityGateMetricsRes {
   executionSuccessRate: number;
 }
 
-export interface TestRunDetailRes {
+interface TestRunDetailApiRes {
   id: number;
   testSuiteId: number;
   status: TestRunStatus;
@@ -62,6 +71,10 @@ export interface TestRunDetailRes {
   startedAt: string | null;
   completedAt: string | null;
   updatedAt: string;
+}
+
+export interface TestRunDetailRes extends TestRunDetailApiRes {
+  evaluationProfile: EvaluationProfileReq;
 }
 
 export interface TestRunListItemRes {
@@ -133,6 +146,11 @@ export interface EvaluatorMetricsRes {
   falseNegativeRate: number | null;
 }
 
+const EMPTY_EVALUATION_PROFILE: EvaluationProfileReq = {
+  checks: [],
+  strictness: '—',
+};
+
 export async function createTestRun(
   payload: CreateTestRunPayload,
   idempotencyKey?: string,
@@ -168,7 +186,8 @@ export async function getTestRunDetail(
   testRunId: number | string,
   signal?: AbortSignal,
 ): Promise<TestRunDetailRes> {
-  return apiRequest<TestRunDetailRes>(`/test-runs/${testRunId}`, { signal });
+  const response = await apiRequest<TestRunDetailApiRes>(`/test-runs/${testRunId}`, { signal });
+  return { ...response, evaluationProfile: EMPTY_EVALUATION_PROFILE };
 }
 
 export async function getTestRunResults(
