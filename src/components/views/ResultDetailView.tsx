@@ -7,6 +7,8 @@ import {
   getTestRunResults,
   type EvaluationOutcome,
   type EvaluatorMetricsRes,
+  type TestRunResultAttentionType,
+  type TestRunResultFacetsRes,
   type TestRunResultListItemRes,
   type PageMetaRes,
 } from '../../services/testRunService';
@@ -80,6 +82,31 @@ const errorStageLabel = (stage: NonNullable<TestRunResultListItemRes['error']>['
 
 type OutcomeFilter = 'ALL' | EvaluationOutcome;
 
+type ResultFilters = {
+  name: string;
+  input: string;
+  category: string;
+  expectedAction: '' | 'ALLOW' | 'BLOCK';
+  severity: '' | TestRunResultListItemRes['severity'];
+  executionStatus: '' | TestRunResultListItemRes['executionStatus'];
+  assertionStatus: '' | 'PASS' | 'FAIL';
+  evaluationOutcome: OutcomeFilter;
+  sort: '' | 'severity,desc' | 'severity,asc' | 'name,asc' | 'name,desc';
+};
+
+const EMPTY_RESULT_FILTERS: ResultFilters = {
+  name: '', input: '', category: '', expectedAction: '', severity: '', executionStatus: '',
+  assertionStatus: '', evaluationOutcome: 'ALL', sort: '',
+};
+
+const ATTENTION_TYPES: Array<{ type: TestRunResultAttentionType; label: string; tone: string }> = [
+  { type: 'FALSE_NEGATIVE', label: '차단 누락', tone: 'border-[#f4c7c3] bg-[#fff0ef] text-[#a8322d]' },
+  { type: 'FALSE_POSITIVE', label: '과차단', tone: 'border-[#f0ddb0] bg-[#fff7e8] text-[#9a5c0a]' },
+  { type: 'EXECUTION_FAILED', label: '처리 실패', tone: 'border-[#dfe5e9] bg-[#f6f8f9] text-[#43515d]' },
+  { type: 'TIMED_OUT', label: '시간 초과', tone: 'border-[#dfe5e9] bg-[#f6f8f9] text-[#43515d]' },
+  { type: 'NOT_STARTED', label: '미실행', tone: 'border-[#dfe5e9] bg-[#f6f8f9] text-[#43515d]' },
+];
+
 const OUTCOME_FILTERS: Array<{ value: OutcomeFilter; label: string }> = [
   { value: 'ALL', label: '전체' },
   { value: 'FALSE_NEGATIVE', label: '차단 누락 (FN)' },
@@ -102,10 +129,11 @@ const metricCount = (metrics: EvaluatorMetricsRes | null, outcome: EvaluationOut
   }[outcome];
 };
 
-const SummaryMetric = ({ label, value, tone = 'neutral' }: {
+const SummaryMetric = ({ label, value, tone = 'neutral', onClick }: {
   label: string;
   value: number | null;
   tone?: 'neutral' | 'success' | 'warning' | 'danger';
+  onClick?: () => void;
 }) => {
   const toneClass = {
     neutral: 'text-[#17202a]',
@@ -113,10 +141,13 @@ const SummaryMetric = ({ label, value, tone = 'neutral' }: {
     warning: 'text-[#9a5c0a]',
     danger: 'text-[#a8322d]',
   }[tone];
-  return <div className="rounded-xl border border-[#e5e9ee] bg-white/90 p-3">
+  const content = <>
     <dt className="text-[11px] font-bold text-[#697586]">{label}</dt>
     <dd className={`mt-1 text-2xl font-black ${toneClass}`}>{value ?? '—'}{value !== null && <span className="ml-0.5 text-xs font-bold">건</span>}</dd>
-  </div>;
+  </>;
+  return onClick
+    ? <button type="button" onClick={onClick} className="rounded-xl border border-[#e5e9ee] bg-white/90 p-3 text-left transition hover:border-[#b8c2ca] focus:outline-none focus:ring-2 focus:ring-[#17202a]">{content}</button>
+    : <div className="rounded-xl border border-[#e5e9ee] bg-white/90 p-3">{content}</div>;
 };
 
 const MatrixCell = ({ outcome, count, rate }: {
@@ -138,14 +169,20 @@ const MatrixCell = ({ outcome, count, rate }: {
 
 const ResultMeaning = ({ item }: { item: TestRunResultListItemRes }) => {
   const presentation = item.evaluationOutcome ? OUTCOME_PRESENTATION[item.evaluationOutcome] : null;
+  const attention = item.attentionType
+    ? ATTENTION_TYPES.find(({ type }) => type === item.attentionType) : null;
   return presentation
     ? <><b className={`block text-sm ${presentation.labelClassName}`}>{presentation.label} <span className="text-[10px] text-[#697586]">{presentation.shortCode}</span></b><span className="mt-1 block text-[#586473]">{presentation.transition}</span></>
-    : <><b className="block text-sm text-[#586473]">판정 미완료</b><span className="mt-1 block text-[#697586]">{executionLabel(item.executionStatus)}로 판정을 확인할 수 없습니다.</span></>;
+    : <><b className="block text-sm text-[#586473]">{attention?.label ?? '판정 미완료'}</b><span className="mt-1 block text-[#697586]">{executionLabel(item.executionStatus)}로 판정을 확인할 수 없습니다.</span></>;
 };
 export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunId, onGoNewRun }) => {
   const [results, setResults] = useState<TestRunResultListItemRes[]>([]);
   const [resultPage, setResultPage] = useState(1);
-  const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>('ALL');
+  const [filters, setFilters] = useState<ResultFilters>(EMPTY_RESULT_FILTERS);
+  const [attentionTypes, setAttentionTypes] = useState<TestRunResultAttentionType[]>([]);
+  const [attentionFacets, setAttentionFacets] = useState<TestRunResultFacetsRes | null>(null);
+  const loadedFacetFilterKeyRef = useRef<string | null>(null);
+  const attentionInitializedRunIdRef = useRef<string | null>(null);
   const [pageMeta, setPageMeta] = useState<PageMetaRes | null>(null);
   const [evaluatorMetrics, setEvaluatorMetrics] = useState<EvaluatorMetricsRes | null>(null);
   const [loadedMetricsRunId, setLoadedMetricsRunId] = useState<string | null>(null);
@@ -172,10 +209,23 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
   const resultDialogRef = useDialogFocus({ isOpen: selected !== null, onClose: closeResultDialog });
   const notFinishedRace = notFinishedRaceRunId === selectedRunId;
   const raceRecoveryExhausted = raceRecoveryExhaustedRunId === selectedRunId;
-  const resultQueryKey = `${selectedRunId ?? ''}:${resultPage}:${outcomeFilter}`;
+  const resultFilterKey = JSON.stringify({ filters, attentionTypes });
+  const resultQueryKey = `${selectedRunId ?? ''}:${resultPage}:${resultFilterKey}`;
   const hasLoadedResults = loadedResultsQueryKey === resultQueryKey;
   const visibleResults = hasLoadedResults ? results : [];
   const visiblePageMeta = hasLoadedResults ? pageMeta : null;
+
+  const selectAttentionTypes = useCallback((nextTypes: TestRunResultAttentionType[]) => {
+    setAttentionTypes(nextTypes);
+    setResultPage(1);
+  }, []);
+
+  const toggleAttentionType = useCallback((type: TestRunResultAttentionType) => {
+    setAttentionTypes((current) => current.includes(type)
+      ? current.filter((currentType) => currentType !== type)
+      : [...current, type]);
+    setResultPage(1);
+  }, []);
 
   const recoverNotFinishedRace = useCallback(() => {
     if (!selectedRunId) return;
@@ -205,10 +255,20 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     };
   }, [selectedRunId]);
 
+  useEffect(() => {
+    setFilters(EMPTY_RESULT_FILTERS);
+    setAttentionTypes([]);
+    setAttentionFacets(null);
+    loadedFacetFilterKeyRef.current = null;
+    attentionInitializedRunIdRef.current = null;
+    setResultPage(1);
+  }, [selectedRunId]);
+
   const refreshAll = () => {
     raceRetryCountRef.current = 0;
     if (raceRetryTimerRef.current) clearTimeout(raceRetryTimerRef.current);
     raceRetryTimerRef.current = null;
+    loadedFacetFilterKeyRef.current = null;
     setNotFinishedRaceRunId(null);
     setRaceRecoveryExhaustedRunId(null);
     refreshDetail();
@@ -221,16 +281,38 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     const loadResults = async () => {
       setResultsLoading(true);
       setResultsError(null);
+      const includeFacets = loadedFacetFilterKeyRef.current !== resultFilterKey ? 'attention' : undefined;
       try {
         const nextResults = await getTestRunResults(selectedRunId, {
           page: resultPage,
           size: 100,
-          ...(outcomeFilter === 'ALL' ? {} : { evaluationOutcome: outcomeFilter }),
+          ...(filters.name ? { name: filters.name } : {}),
+          ...(filters.input ? { input: filters.input } : {}),
+          ...(filters.category ? { category: filters.category } : {}),
+          ...(filters.expectedAction ? { expectedAction: filters.expectedAction } : {}),
+          ...(filters.severity ? { severity: filters.severity } : {}),
+          ...(filters.executionStatus ? { executionStatus: filters.executionStatus } : {}),
+          ...(filters.assertionStatus ? { assertionStatus: filters.assertionStatus } : {}),
+          ...(filters.evaluationOutcome === 'ALL' ? {} : { evaluationOutcome: filters.evaluationOutcome }),
+          ...(filters.sort ? { sort: [filters.sort] } : {}),
+          ...(attentionTypes.length ? { attentionType: attentionTypes } : {}),
+          ...(includeFacets ? { includeFacets } : {}),
         });
         if (active) {
           setResults(nextResults.items);
           setPageMeta(nextResults.page);
           setLoadedResultsQueryKey(resultQueryKey);
+          if (nextResults.facets) {
+            setAttentionFacets(nextResults.facets);
+            loadedFacetFilterKeyRef.current = resultFilterKey;
+            if (attentionInitializedRunIdRef.current !== selectedRunId) {
+              attentionInitializedRunIdRef.current = selectedRunId;
+              if (nextResults.facets.attentionTotal > 0) {
+                setAttentionTypes(ATTENTION_TYPES.map(({ type }) => type));
+                setResultPage(1);
+              }
+            }
+          }
         }
       } catch (error) {
         if (!active) return;
@@ -248,7 +330,11 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     };
     loadResults();
     return () => { active = false; };
-  }, [selectedRunId, reloadToken, detail?.status, resultPage, outcomeFilter, recoverNotFinishedRace, resultQueryKey]);
+  }, [
+    selectedRunId, reloadToken, detail?.status, resultPage, filters, attentionTypes,
+    resultFilterKey,
+    recoverNotFinishedRace, resultQueryKey,
+  ]);
 
   useEffect(() => {
     if (!selectedRunId || detail?.status !== 'FINISHED') return;
@@ -299,15 +385,18 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
   const normalCount = visibleEvaluatorMetrics
     ? visibleEvaluatorMetrics.truePositive + visibleEvaluatorMetrics.trueNegative
     : null;
-  const mismatchCount = visibleEvaluatorMetrics
-    ? visibleEvaluatorMetrics.falsePositive + visibleEvaluatorMetrics.falseNegative
-    : null;
-  const incompleteCount = detail && evaluatedCount !== null
-    ? Math.max(0, detail.testCaseCount - evaluatedCount)
-    : null;
-  const attentionCount = mismatchCount !== null && incompleteCount !== null
-    ? mismatchCount + incompleteCount
-    : null;
+  const mismatchCount = attentionFacets
+    ? attentionFacets.attentionTypes.FALSE_NEGATIVE + attentionFacets.attentionTypes.FALSE_POSITIVE
+    : visibleEvaluatorMetrics
+      ? visibleEvaluatorMetrics.falsePositive + visibleEvaluatorMetrics.falseNegative : null;
+  const incompleteCount = attentionFacets
+    ? attentionFacets.attentionTypes.EXECUTION_FAILED
+      + attentionFacets.attentionTypes.TIMED_OUT
+      + attentionFacets.attentionTypes.NOT_STARTED
+    : detail && evaluatedCount !== null
+      ? Math.max(0, detail.testCaseCount - evaluatedCount) : null;
+  const attentionCount = attentionFacets?.attentionTotal
+    ?? (mismatchCount !== null && incompleteCount !== null ? mismatchCount + incompleteCount : null);
   const summaryDescription = notFinished
     ? '실행이 끝나면 판정 결과와 확인이 필요한 케이스를 집계합니다.'
     : gateStatus === 'NOT_EVALUATED'
@@ -360,9 +449,9 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
         </div>
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
           <SummaryMetric label="정상 판정" value={normalCount} tone="success" />
-          <SummaryMetric label="차단 누락" value={visibleEvaluatorMetrics?.falseNegative ?? null} tone="danger" />
-          <SummaryMetric label="과차단" value={visibleEvaluatorMetrics?.falsePositive ?? null} tone="warning" />
-          <SummaryMetric label="판정 미완료" value={incompleteCount} />
+          <SummaryMetric label="차단 누락" value={attentionFacets?.attentionTypes.FALSE_NEGATIVE ?? visibleEvaluatorMetrics?.falseNegative ?? null} tone="danger" onClick={() => selectAttentionTypes(['FALSE_NEGATIVE'])} />
+          <SummaryMetric label="과차단" value={attentionFacets?.attentionTypes.FALSE_POSITIVE ?? visibleEvaluatorMetrics?.falsePositive ?? null} tone="warning" onClick={() => selectAttentionTypes(['FALSE_POSITIVE'])} />
+          <SummaryMetric label="판정 미완료" value={incompleteCount} onClick={() => selectAttentionTypes(['EXECUTION_FAILED', 'TIMED_OUT', 'NOT_STARTED'])} />
         </dl>
       </div>
       <p className="border-t border-black/10 px-6 py-3 text-[11px] text-[#697586] lg:px-7">Quality Gate 상태와 지표는 서버 판정을 그대로 표시하며, 현재 결과 페이지에서 다시 계산하지 않습니다.</p>
@@ -371,14 +460,42 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     {detail?.status === 'FINISHED' && !notFinishedRace && !detailLoading && <RunProgressStepper status={detail.status} processedCount={detail.progress.processedTestCaseCount} totalCount={detail.testCaseCount} percent={detail.progress.percent} updatedAt={detail.updatedAt} compact />}
 
     <article className="overflow-hidden rounded-2xl border border-[#e5e9ee] bg-white">
-      <div className="border-b border-[#e5e9ee] p-5"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-sm font-bold">결과 목록</h2><p className="mt-1 text-xs text-[#697586]">판정의 의미를 먼저 보여주며 원본 기술 값은 상세에서 확인할 수 있습니다.</p></div><span className="text-xs font-bold">현재 {visibleResults.length} / 필터 결과 {visiblePageMeta?.totalElements ?? 0}건 {resultsLoading && '· 불러오는 중'}</span></div><div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="평가 결과 분류 필터">{OUTCOME_FILTERS.map((filter) => <button key={filter.value} type="button" aria-pressed={outcomeFilter === filter.value} onClick={() => { setOutcomeFilter(filter.value); setResultPage(1); }} className={`rounded-full px-3 py-1.5 text-[11px] font-bold ${outcomeFilter === filter.value ? 'bg-[#17202a] text-white' : 'bg-[#eef1f4] text-[#586473]'}`}>{filter.label}</button>)}</div></div>
-      {outcomeFilter === 'ALL' && visiblePageMeta && detail && visiblePageMeta.totalElements !== detail.testCaseCount && <div className="border-b border-[#f0ddb0] bg-[#fff7e8] px-5 py-3 text-xs text-[#78501b]">고정 Snapshot 수({detail.testCaseCount})와 결과 수({visiblePageMeta.totalElements})가 일치하지 않습니다. 정상 빈 결과로 처리하지 않습니다.</div>}
+      <div className="border-b border-[#e5e9ee] p-5">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-sm font-bold">결과 목록</h2><p className="mt-1 text-xs text-[#697586]">판정의 의미를 먼저 보여주며 원본 기술 값은 상세에서 확인할 수 있습니다.</p></div><span className="text-xs font-bold">현재 {visibleResults.length} / 필터 결과 {visiblePageMeta?.totalElements ?? 0}건 {resultsLoading && '· 불러오는 중'}</span></div>
+        <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="결과 보기 전환">
+          <button type="button" aria-pressed={attentionTypes.length > 0} onClick={() => selectAttentionTypes(ATTENTION_TYPES.map(({ type }) => type))} className={`rounded-full px-3 py-1.5 text-[11px] font-bold ${attentionTypes.length > 0 ? 'bg-[#17202a] text-white' : 'bg-[#eef1f4] text-[#586473]'}`}>문제만 보기 {attentionFacets ? `(${attentionFacets.attentionTotal})` : ''}</button>
+          <button type="button" aria-pressed={attentionTypes.length === 0} onClick={() => selectAttentionTypes([])} className={`rounded-full px-3 py-1.5 text-[11px] font-bold ${attentionTypes.length === 0 ? 'bg-[#17202a] text-white' : 'bg-[#eef1f4] text-[#586473]'}`}>전체 보기 {attentionFacets ? `(${attentionFacets.allResults})` : ''}</button>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="확인 필요 유형 필터">
+          {ATTENTION_TYPES.map(({ type, label, tone }) => {
+            const selectedType = attentionTypes.includes(type);
+            const count = attentionFacets?.attentionTypes[type] ?? 0;
+            return <button key={type} type="button" aria-pressed={selectedType} onClick={() => toggleAttentionType(type)} className={`rounded-full border px-3 py-1.5 text-[11px] font-bold ${selectedType ? tone : 'border-[#dfe5e9] bg-white text-[#586473]'}`}>{label} {count}</button>;
+          })}
+        </div>
+        <details className="mt-4 rounded-xl bg-[#f8f9fa] p-3 text-xs">
+          <summary className="cursor-pointer font-bold text-[#43515d]">고급 필터</summary>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <label>이름<input value={filters.name} onChange={(event) => { setFilters((current) => ({ ...current, name: event.target.value })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5" /></label>
+            <label>입력<input value={filters.input} onChange={(event) => { setFilters((current) => ({ ...current, input: event.target.value })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5" /></label>
+            <label>카테고리<input value={filters.category} onChange={(event) => { setFilters((current) => ({ ...current, category: event.target.value })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5" /></label>
+            <label>기대 동작<select value={filters.expectedAction} onChange={(event) => { setFilters((current) => ({ ...current, expectedAction: event.target.value as ResultFilters['expectedAction'] })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5"><option value="">전체</option><option value="ALLOW">ALLOW</option><option value="BLOCK">BLOCK</option></select></label>
+            <label>위험도<select value={filters.severity} onChange={(event) => { setFilters((current) => ({ ...current, severity: event.target.value as ResultFilters['severity'] })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5"><option value="">전체</option>{Object.keys(severityPresentation).map((severity) => <option key={severity} value={severity}>{severity}</option>)}</select></label>
+            <label>처리 상태<select value={filters.executionStatus} onChange={(event) => { setFilters((current) => ({ ...current, executionStatus: event.target.value as ResultFilters['executionStatus'] })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5"><option value="">전체</option><option value="SUCCEEDED">정상 처리</option><option value="FAILED">처리 실패</option><option value="TIMED_OUT">시간 초과</option><option value="NOT_STARTED">미실행</option></select></label>
+            <label>Assertion<select value={filters.assertionStatus} onChange={(event) => { setFilters((current) => ({ ...current, assertionStatus: event.target.value as ResultFilters['assertionStatus'] })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5"><option value="">전체</option><option value="PASS">PASS</option><option value="FAIL">FAIL</option></select></label>
+            <label>판정 유형<select value={filters.evaluationOutcome} onChange={(event) => { setFilters((current) => ({ ...current, evaluationOutcome: event.target.value as OutcomeFilter })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5">{OUTCOME_FILTERS.map((filter) => <option key={filter.value} value={filter.value}>{filter.label}</option>)}</select></label>
+            <label>정렬<select value={filters.sort} onChange={(event) => { setFilters((current) => ({ ...current, sort: event.target.value as ResultFilters['sort'] })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5"><option value="">기본 정렬</option><option value="severity,desc">위험도 높은 순</option><option value="severity,asc">위험도 낮은 순</option><option value="name,asc">이름순</option><option value="name,desc">이름 역순</option></select></label>
+          </div>
+          <button type="button" onClick={() => { setFilters(EMPTY_RESULT_FILTERS); setResultPage(1); }} className="mt-3 font-bold text-[#43515d] underline">고급 필터 초기화</button>
+        </details>
+      </div>
+      {attentionTypes.length === 0 && visiblePageMeta && detail && visiblePageMeta.totalElements !== detail.testCaseCount && <div className="border-b border-[#f0ddb0] bg-[#fff7e8] px-5 py-3 text-xs text-[#78501b]">고정 Snapshot 수({detail.testCaseCount})와 결과 수({visiblePageMeta.totalElements})가 일치하지 않습니다. 정상 빈 결과로 처리하지 않습니다.</div>}
       {notFinished
         ? <div className="p-8 text-center text-sm text-[#697586]">실행 완료 후 결과가 표시됩니다.</div>
         : !hasLoadedResults
           ? (resultsLoading ? <div className="p-8 text-center text-sm text-[#697586]">결과를 불러오는 중입니다.</div> : null)
           : visibleResults.length === 0
-            ? <div className="p-8 text-center text-sm text-[#697586]">{outcomeFilter !== 'ALL' ? '이 분류에 해당하는 결과가 없습니다.' : visiblePageMeta && detail && visiblePageMeta.totalElements !== detail.testCaseCount ? '결과 수 불일치를 확인해 주세요.' : '표시할 결과가 없습니다.'}</div>
+            ? <div className="p-8 text-center text-sm text-[#697586]">{attentionTypes.length > 0 ? '선택한 확인 필요 유형에 해당하는 결과가 없습니다.' : filters.evaluationOutcome !== 'ALL' ? '이 판정 유형에 해당하는 결과가 없습니다.' : visiblePageMeta && detail && visiblePageMeta.totalElements !== detail.testCaseCount ? '결과 수 불일치를 확인해 주세요.' : '표시할 결과가 없습니다.'}</div>
             : <>
               <div className="divide-y divide-[#e5e9ee] sm:hidden">{visibleResults.map((item) => <div key={item.testCaseSnapshotId} className="space-y-4 p-5">
                 <div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-black text-[#17202a]">{item.name}</h3><p className="mt-1 text-[11px] text-[#697586]">{item.category} · Snapshot #{item.testCaseSnapshotId}</p></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${severityPresentation[item.severity].className}`}>{severityPresentation[item.severity].label}</span></div>

@@ -11,6 +11,9 @@ import type {
   TargetReferenceRes,
   TestRunDetailRes,
   TestRunListItemRes,
+  TestRunResultAttentionType,
+  TestRunResultFacetsRes,
+  TestRunResultListApiResponse,
   TestRunResultListItemRes,
 } from '../services/testRunService';
 
@@ -47,7 +50,13 @@ export type TestRunResultNullabilityContract = [
   Assert<Equal<TestRunResultListItemRes['evaluatorVerdict'], Action | null>>,
   Assert<Equal<TestRunResultListItemRes['assertionStatus'], AssertionStatus | null>>,
   Assert<Equal<TestRunResultListItemRes['evaluationOutcome'], EvaluationOutcome | null>>,
+  Assert<Equal<TestRunResultListItemRes['attentionType'], TestRunResultAttentionType | null>>,
   Assert<Equal<TestRunResultListItemRes['error'], ExecutionErrorDetailRes | null>>,
+];
+
+export type TestRunResultFacetContract = [
+  Assert<Equal<TestRunResultListApiResponse['facets'], TestRunResultFacetsRes | null | undefined>>,
+  Assert<Equal<TestRunResultFacetsRes['attentionTypes'][TestRunResultAttentionType], number>>,
 ];
 
 export type QualityGateMetricsContract = [
