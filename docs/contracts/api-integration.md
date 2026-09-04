@@ -3,8 +3,9 @@
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
 > Last reviewed: 2026-09-04
-> Scope: GitHub Issues #32, #62, #72
+> Scope: GitHub Issues #32, #62, #72, #86
 > Implementation baseline: PR #88 (`agent/72-regression-result-detail-docs`)
+> #86 갱신: 단일 Target 생성 계약과 결과·회귀 화면의 평가 정책 metadata 제거를 반영한다.
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 
 이 문서는 GuardBench 프론트엔드가 승인된 OpenAPI를 화면에서 소비하는 경계를 정의한다. API endpoint, schema, enum, validation과 오류 code의 소유자는 OpenAPI다. 이 문서는 schema를 다시 정의하지 않고 DTO를 화면 상태로 변환하는 원칙과 사용자 표현 책임만 소유한다.
@@ -19,12 +20,12 @@
 
 ## 2. 실행 모델 변경
 
-최신 계약에서 하나의 TestRun은 하나의 HTTP AI Application Target을 실행하고, 사용자가 요청한 inline Evaluation Profile을 GuardBench가 내부 Evaluator 설정으로 해석한다. 같은 Run 안에서 Baseline과 Candidate Guardrail을 동시에 실행하는 모델은 더 이상 승인된 계약이 아니다.
+최신 계약에서 하나의 TestRun은 하나의 HTTP AI Application Target을 실행한다. Backend가 응답에서 관측된 동작을 `ALLOW | BLOCK`으로 반환하고 TestCase의 기대 동작과 비교한다. 프론트는 판정 모델이나 prompt를 선택하지 않으며, 서로 다른 완료 Run의 저장 결과를 Regression으로 비교한다.
 
 | 영역 | 폐기된 모델 | 현재 OpenAPI와 구현 |
 | --- | --- | --- |
-| 생성 입력 | Baseline numbered Guardrail + Candidate DRAFT | 단일 `TargetReferenceReq` + `EvaluationProfileReq` |
-| 사용자 선택 | Guardrail ID/version | OpenAI-compatible HTTP endpoint, 필수 model, 선택 revision, checks, strictness |
+| 생성 입력 | Baseline numbered Guardrail + Candidate DRAFT | `testSuiteId` + 단일 `TargetReferenceReq` |
+| 사용자 선택 | Guardrail ID/version | OpenAI-compatible HTTP endpoint, 필수 model, 선택 revision |
 | 상세 Target | `targets.baseline`, `targets.candidate` | 단일 `target` |
 | 개별 결과 | baseline/candidate execution과 change type | Application 실행 상태, Evaluator verdict, assertion, evaluation outcome |
 | Quality Gate metrics | 고정 regression 지표 타입 | `assertionPassRate`, `executionSuccessRate` 또는 `null` |
@@ -41,10 +42,8 @@
 | Application HTTP endpoint | 테스트할 AI Application의 호출 주소 | `target.type`은 MVP에서 `HTTP_ENDPOINT`이고 `identifier`는 `http://` 또는 `https://` URI여야 한다. | “Application URL”처럼 사용자 목적에 맞는 이름을 사용한다. 내부 TargetReference나 provider 용어를 입력 라벨로 강제하지 않는다. |
 | model | OpenAI-compatible Chat Completions request body에 전달할 모델 식별자 | request와 response에서 필수이며 공백이 아닌 문자열이어야 한다. | Application이 인식하는 모델 식별자로 설명한다. Evaluator provider나 Guardrail ID와 혼동하지 않는다. |
 | revision | 사용자가 실행 대상을 구분하기 위한 배포·모델·commit 식별 문자열 | request에서는 선택 사항이다. 전달할 때는 공백이 아닌 문자열이어야 하며, 생략하면 response의 `target.revision`은 `null`이다. | endpoint가 같아도 배포 버전을 구분하고 싶을 때 입력한다. 서버가 검증하거나 해석한 실제 버전이라고 과장하지 않는다. |
-| checks | 이번 Run에서 확인할 보안 평가 목적 | 최소 한 개를 선택하고 중복할 수 없다. 허용 값은 `PROMPT_INJECTION`, `PII_LEAKAGE`, `HARMFUL_CONTENT`다. | 복수 선택 control로 제공하되 OpenAPI에 없는 check를 프론트에서 추가하지 않는다. |
-| strictness | 선택한 checks를 어느 엄격도로 평가할지 정하는 정책 | `RELAXED`, `STANDARD`, `STRICT` 중 정확히 하나다. | 사용자 정책 수준으로 표현한다. 특정 Evaluator provider의 threshold나 Guardrail version을 직접 선택하는 값으로 설명하지 않는다. |
 
-`checks`와 `strictness`는 독립 리소스 ID가 아니라 TestRun 요청에 포함되는 inline `evaluationProfile`이다. GuardBench가 이 profile을 실제 Evaluator 설정으로 해석한다. 따라서 프론트엔드는 사용자가 특정 Evaluator type/provider나 Guardrail identifier/version을 직접 선택한 것처럼 표시하거나 request에 추가하지 않는다.
+생성 요청은 `testSuiteId`와 `target`만 포함한다. 상세와 비교 후보 응답에도 평가 정책 metadata를 추가하거나 빈 값으로 합성하지 않는다. 판정 모델 설정과 내부 분류 값은 프론트 계약에 포함하지 않는다.
 
 ### 2.2 Quality Gate와 metrics의 nullable 구조
 
@@ -73,7 +72,7 @@ Quality Gate에는 서로 다른 두 종류의 `null`이 있다.
 | Suite 상세·수정 | 테스트 스위트 | `GET/PATCH /api/v1/test-suites/{suiteId}` | API에 없는 상태, 통과율 또는 최근 실행을 서버 값처럼 만들지 않는다. |
 | TestCase 목록·생성 | TestCase 관리 | `GET/POST /api/v1/test-suites/{suiteId}/test-cases` | 빈 collection과 Suite 미존재를 구분한다. |
 | TestCase 상세·수정·삭제 | TestCase 관리 | `GET/PATCH/DELETE /api/v1/test-cases/{testCaseId}` | 삭제는 `204 No Content`로 처리하며 성공 전 로컬 제거를 확정하지 않는다. |
-| Run 생성 | 새 테스트 실행 | `POST /api/v1/test-runs` | 단일 Target과 inline Evaluation Profile을 전송한다. |
+| Run 생성 | 새 테스트 실행 | `POST /api/v1/test-runs` | Suite ID와 단일 Target을 전송한다. |
 | Run 이력 | 실행 이력 | `GET /api/v1/test-runs` | lifecycle, outcome, Gate를 독립 축으로 표시하고 서버 filter/page를 사용한다. |
 | Run 진행·요약 | 결과 상세 또는 실행 이력 | `GET /api/v1/test-runs/{testRunId}` | 즉시 조회 후 `FINISHED`까지 Polling한다. |
 | 개별 평가 결과 | 결과 상세 | `GET /api/v1/test-runs/{testRunId}/results` | `FINISHED` 이후 조회하고 실행·평가·assertion 상태를 분리한다. |
@@ -215,10 +214,6 @@ timeout 값, 자동 재시도 대상, 인증·권한 오류 UX, runtime schema v
   - `identifier`는 HTTP 또는 HTTPS URI
   - `model`은 OpenAI-compatible request body에 전달할 필수 non-blank 문자열이다.
   - `revision`은 선택적이며 공백 문자열을 보내지 않는다.
-- 하나의 inline `evaluationProfile`
-  - `checks`는 최소 한 개이며 중복 없이 선택한다.
-  - 값은 `PROMPT_INJECTION`, `PII_LEAKAGE`, `HARMFUL_CONTENT` 중 하나다.
-  - `strictness`는 `RELAXED`, `STANDARD`, `STRICT` 중 하나다.
 
 사용자에게 Evaluator provider/type, Guardrail identifier/version, Snapshot identity를 요구하거나 request에 추가하지 않는다. `additionalProperties: false`이므로 화면 전용 필드를 body에 섞지 않는다.
 
@@ -229,7 +224,7 @@ timeout 값, 자동 재시도 대상, 인증·권한 오류 UX, runtime schema v
 3. key는 선택 header지만 중복 실행 방지 정책을 별도 Decision으로 확정한다.
 4. 현재는 `202 Accepted`의 `TestRunCreateRes`에 포함된 Run ID로 상세 조회에 이동한다. `Location` header 보존은 `apiClient`가 response header를 노출할 때까지 남은 계약 격차다.
 5. 같은 key와 같은 body의 재전송은 기존 Run의 현재 status를 반환할 수 있다.
-6. `TEST_SUITE_EMPTY`, `IDEMPOTENCY_KEY_CONFLICT`, `EVALUATION_PROFILE_NOT_SUPPORTED`를 일반 network 오류와 구분한다.
+6. `TEST_SUITE_EMPTY`, `IDEMPOTENCY_KEY_CONFLICT`를 일반 network 오류와 구분한다.
 
 현재 구현은 payload fingerprint별 key를 메모리에 보존하고 network 결과 불명에서는 재사용하며, 성공 또는 명시적 서버 거부 후 폐기한다. 화면 이탈 후 복원, 장기 보존과 OpenAPI에 없는 TTL은 `미결정`이다.
 
@@ -297,7 +292,7 @@ TestCase의 `input`, 주제, category와 expected action을 안다고 해서 실
 - Application/Evaluator 처리의 `executionStatus`
 - `evaluatorVerdict`, `assertionStatus`, `evaluationOutcome`
 - 공개 가능한 `error.stage`, `code`, `message`
-- Run 및 Evaluation Profile metadata
+- Run 및 Application Target metadata
 
 향후 실제 디버깅에 원문이 꼭 필요하다는 근거가 생기면 일반 결과 DTO에 바로 추가하지 않고 별도 보안·제품 Decision과 OpenAPI 변경을 선행한다. 최소한 다음 통제가 함께 확정되어야 한다.
 
@@ -316,7 +311,7 @@ TestCase의 `input`, 주제, category와 expected action을 안다고 해서 실
 Evaluator metrics endpoint는 한 Run의 저장된 Expected와 Evaluator verdict 분류 집계를 반환한다. 서버 응답의 TP/TN/FP/FN count와 FP/FN rate를 source of truth로 사용하며 결과 page 일부로 전체 지표를 다시 계산하지 않는다.
 
 - verdict가 없는 실행 실패는 분류 집계에서 제외한다.
-- FP/FN은 현재 Evaluation Profile과 TestCase ExpectedResult의 관계이며 일반적인 모델 성능의 절대 ground truth로 과장하지 않는다.
+- FP/FN은 관측된 동작과 TestCase ExpectedResult의 관계이며 일반적인 모델 성능의 절대 ground truth로 과장하지 않는다.
 - Quality Gate와 Evaluator confusion metrics는 서로 다른 API와 사용자 목적을 가진다.
 
 ## 10. Comparable Runs와 Regression
@@ -376,7 +371,6 @@ URL에 filter/page를 보존할지와 filter 변경 시 page 초기화 방식은
 | `TEST_RUNS_NOT_COMPARABLE` | 비교 불가로 표시하고 Regression 결과를 추정하지 않는다. |
 | `TEST_SUITE_EMPTY` | Run 생성이 접수되지 않았음을 표시한다. |
 | `IDEMPOTENCY_KEY_CONFLICT` | 같은 key의 다른 요청 충돌로 표시하고 자동 재전송하지 않는다. |
-| `EVALUATION_PROFILE_NOT_SUPPORTED` | 다른 checks/strictness 조합 또는 Evaluator catalog 등록이 필요함을 안내한다. |
 | unknown execution error code | 공개 message와 failure stage를 보존하고 provider 원문을 노출하지 않는다. |
 
 실제 API 응답과 mock을 같은 collection에 출처 표시 없이 섞지 않는다. 실제 API 실패나 빈 결과를 mock 성공으로 위장하지 않는다. 환경별 mock 기본값, production 허용 여부와 fail-fast 정책은 별도 Decision이 필요하다.

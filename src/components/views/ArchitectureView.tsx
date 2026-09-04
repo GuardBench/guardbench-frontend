@@ -42,8 +42,8 @@ export const ArchitectureView: React.FC = () => {
             </div>
             <div className="w-[1px] h-3 bg-[#cbd3da] mx-auto" />
             <div className="border border-[#e5e9ee] bg-[#fbfcfc] rounded-xl p-3.5 flex justify-between items-center">
-              <strong className="text-xs text-[#17202a]">Guardrail Adapter</strong>
-              <span className="text-[10px] text-[#697586]">ApplyGuardrail · 응답 정규화</span>
+              <strong className="text-xs text-[#17202a]">응답 동작 판정</strong>
+              <span className="text-[10px] text-[#697586]">관측된 동작 · ALLOW / BLOCK</span>
             </div>
             <div className="w-[1px] h-3 bg-[#cbd3da] mx-auto" />
             <div className="border border-[#e5e9ee] bg-[#fbfcfc] rounded-xl p-3.5 flex justify-between items-center">

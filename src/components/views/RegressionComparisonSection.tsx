@@ -239,16 +239,11 @@ export function RegressionComparisonSection({ runId }: RegressionComparisonSecti
           </div>
 
           {selectedCandidate && (
-            <dl className="grid gap-3 rounded-xl bg-[#f8f9fa] p-4 text-xs sm:grid-cols-3">
+            <dl className="grid gap-3 rounded-xl bg-[#f8f9fa] p-4 text-xs sm:grid-cols-2">
               <div>
                 <dt className="text-[#697586]">Application</dt>
                 <dd className="mt-1 break-all font-bold text-[#17202a]">{selectedCandidate.target.identifier}</dd>
                 <dd className="mt-1 text-[10px] text-[#697586]">Model: {selectedCandidate.target.model}{selectedCandidate.target.revision ? ` · Revision: ${selectedCandidate.target.revision}` : ''}</dd>
-              </div>
-              <div>
-                <dt className="text-[#697586]">Evaluation Profile</dt>
-                <dd className="mt-1 font-bold text-[#17202a]">{selectedCandidate.evaluationProfile.checks.join(', ')}</dd>
-                <dd className="mt-1 text-[10px] text-[#697586]">Strictness: {selectedCandidate.evaluationProfile.strictness}</dd>
               </div>
               <div>
                 <dt className="text-[#697586]">완료 시각</dt>
