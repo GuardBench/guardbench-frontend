@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ViewType } from './types';
 import { Sidebar } from './components/layout/Sidebar';
 import { Topbar } from './components/layout/Topbar';
@@ -12,12 +12,20 @@ import { RegressionDetailView } from './components/views/RegressionDetailView';
 import { ArchitectureView } from './components/views/ArchitectureView';
 import { runtimeConfig } from './config/runtimeConfig';
 import { LAYER_CLASS } from './config/layers';
+import { parseRoute, routeForView, routePath, type AppRoute } from './routing/routes';
 
 export function App() {
-  const [currentView, setCurrentView] = useState<ViewType>('dashboard');
-  const [selectedRunId, setSelectedRunId] = useState<string>('');
+  const [route, setRoute] = useState<AppRoute>(() => parseRoute(window.location.pathname));
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const currentView = route.view;
+  const selectedRunId = 'runId' in route ? route.runId : '';
+
+  useEffect(() => {
+    const syncRoute = () => setRoute(parseRoute(window.location.pathname));
+    window.addEventListener('popstate', syncRoute);
+    return () => window.removeEventListener('popstate', syncRoute);
+  }, []);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -26,24 +34,27 @@ export function App() {
     }, 2800);
   };
 
-  const handleSelectView = (view: ViewType) => {
-    setCurrentView(view);
+  const navigate = useCallback((nextRoute: AppRoute) => {
+    const nextPath = routePath(nextRoute);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState(null, '', nextPath);
+    }
+    setRoute(nextRoute);
     setIsMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  const handleSelectView = (view: ViewType) => {
+    navigate(routeForView(view, selectedRunId));
   };
 
   const handleSelectRun = (runId: string) => {
-    setSelectedRunId(runId);
-    setCurrentView('result');
-    setIsMobileMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    navigate({ view: 'result', runId });
   };
 
   const handleOpenRegression = () => {
     if (!selectedRunId) return;
-    setCurrentView('regression');
-    setIsMobileMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    navigate({ view: 'regression', runId: selectedRunId });
   };
 
   return (
@@ -109,7 +120,7 @@ export function App() {
           {currentView === 'regression' && (
             <RegressionDetailView
               runId={selectedRunId}
-              onBack={() => handleSelectView('result')}
+              onBack={() => navigate({ view: 'result', runId: selectedRunId })}
             />
           )}
           {currentView === 'architecture' && <ArchitectureView />}
