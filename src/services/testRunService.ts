@@ -2,7 +2,9 @@ import { apiRequest } from './apiClient';
 
 // ─── OpenAPI 계약 기준 요청/응답 DTO ─────────────────────────────
 
-// POST /test-runs 요청 (TestRunCreateReq)
+export type EvaluationCheck = 'PII_LEAKAGE' | 'HARMFUL_CONTENT';
+export type EvaluationStrictness = 'RELAXED' | 'STANDARD' | 'STRICT';
+
 export interface TargetReferenceReq {
   type: 'HTTP_ENDPOINT';
   identifier: string;
@@ -17,28 +19,34 @@ export interface TargetReferenceRes {
   model: string;
 }
 
+/**
+ * Legacy 조회 응답 호환용 타입.
+ * 신규 TestRun 생성 요청에서는 더 이상 사용하지 않는다.
+ * Backend #173/#178 merge 후 조회 응답에서도 제거되면 함께 삭제한다.
+ */
+export interface EvaluationProfileReq {
+  checks: EvaluationCheck[];
+  strictness: EvaluationStrictness;
+}
+
 export interface CreateTestRunPayload {
   testSuiteId: number;
   target: TargetReferenceReq;
 }
 
-// POST /test-runs 응답 (TestRunCreateRes)
 export interface CreateTestRunResponse {
   id: number;
   testSuiteId: number;
   status: TestRunStatus;
   testCaseCount: number;
   target: TargetReferenceRes;
+  evaluationProfile?: EvaluationProfileReq;
   createdAt: string;
 }
-
-// ─── 공통 열거형 ─────────────────────────────────────────────────
 
 export type TestRunStatus = 'QUEUED' | 'PREPARING' | 'RUNNING' | 'FINISHED';
 export type ExecutionOutcome = 'COMPLETED' | 'ERROR' | 'INCOMPLETE';
 export type QualityGateStatus = 'PASS' | 'FAIL' | 'NOT_EVALUATED';
-
-// ─── GET /test-runs/{id} 상세 (TestRunDetailRes) ─────────────────
 
 export interface TestRunProgressRes {
   processedTestCaseCount: number;
@@ -62,6 +70,7 @@ export interface TestRunDetailRes {
   testCaseCount: number;
   progress: TestRunProgressRes;
   target: TargetReferenceRes;
+  evaluationProfile: EvaluationProfileReq;
   executionOutcome: ExecutionOutcome | null;
   qualityGate: QualityGateRes | null;
   createdAt: string;
@@ -69,8 +78,6 @@ export interface TestRunDetailRes {
   completedAt: string | null;
   updatedAt: string;
 }
-
-// ─── GET /test-runs 목록 (TestRunListRes) ────────────────────────
 
 export interface TestRunListItemRes {
   id: number;
@@ -99,8 +106,6 @@ export interface TestRunListApiResponse {
   items: TestRunListItemRes[];
   page: PageMetaRes;
 }
-
-// ─── GET /test-runs/{id}/results 결과 목록 ──────────────────────
 
 export type TestExecutionResultStatus = 'SUCCEEDED' | 'FAILED' | 'TIMED_OUT' | 'NOT_STARTED';
 export type Action = 'ALLOW' | 'BLOCK';
@@ -143,9 +148,6 @@ export interface EvaluatorMetricsRes {
   falseNegativeRate: number | null;
 }
 
-// ─── API 호출 함수 ───────────────────────────────────────────────
-
-/** 신규 TestRun 실행 요청 (POST /test-runs) */
 export async function createTestRun(
   payload: CreateTestRunPayload,
   idempotencyKey?: string,
@@ -159,7 +161,6 @@ export async function createTestRun(
   });
 }
 
-/** TestRun 목록 조회 (GET /test-runs) */
 export async function listTestRuns(params?: {
   page?: number;
   size?: number;
@@ -178,7 +179,6 @@ export async function listTestRuns(params?: {
   return apiRequest<TestRunListApiResponse>(`/test-runs${queryString}`);
 }
 
-/** TestRun 상세 조회 — Polling용 (GET /test-runs/{testRunId}) */
 export async function getTestRunDetail(
   testRunId: number | string,
   signal?: AbortSignal,
@@ -186,7 +186,6 @@ export async function getTestRunDetail(
   return apiRequest<TestRunDetailRes>(`/test-runs/${testRunId}`, { signal });
 }
 
-/** TestRun 결과 목록 조회 (GET /test-runs/{testRunId}/results) */
 export async function getTestRunResults(
   testRunId: number | string,
   params?: { page?: number; size?: number; evaluationOutcome?: EvaluationOutcome },
@@ -199,7 +198,6 @@ export async function getTestRunResults(
   return apiRequest<TestRunResultListApiResponse>(`/test-runs/${testRunId}/results${queryString}`);
 }
 
-/** FINISHED TestRun의 저장된 분류 지표를 조회합니다. */
 export async function getTestRunEvaluatorMetrics(
   testRunId: number | string,
 ): Promise<EvaluatorMetricsRes> {
