@@ -223,6 +223,10 @@ filter URL 보존, 진행 Run 자동 갱신과 refresh interval은 `미결정`�
 Assertion이 없는 상태다. PASS/FAIL에서는 `assertionPassRate`와 `executionSuccessRate`를 표시하되
 프론트에서 Gate status를 다시 계산하지 않는다.
 
+진행 중인 Run은 `QUEUED → PREPARING → RUNNING → FINISHED` 단계형 Stepper와 서버 progress를
+표시한다. FINISHED Run은 Quality Gate 요약을 먼저 표시한 뒤 compact 완료 상태로 축소한다. 실행
+lifecycle 완료는 Quality Gate PASS와 별개의 상태다.
+
 상단 요약은 서버 Evaluator metrics와 전체 Snapshot 수를 사용해 서로 배타적인 네 수치를 표시한다.
 
 - 정상 판정: `TP + TN`

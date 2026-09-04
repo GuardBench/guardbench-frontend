@@ -14,8 +14,8 @@ import { useLiveRunProgress } from '../../hooks/useLiveRunProgress';
 import { useDialogFocus } from '../../hooks/useDialogFocus';
 import { LAYER_CLASS } from '../../config/layers';
 import { RequestErrorBanner } from '../common/RequestErrorBanner';
+import { RunProgressStepper } from '../common/RunProgressStepper';
 import { StatusPill } from '../common/StatusPill';
-import { progressStatusLabel } from '../common/statusLabels';
 
 interface ResultDetailViewProps {
   selectedRunId?: string;
@@ -92,10 +92,6 @@ const percentageLabel = (rate: number) => `${(Math.floor(rate * 10_000) / 100).t
 
 const rateLabel = (rate: number | null) => rate === null ? '분모 없음' : percentageLabel(rate);
 
-const updatedAtLabel = (updatedAt: string | undefined) => updatedAt
-  ? new Intl.DateTimeFormat('ko-KR', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(updatedAt))
-  : '확인 중';
-
 const metricCount = (metrics: EvaluatorMetricsRes | null, outcome: EvaluationOutcome) => {
   if (!metrics) return null;
   return {
@@ -146,7 +142,6 @@ const ResultMeaning = ({ item }: { item: TestRunResultListItemRes }) => {
     ? <><b className={`block text-sm ${presentation.labelClassName}`}>{presentation.label} <span className="text-[10px] text-[#697586]">{presentation.shortCode}</span></b><span className="mt-1 block text-[#586473]">{presentation.transition}</span></>
     : <><b className="block text-sm text-[#586473]">판정 미완료</b><span className="mt-1 block text-[#697586]">{executionLabel(item.executionStatus)}로 판정을 확인할 수 없습니다.</span></>;
 };
-
 export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunId, onGoNewRun }) => {
   const [results, setResults] = useState<TestRunResultListItemRes[]>([]);
   const [resultPage, setResultPage] = useState(1);
@@ -341,7 +336,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
 
     {notFinishedRace && !detailLoading
       ? <div className="flex items-center gap-2 rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]"><AlertCircle size={14} />{raceRecoveryExhausted ? '결과 준비 상태를 확인하지 못했습니다. 다시 시도해 주세요.' : '실행은 종료됐지만 결과가 아직 준비되지 않았습니다. 자동으로 다시 확인하고 있습니다.'}</div>
-      : notFinished && !detailLoading && <div className="flex items-center gap-2 rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]"><AlertCircle size={14} />{detail?.status ? progressStatusLabel(detail.status) : '상태 확인 중'} · {detail?.progress.processedTestCaseCount ?? 0}/{detail?.testCaseCount ?? 0}건 처리 · {detail?.progress.percent.toFixed(0) ?? 0}% · 마지막 갱신 {updatedAtLabel(detail?.updatedAt)}</div>}
+      : detail && !detailLoading && detail.status !== 'FINISHED' && <RunProgressStepper status={detail.status} processedCount={detail.progress.processedTestCaseCount} totalCount={detail.testCaseCount} percent={detail.progress.percent} updatedAt={detail.updatedAt} />}
     {autoRefreshStopped && detail && !detailLoading && <div className="rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs font-bold text-[#78501b]">자동 갱신이 중단됐습니다. 다시 시도를 눌러주세요.</div>}
     {detailError !== null && detail && !detailLoading && <RequestErrorBanner error={detailError} fallbackMessage="최신 실행 상세를 불러오지 못했습니다." stale={detailStale} onRetry={refreshAll} />}
     {resultsError !== null && !resultsLoading && <RequestErrorBanner error={resultsError} fallbackMessage="Snapshot 결과를 불러오지 못했습니다." stale={hasLoadedResults} onRetry={refreshAll} />}
@@ -372,6 +367,8 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
       </div>
       <p className="border-t border-black/10 px-6 py-3 text-[11px] text-[#697586] lg:px-7">Quality Gate 상태와 지표는 서버 판정을 그대로 표시하며, 현재 결과 페이지에서 다시 계산하지 않습니다.</p>
     </article>
+
+    {detail?.status === 'FINISHED' && !notFinishedRace && !detailLoading && <RunProgressStepper status={detail.status} processedCount={detail.progress.processedTestCaseCount} totalCount={detail.testCaseCount} percent={detail.progress.percent} updatedAt={detail.updatedAt} compact />}
 
     <article className="overflow-hidden rounded-2xl border border-[#e5e9ee] bg-white">
       <div className="border-b border-[#e5e9ee] p-5"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-sm font-bold">결과 목록</h2><p className="mt-1 text-xs text-[#697586]">판정의 의미를 먼저 보여주며 원본 기술 값은 상세에서 확인할 수 있습니다.</p></div><span className="text-xs font-bold">현재 {visibleResults.length} / 필터 결과 {visiblePageMeta?.totalElements ?? 0}건 {resultsLoading && '· 불러오는 중'}</span></div><div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="평가 결과 분류 필터">{OUTCOME_FILTERS.map((filter) => <button key={filter.value} type="button" aria-pressed={outcomeFilter === filter.value} onClick={() => { setOutcomeFilter(filter.value); setResultPage(1); }} className={`rounded-full px-3 py-1.5 text-[11px] font-bold ${outcomeFilter === filter.value ? 'bg-[#17202a] text-white' : 'bg-[#eef1f4] text-[#586473]'}`}>{filter.label}</button>)}</div></div>
