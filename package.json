@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test": "node --test scripts/*.test.mjs",
     "openapi:sync": "node scripts/sync-openapi.mjs sync",
     "openapi:verify": "node scripts/sync-openapi.mjs verify",
     "openapi:check-latest": "node scripts/sync-openapi.mjs check-latest",
