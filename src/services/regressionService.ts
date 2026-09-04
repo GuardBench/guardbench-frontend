@@ -1,15 +1,25 @@
 import { apiRequest } from './apiClient';
 import type {
   Action,
+  EvaluationProfileReq,
   PageMetaRes,
   TargetReferenceRes,
 } from './testRunService';
 
-export interface ComparableTestRunListItemRes {
+interface ComparableTestRunListItemApiRes {
   id: number;
   testSuiteId: number;
   target: TargetReferenceRes;
   completedAt: string;
+}
+
+export interface ComparableTestRunListItemRes extends ComparableTestRunListItemApiRes {
+  evaluationProfile: EvaluationProfileReq;
+}
+
+interface ComparableTestRunListApiRes {
+  items: ComparableTestRunListItemApiRes[];
+  page: PageMetaRes;
 }
 
 export interface ComparableTestRunListRes {
@@ -50,6 +60,11 @@ export interface TestRunComparisonRes {
   items: TestRunComparisonItemRes[];
 }
 
+const EMPTY_EVALUATION_PROFILE: EvaluationProfileReq = {
+  checks: [],
+  strictness: '—',
+};
+
 export async function getComparableTestRuns(
   testRunId: number | string,
   params?: { page?: number; size?: number },
@@ -59,9 +74,17 @@ export async function getComparableTestRuns(
   if (params?.size) query.append('size', params.size.toString());
   const queryString = query.toString() ? `?${query.toString()}` : '';
 
-  return apiRequest<ComparableTestRunListRes>(
+  const response = await apiRequest<ComparableTestRunListApiRes>(
     `/test-runs/${testRunId}/comparable-runs${queryString}`,
   );
+
+  return {
+    ...response,
+    items: response.items.map((item) => ({
+      ...item,
+      evaluationProfile: EMPTY_EVALUATION_PROFILE,
+    })),
+  };
 }
 
 export async function getTestRunComparison(
