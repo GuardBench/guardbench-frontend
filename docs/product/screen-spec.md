@@ -2,9 +2,9 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-09-02
-> Scope: GitHub Issues #33, #62
-> AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
+> Last reviewed: 2026-09-04
+> Scope: GitHub Issues #33, #62, #72
+> AS-IS baseline: `main@39c74d6efc355665516b3069fbe538f18d327d24`
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 > API consumption contract: [`../contracts/api-integration.md`](../contracts/api-integration.md)
 
@@ -31,7 +31,7 @@
 | 테스트 스위트 | `SuitesView` | Sidebar | Suite와 TestCase 관리 |
 | 새 테스트 실행 | `NewRunView` | Sidebar / 다시 실행 | TestSuite + Application Target + Evaluation Profile 제출 |
 | 실행 이력 | `RunsView` | Sidebar | Run lifecycle/outcome/Gate 조회와 상세 진입 |
-| 결과 상세 | `ResultDetailView` | Run 행 / 생성 완료 | 현재 Run 결과와 Evaluator 분석 확인 |
+| 결과 상세 | `ResultDetailView` + `RegressionComparisonSection` | Run 행 / 생성 완료 | 현재 Run 결과를 확인하고 comparable Run과의 Regression 변화를 우선 탐색 |
 | 아키텍처 | `ArchitectureView` | Sidebar | 정적 설명 자료 |
 
 현재는 `App`의 local state로 화면과 선택 Run을 관리하며 URL route가 없다. 새로고침, browser back/forward와 직접 URL 진입은 화면 상태를 복원하지 않는다. (`AS-IS`)
@@ -198,15 +198,16 @@ filter URL 보존, 진행 Run 자동 갱신과 refresh interval은 `미결정`�
 
 ### 목적
 
-현재 Run의 Application 실행 상태, Evaluation Profile, Evaluator 판정과 Quality Gate를 확인한다. Regression은 같은 화면의 기본 판정에 섞지 않고 별도 비교 흐름으로 제공한다.
+현재 Run의 Application 실행 상태, Evaluator 판정과 Quality Gate를 확인한 뒤, 같은 화면에서 comparable historical Run과의 변화를 분석한다. Result Detail의 핵심 가치는 단순 결과 나열보다 **Candidate/current Run에서 무엇이 달라졌는지 빠르게 파악하는 것**에 둔다. Quality Gate와 Regression은 서로 독립된 판정이다.
 
 ### 현재 동작 (`AS-IS`)
 
-- Run 상세와 결과 endpoint를 호출한다.
+- `ResultDetailView`가 Run 상세와 결과 endpoint를 호출한다.
 - 단일 Application 실행, Evaluator verdict, assertion과 evaluation outcome을 표시한다.
 - 결과 page metadata와 server filter를 사용하고 Evaluator metrics를 별도로 조회한다.
 - Quality Gate의 확정된 두 metrics를 서버 값 그대로 표시한다.
-- Application 자연어 응답과 legacy Baseline/Candidate diff를 표시하지 않는다.
+- 같은 Result Detail 화면 아래의 `RegressionComparisonSection`이 comparable Run과 comparison API를 소비한다.
+- Application 자연어 응답과 legacy 한 Run 내부 Baseline/Candidate diff를 표시하지 않는다.
 
 ### 8.1 Run 요약 (`AS-IS`)
 
@@ -271,9 +272,9 @@ Evaluator metrics는 현재 Result Detail에서 Quality Gate와 구분된 review
 
 ## 9. Regression 비교
 
-### 목적 (`TO-BE`)
+### 목적 (`AS-IS`)
 
-현재 Run과 backend가 비교 가능하다고 반환한 과거 FINISHED Run의 저장 결과를 비교한다. 현재 Run의 Quality Gate와 별도 기능이다.
+현재 Run과 backend가 비교 가능하다고 반환한 과거 FINISHED Run의 저장 결과를 비교한다. Regression comparison 기능은 MVP 필수이며, 별도 Regression 전용 page만 Optional이다. 현재 구현은 Result Detail 내부 section으로 비교 흐름을 완결한다.
 
 ### 화면 흐름
 
@@ -281,11 +282,21 @@ Evaluator metrics는 현재 Result Detail에서 Quality Gate와 구분된 review
 2. backend가 반환한 후보만 page 단위로 표시한다.
 3. 과거 Run의 target, evaluationProfile과 completedAt을 비교 맥락으로 표시한다.
 4. 후보를 선택해 comparisons endpoint를 조회한다.
-5. Application이나 Evaluator를 다시 실행하는 것처럼 표현하지 않는다.
+5. summary에서 `changedCount`, `unchangedCount`, `regressedCount`, `improvedCount`, `notComparableCount`를 서버 값 그대로 표시한다.
+6. case-level에서 Expected, Previous/Current verdict, `comparabilityStatus`, `changeType`을 동일 컨텍스트에서 확인한다.
+7. Application이나 Evaluator를 다시 실행하는 것처럼 표현하지 않는다.
 
-`TestRunComparisonRes`는 Run ID, 전체·변경·유지·개선·악화·비교 불가 count와 case별 item을
-반환한다. 각 item은 Expected, 이전·현재 verdict, `COMPARABLE`/`NOT_COMPARABLE`과 확정 change type을
-포함한다. UI는 서버 classification을 재계산하지 않으며 구현은 #30에서 선택 범위로 추적한다.
+`TestRunComparisonRes`의 summary와 item은 backend classification을 source of truth로 사용한다. 프론트는 `changeType`을 재계산하지 않는다.
+
+### Result Detail UX 원칙
+
+- 전체 케이스를 같은 비중으로 훑게 하기보다 Regression/변화 케이스를 우선 탐색할 수 있게 한다.
+- summary의 Regression/Improvement/Unchanged/Not Comparable 수치를 변화 분석의 진입점으로 사용한다.
+- 현재 구현의 changed-only filter처럼 `changeType` 기반 탐색을 제공한다. 표현이 tab/filter로 바뀌더라도 목적은 동일하게 유지한다.
+- 한 case를 볼 때 Expected, Previous verdict, Current verdict, comparability와 change type을 같은 맥락에서 비교한다.
+- 현재 데이터만으로 표현할 수 있다면 `ALLOW → BLOCK`, `BLOCK → ALLOW`, `ALLOW → ALLOW`, `BLOCK → BLOCK` 같은 action transition을 보조 표현으로 사용할 수 있다. 이를 위해 신규 backend 집계 API를 요구하지 않는다.
+- Quality Gate와 Regression을 하나의 PASS/FAIL로 합치지 않는다.
+- 별도 Regression 전용 page를 추가하지 않아도 section/modal/drawer 안에서 `비교 Run 선택 → summary 확인 → 변화 case 탐색 → case 비교`가 완결되면 MVP 요구사항을 충족한다.
 
 ## 10. 아키텍처 화면
 
@@ -315,7 +326,7 @@ interval, backoff, background tab과 최대 지속 시간은 `미결정`이다.
 | 새 TestRun 생성 | #27 / #60 완료 | §6 |
 | Run 결과 상세 | #28 / #61 완료 | §8.1~8.2 |
 | Evaluator 분석 | #29 완료 | §8.3 |
-| Regression 비교 | #30 | §9 |
+| Regression 비교 | #30 완료, #72 문서 정렬 | §9 |
 | API 빈 결과·오류·mock | #19 | §3 및 API 연동 계약 |
 
 ## 13. 검증 근거
@@ -323,12 +334,15 @@ interval, backoff, background tab과 최대 지속 시간은 `미결정`이다.
 - [`../api/openapi.yaml`](../api/openapi.yaml)
 - [`../contracts/api-integration.md`](../contracts/api-integration.md)
 - `src/App.tsx`
-- `src/components/views/`
+- `src/components/views/ResultDetailView.tsx`
+- `src/components/views/RegressionComparisonSection.tsx`
 - `src/components/common/`
+- `src/services/regressionService.ts`
 - `src/services/`
 - `src/hooks/useLiveRunProgress.ts`
 - `src/types/index.ts`
 - `src/mocks/mockData.ts`
-- GitHub Issues #19, #27, #28, #29, #30, #33
+- GitHub Issues #19, #27, #28, #29, #30, #33, #72
+- GitHub PR #71
 
 이 문서는 프론트엔드 코드 또는 OpenAPI를 변경하지 않는다.
