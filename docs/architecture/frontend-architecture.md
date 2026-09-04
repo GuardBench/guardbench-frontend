@@ -2,9 +2,10 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-09-02
-> Scope: GitHub Issues #34, #62
+> Last reviewed: 2026-09-04
+> Scope: GitHub Issues #34, #62, #86
 > AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
+> #86 갱신: 단일 Target 생성 계약과 결과·회귀 화면의 평가 정책 metadata 제거를 반영한다.
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 > Product flows: [`../product/screen-spec.md`](../product/screen-spec.md), [`../product/user-flows.md`](../product/user-flows.md)
 > API consumption contract: [`../contracts/api-integration.md`](../contracts/api-integration.md)
@@ -54,7 +55,7 @@ View / Form
 - Suite/TestCase, Run 생성·목록·상세·결과·metrics 화면은 API의 data/empty/error/stale 상태를 구분한다.
 - `mockData`는 Architecture의 정적 설명 자료에만 남아 있다. API 화면은 실패를 mock 성공으로 대체하지 않는다.
 
-현재 코드는 최신 OpenAPI의 필수 model을 포함한 단일 Application Target, Evaluation Profile,
+현재 코드는 최신 OpenAPI의 필수 model을 포함한 단일 Application Target,
 Evaluator 결과와 확정 Quality Gate metrics를 사용한다. comparison DTO도 확정됐지만 선택 UI는 #30의
 별도 구현 범위로 남아 있다.
 
@@ -147,7 +148,7 @@ query identity는 endpoint 결과를 유일하게 결정하는 입력을 포함�
 - OpenAPI schema와 enum을 source of truth로 사용한다.
 - API DTO와 화면 model을 분리한다.
 - 단일 Target을 legacy `baseline/candidate` 구조로 변환하지 않는다.
-- `evaluationProfile`을 Evaluator provider 설정이나 저장 resource ID로 바꾸지 않는다.
+- 응답에 없는 평가 정책 metadata를 화면 호환용으로 합성하지 않는다.
 - Application 자연어 응답, provider 원문, stack trace를 DTO에 추가하지 않는다.
 - comparison summary와 case별 change/classification은 서버 DTO를 보존하고 프론트에서 재분류하지 않는다.
 - unknown public error code도 stage/message와 함께 보존한다.
@@ -158,7 +159,7 @@ query identity는 endpoint 결과를 유일하게 결정하는 입력을 포함�
 
 ```mermaid
 flowchart LR
-    Form[Suite + Target + Profile] --> Validate[Client validation]
+    Form[Suite + Target] --> Validate[Client validation]
     Validate --> Map[TestRunCreateReq]
     Map --> Key[Idempotency-Key]
     Key --> Service[createTestRun]
@@ -167,14 +168,12 @@ flowchart LR
 ```
 
 - form draft와 server mutation 상태를 분리한다.
-- request body는 `testSuiteId`, URL/model/선택 revision을 가진 단일 `target`과 inline `evaluationProfile`만 포함한다.
-- 하나의 Profile strictness를 선택된 모든 checks에 공통 적용한다.
+- request body는 `testSuiteId`와 URL/model/선택 revision을 가진 단일 `target`만 포함한다.
 - 같은 논리적 재전송은 같은 key와 body를 사용하고 다른 body에 key를 재사용하지 않는다.
 - `202`를 실행 완료로 처리하지 않는다.
 - 현재는 response의 Run ID로 Result Detail identity를 이동한다. `apiClient`가 `Location` header를 노출하지 않으므로 header 보존은 남은 계약 격차다.
 - `TEST_SUITE_EMPTY`는 활성 TestCase 준비 흐름으로 연결한다.
 - `IDEMPOTENCY_KEY_CONFLICT`는 같은 key를 다른 body에 사용한 충돌이므로 자동 재전송을 중단한다.
-- `EVALUATION_PROFILE_NOT_SUPPORTED`는 다른 Profile 조합 또는 Evaluator catalog 등록 흐름으로 연결한다.
 - network/timeout은 접수 여부가 불명일 수 있으므로 명시적 validation/API 거부와 구분한다.
 
 현재 화면은 payload fingerprint별 key를 보존하고 network 결과 불명에서는 재사용하며 성공 또는 명시적
@@ -221,7 +220,7 @@ Run이 FINISHED이면 detail과 별도로 results 및 evaluator-metrics를 조�
 ```text
 RunDetail
 ├─ lifecycle / progress / outcome / Quality Gate
-├─ target / evaluationProfile
+├─ target
 ├─ ResultCollection(page + filters)
 └─ EvaluatorMetrics(TP/TN/FP/FN + rates)
 ```
@@ -373,7 +372,7 @@ feature-based 폴더, query library와 generated API package 도입은 이 문�
 
 반드시 포함할 대표 계약 조합은 다음과 같다.
 
-- Profile 전체의 단일 strictness와 복수 checks
+- 생성 payload에 Suite와 단일 Target만 포함하며 판정 설정을 추가하지 않음
 - `qualityGate: null`과 `NOT_EVALUATED + metrics: null`
 - execution failure와 assertion FAIL 분리
 - verdict/assertion/outcome nullable 조합
@@ -387,7 +386,7 @@ test framework, 실제 backend 사용 범위와 CI required check는 `미결정`
 
 | 순서 | 구현 범위 | 관련 이슈 |
 | --- | --- | --- |
-| 1 | 생성 DTO와 Application Target + Evaluation Profile form | #27 / #60 완료 |
+| 1 | 생성 DTO와 단일 Application Target form | #27 / #60 구현, #86 판정 설정 제거 |
 | 2 | Run detail/results DTO, mapper와 결과 화면 | #28 / #61 완료 |
 | 3 | Evaluator metrics query와 분석 화면 | #29 완료 |
 | 4 | comparable-runs와 comparison UI | #30 선택 구현 |

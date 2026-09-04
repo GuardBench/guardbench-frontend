@@ -2,9 +2,10 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-09-02
-> Scope: GitHub Issues #35, #62
+> Last reviewed: 2026-09-04
+> Scope: GitHub Issues #35, #62, #86
 > AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
+> #86 갱신: 단일 Target 생성 계약과 결과·회귀 화면의 평가 정책 metadata 제거를 반영한다.
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 > Product flows: [`../product/screen-spec.md`](../product/screen-spec.md), [`../product/user-flows.md`](../product/user-flows.md)
 > API consumption contract: [`../contracts/api-integration.md`](../contracts/api-integration.md)
@@ -17,7 +18,7 @@
 - 실제 API data, 성공한 empty, 오류, stale과 demo/mock을 구분한다.
 - 색상, icon 또는 위치 하나만으로 상태 의미를 전달하지 않는다.
 - lifecycle, execution outcome, Evaluator verdict, assertion, Quality Gate와 Regression을 하나의 “성공/실패”로 합치지 않는다.
-- 사용자가 선택한 Evaluation Profile과 GuardBench 내부 Evaluator/provider 정보를 구분한다.
+- 사용자가 입력하는 Application Target과 Backend의 내부 판정 설정을 구분한다.
 - Application 자연어 응답은 조회·저장·표시하지 않는다.
 - OpenAPI에 없는 값, metric, error 의미와 comparison classification을 UI에서 추정하지 않는다.
 - keyboard와 screen reader 사용자가 pointer 사용자와 같은 정보·action에 접근할 수 있어야 한다.
@@ -79,7 +80,7 @@ Polling interval, 장시간 실행 안내와 background tab 표현은 `미결정
 | --- | --- |
 | validation | field 근처 오류와 form-level summary, 입력 유지 |
 | resource not found | 대상이 없다는 설명과 목록으로 돌아갈 action |
-| create conflict | `TEST_SUITE_EMPTY`는 TestCase가 없음을 알리고 Suite 편집으로 연결한다. `IDEMPOTENCY_KEY_CONFLICT`는 자동 재전송을 중단하고 새 시도를 안내한다. `EVALUATION_PROFILE_NOT_SUPPORTED`는 다른 Profile 조합 또는 Evaluator catalog 등록을 안내한다. |
+| create conflict | `TEST_SUITE_EMPTY`는 TestCase가 없음을 알리고 Suite 편집으로 연결한다. `IDEMPOTENCY_KEY_CONFLICT`는 자동 재전송을 중단하고 새 시도를 안내한다. |
 | not finished race | Run 상태 재확인, 결과 empty로 확정하지 않음 |
 | not comparable | comparison 해제와 후보 재선택 |
 | network/timeout | 접수·처리 결과 불명 가능성과 재시도 |
@@ -127,13 +128,10 @@ Polling interval, 장시간 실행 안내와 background tab 표현은 `미결정
 | Application URL | `target.identifier` | OpenAI-compatible Chat Completions full HTTP/HTTPS URI, 필수 |
 | Model | `target.model` | OpenAI-compatible request의 모델 식별자, 필수, 공백 금지 |
 | Revision | `target.revision` | optional, 공백 문자열 금지 |
-| Evaluation checks | `evaluationProfile.checks` | 최소 1개, 중복 없이 복수 선택 |
-| Strictness | `evaluationProfile.strictness` | Profile 전체에 하나, 모든 checks에 공통 적용 |
 
 - 사용자에게 Evaluator provider/type 또는 Guardrail ID/version을 입력받지 않는다.
-- check별 strictness control을 만들지 않는다.
-- strictness label은 특정 provider threshold나 절대 안전 수준을 보장하는 표현을 사용하지 않는다.
-- 실행 요약에는 Suite, Application URL/model/revision, checks와 단일 strictness를 표시한다.
+- Backend의 판정 모델과 prompt를 설정하는 control을 만들지 않는다.
+- 실행 요약에는 Suite와 Application URL/model/revision을 표시한다.
 - 예상 실행 수에 legacy `caseCount * 2`를 사용하지 않는다.
 
 Idempotency-Key는 사용자 입력 field가 아니다. 재전송 정책이 확정되면 UI는 결과 불명과 새 시도를 구분한다.
@@ -259,7 +257,7 @@ skip link, route change announcement와 screen reader 지원 matrix는 #17에서
 
 ## 14. Evaluator 분석
 
-- Evaluation Profile checks와 통합 strictness를 분석 context로 함께 표시한다.
+- 비교 대상으로 선택한 과거 Run의 Application과 완료 시각을 분석 context로 표시한다.
 - TP/TN/FP/FN count와 FP/FN rate는 evaluator-metrics 응답을 사용한다.
 - rate가 `null`이면 분모 없음 또는 계산 불가로 표시하며 0%로 바꾸지 않는다.
 - FP/FN은 현재 TestCase Expected와 Evaluator verdict의 관계임을 설명한다.
@@ -272,7 +270,7 @@ chart 유형, 숫자 rounding과 mobile 배치는 `미결정`이다.
 
 - Regression은 current Run Quality Gate와 별도 section 또는 화면으로 구분한다.
 - backend가 반환한 comparable Run만 선택지로 제공한다.
-- current와 comparison Run의 Application Target, Evaluation Profile과 완료 시각을 비교 context로 표시한다.
+- current와 comparison Run의 Application Target과 완료 시각을 비교 context로 표시한다.
 - 비교 중 Application/Evaluator를 다시 실행하는 것처럼 표현하지 않는다.
 - `TEST_RUNS_NOT_COMPARABLE`이면 기존 비교 결과를 유지하지 않고 후보 재선택을 제공한다.
 - case-level badge와 table은 서버의 comparability status와 change type을 그대로 사용한다.

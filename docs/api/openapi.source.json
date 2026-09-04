@@ -1,6 +1,6 @@
 {
   "repository": "GuardBench/guardbench-backend",
-  "commit": "ecae3464d75af9a9ed0f3319caa6de73b7ceee7a",
+  "commit": "be692dae97b272633445830797cc17167b28ce6c",
   "path": "docs/api/openapi.yaml",
-  "sha256": "cdc4fef87423aa32f7b65224cd5b4cd116a80cba74e65a4ebdee0da7918149bb"
+  "sha256": "285b582b4634c60fbb168fb8af9ca21a76f2661c479cb1b8e02434449eaa8c37"
 }

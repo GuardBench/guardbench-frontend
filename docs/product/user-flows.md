@@ -3,8 +3,9 @@
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
 > Last reviewed: 2026-09-04
-> Scope: GitHub Issues #33, #62, #72
+> Scope: GitHub Issues #33, #62, #72, #86
 > Implementation baseline: PR #88 (`agent/72-regression-result-detail-docs`)
+> #86 갱신: 단일 Target 생성 계약과 결과·회귀 화면의 평가 정책 metadata 제거를 반영한다.
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 > Screen specification: [`screen-spec.md`](screen-spec.md)
 > API consumption contract: [`../contracts/api-integration.md`](../contracts/api-integration.md)
@@ -28,8 +29,7 @@ flowchart TD
     A[TestSuite 확인] --> B[TestCase 준비]
     B --> C[새 테스트 실행]
     C --> D[Application HTTP Target 입력]
-    D --> E[Evaluation Profile 선택]
-    E --> F[POST TestRun]
+    D --> F[POST TestRun]
     F -->|202 Accepted| G[Run 상세 즉시 조회]
     G -->|QUEUED / PREPARING / RUNNING| H[진행률 Polling]
     H --> G
@@ -45,7 +45,7 @@ flowchart TD
     L -->|비교 가능 Run 없음| R[현재 Run 검토 종료]
 ```
 
-필수 핵심 흐름은 하나의 Application Target을 실행하고 Evaluation Profile에 따른 Evaluator verdict와 assertion을 확인하는 것이다. Regression은 현재 Run의 Quality Gate 입력이 아니며, 사용자가 필요할 때 과거 comparable Run과 별도로 비교한다. 이 비교 기능 자체와 comparison API 소비는 MVP 필수다.
+필수 핵심 흐름은 하나의 Application Target을 실행하고 관측된 동작과 assertion을 확인하는 것이다. Regression은 현재 Run의 Quality Gate 입력이 아니며, 사용자가 필요할 때 과거 comparable Run과 별도로 비교한다. 이 비교 기능 자체와 comparison API 소비는 MVP 필수다.
 
 현재 구현은 Suite/TestCase 관리, Target/Profile Run 생성, Polling, 결과와 Evaluator metrics 검토, comparable Run 조회와 저장 결과 비교까지 API에 연결한다. Result Detail에는 `RegressionSummaryEntry`가 있고, 상세 비교는 `RegressionDetailView`에서 수행한다. (`AS-IS`)
 
@@ -105,7 +105,7 @@ Suite 생성은 다음 두 정상 흐름을 지원한다.
 
 ### 사용자 목표 (`TO-BE`)
 
-TestSuite, 테스트할 Application과 평가 정책을 선택하고 실행 요청을 중복 없이 접수한다.
+TestSuite와 테스트할 Application을 선택하고 실행 요청을 중복 없이 접수한다.
 
 ### 4.1 입력 흐름
 
@@ -118,9 +118,7 @@ flowchart TD
     E --> F[Application URL 입력]
     F --> G[필수 model 입력]
     G --> H[선택 revision 입력]
-    H --> I[Evaluation checks 선택]
-    I --> J[Strictness 선택]
-    J --> K[실행 요약 확인]
+    H --> K[실행 요약 확인]
     K --> L{client validation}
     L -->|실패| M[관련 control 오류]
     L -->|통과| N[POST test-runs]
@@ -132,15 +130,14 @@ flowchart TD
 - **Application URL**: GuardBench가 호출할 OpenAI-compatible Chat Completions full endpoint
 - **Model**: Application request body에 전달할 필수 모델 식별자
 - **Revision**: 사용자가 배포·모델·commit을 구분하기 위한 선택 정보
-- **Evaluation Profile**: checks와 strictness로 구성된 이번 Run의 평가 정책
 
-`checks`는 Profile 안에서 하나 이상 복수 선택할 수 있지만 `strictness`는 Profile 전체에 하나만 선택한다. 하나의 strictness가 선택된 모든 checks에 공통 적용되며 현재 OpenAPI에는 check별 strictness가 없다.
+TestCase의 기대 동작과 Backend가 관측한 동작을 비교하며, 사용자는 판정 모델이나 prompt를 설정하지 않는다.
 
 사용자가 Evaluator provider/type, Guardrail identifier/version이나 Snapshot ID를 직접 입력하지 않는다.
 
 ### 4.2 현재 흐름 (`AS-IS`)
 
-현재 화면은 Suite 목록을 API로 조회하고 URL/model/revision과 Evaluation Profile을 최신 `TestRunCreateReq`로 전송한다. 접수 성공 시 Run 상세로 이동하며 결과 불명 network 오류에서는 동일 payload와 Idempotency-Key를 유지한다.
+현재 화면은 Suite 목록을 API로 조회하고 `testSuiteId`와 URL/model/revision을 가진 단일 `target`을 최신 `TestRunCreateReq`로 전송한다. 접수 성공 시 Run 상세로 이동하며 결과 불명 network 오류에서는 동일 payload와 Idempotency-Key를 유지한다.
 
 ### 4.3 접수와 멱등성 (`AS-IS`)
 
@@ -157,11 +154,10 @@ flowchart TD
 
 | 상황 | 의미 | 다음 행동 |
 | --- | --- | --- |
-| validation | URL, checks, strictness 또는 다른 request field 오류 | 관련 control에 detail 표시 |
+| validation | Suite, URL, model 또는 revision 오류 | 관련 control에 detail 표시 |
 | `TEST_SUITE_NOT_FOUND` | 선택 Suite가 더 이상 존재하지 않음 | Suite 목록 재조회 |
 | `TEST_SUITE_EMPTY` | 활성 TestCase가 없음 | TestCase 준비로 이동 |
 | `IDEMPOTENCY_KEY_CONFLICT` | 같은 key를 다른 body에 재사용 | 자동 재시도 중단, 새 논리 시도 안내 |
-| `EVALUATION_PROFILE_NOT_SUPPORTED` | 선택 Profile에 대응하는 Evaluator catalog가 없음 | 다른 checks/strictness 조합 또는 관리자 등록 안내 |
 | network/timeout | 접수 여부가 불명확할 수 있음 | 같은 key 재사용 정책에 따라 확인·재시도 |
 
 취소 전송의 보장, timeout 값과 자동 retry는 OpenAPI만으로 정하지 않는다.
@@ -220,7 +216,6 @@ FINISHED 전후에 다음 정보를 표시한다.
 
 - TestSuite ID와 Run ID
 - Application Target URL, required model과 optional revision
-- Evaluation Profile checks와 strictness
 - lifecycle와 progress
 - execution outcome
 - Quality Gate status
@@ -287,7 +282,7 @@ filter가 적용된 현재 page로 전체 TP/TN/FP/FN metrics나 Quality Gate를
 
 ### 사용자 목표 (`AS-IS`)
 
-현재 Evaluation Profile에서 Evaluator verdict가 Expected와 어떻게 일치했는지 aggregate 관점에서 검토한다.
+관측된 Evaluator verdict가 TestCase의 Expected와 어떻게 일치했는지 aggregate 관점에서 검토한다.
 
 1. FINISHED Run에서 evaluator-metrics endpoint를 조회한다.
 2. 서버가 반환한 TP/TN/FP/FN count를 표시한다.
@@ -330,7 +325,7 @@ flowchart TD
 
 - 프론트는 같은 Suite라는 이유로 후보를 추가하지 않는다.
 - Application target URL/model/revision은 비교 축이므로 후보마다 달라도 될 수 있다.
-- Evaluation Profile은 사용자 맥락으로 표시하지만 실제 comparability 판정은 backend가 소유한다.
+- Application Target과 완료 시각은 사용자 맥락으로 표시하지만 실제 comparability 판정은 backend가 소유한다.
 - 비교 중 Application이나 Evaluator를 다시 호출하지 않는다.
 - Quality Gate와 Regression을 하나의 PASS/FAIL로 합치지 않는다.
 - summary의 changed/unchanged/regressed/improved/notComparable 값을 서버 값 그대로 사용한다.

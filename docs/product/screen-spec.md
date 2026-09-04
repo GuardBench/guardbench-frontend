@@ -3,8 +3,9 @@
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
 > Last reviewed: 2026-09-04
-> Scope: GitHub Issues #33, #62, #72
+> Scope: GitHub Issues #33, #62, #72, #86
 > Implementation baseline: PR #88 (`agent/72-regression-result-detail-docs`)
+> #86 갱신: 단일 Target 생성 계약과 결과·회귀 화면의 평가 정책 metadata 제거를 반영한다.
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 > API consumption contract: [`../contracts/api-integration.md`](../contracts/api-integration.md)
 
@@ -29,7 +30,7 @@
 | --- | --- | --- | --- |
 | 대시보드 | `DashboardView` | Sidebar / logo | 정적 데모와 실제 집계의 출처 구분 |
 | 테스트 스위트 | `SuitesView` | Sidebar | Suite와 TestCase 관리 |
-| 새 테스트 실행 | `NewRunView` | Sidebar / 다시 실행 | TestSuite + Application Target + Evaluation Profile 제출 |
+| 새 테스트 실행 | `NewRunView` | Sidebar / 다시 실행 | TestSuite + Application Target 제출 |
 | 실행 이력 | `RunsView` | Sidebar | Run lifecycle/outcome/Gate 조회와 상세 진입 |
 | 결과 상세 | `ResultDetailView` + `RegressionSummaryEntry` | Run 행 / 생성 완료 | 현재 Run 결과를 이해하고 Regression 상세로 진입 |
 | Regression 상세 | `RegressionDetailView` | Result Detail의 `회귀 상세 보기` | comparable Run 선택과 Regression 변화 상세 분석 |
@@ -114,12 +115,11 @@ pagination/filter UX, 삭제 확인 방식과 mutation 후 재조회 정책은 `
 
 ### 목적
 
-사용자가 TestSuite, 테스트할 AI Application과 평가 정책을 선택해 비동기 TestRun을 접수한다.
+사용자가 TestSuite와 테스트할 AI Application을 선택해 비동기 TestRun을 접수한다.
 
 ```text
 TestSuite
 + OpenAI-compatible HTTP endpoint / required model / optional revision
-+ Evaluation Profile checks / strictness
 → POST /api/v1/test-runs
 → 202 Accepted
 → Run 상세 조회
@@ -129,8 +129,7 @@ TestSuite
 
 - Suite 목록은 실제 API에서 조회한다.
 - OpenAI-compatible full endpoint, 필수 model과 선택 revision을 입력받는다.
-- checks 복수 선택과 Profile 전체의 단일 strictness를 입력받는다.
-- `testRunService`는 최신 `target`과 inline `evaluationProfile`을 전송한다.
+- `testRunService`는 `testSuiteId`와 단일 `target`을 전송한다.
 - 동일 payload의 결과 불명 재시도에는 같은 Idempotency-Key를 유지한다.
 
 ### 현재 form 계약 (`AS-IS`)
@@ -141,22 +140,19 @@ TestSuite
 | Application | HTTP/HTTPS URL | 필수, URL parsing과 HTTP/HTTPS protocol 검사 |
 | Application model | Chat Completions request의 모델 식별자 | 필수, 공백 문자열 금지 |
 | Application revision | 배포·모델·commit 식별 문자열 | 선택, 공백 문자열 금지 |
-| Evaluation checks | Prompt Injection, PII Leakage, Harmful Content | Profile에서 최소 1개, 중복 불가 |
-| Strictness | Relaxed, Standard, Strict | Evaluation Profile 전체에 정확히 1개 선택하며 선택된 모든 checks에 공통 적용 |
 
 - 사용자에게 Evaluator provider/type 또는 Guardrail ID/version을 입력받지 않는다.
-- Evaluation Profile은 저장된 리소스 ID가 아니라 Run에 포함되는 inline 정책으로 설명한다.
-- 현재 OpenAPI는 check별 strictness를 지원하지 않는다. check마다 다른 엄격도를 보내거나 화면 전용 조합을 request body에 추가하지 않는다.
+- Backend의 판정 모델과 prompt를 설정하는 입력을 만들지 않는다.
 - 예상 실행 수는 활성 TestCaseSnapshot당 단일 Application 처리 기준이며 기존 `caseCount * 2`를 사용하지 않는다.
-- 화면 요약에는 Suite, Application URL/model/revision과 Evaluation Profile을 표시한다.
+- 화면 요약에는 Suite와 Application URL/model/revision을 표시한다.
 - 한 논리적 제출 payload에는 같은 `Idempotency-Key`를 사용하고 payload가 바뀌면 새 key를 사용한다.
 
 ### 생성 결과와 오류 (`AS-IS`)
 
 - `202 Accepted`는 실행 완료가 아니라 접수 성공이다.
-- 응답의 Run ID, status, testCaseCount, target, evaluationProfile과 createdAt을 보존한다.
+- 응답의 Run ID, status, testCaseCount, target과 createdAt을 보존한다.
 - 접수 후 즉시 Run 상세 화면 또는 진행 확인 흐름으로 이동한다.
-- `TEST_SUITE_EMPTY`, `IDEMPOTENCY_KEY_CONFLICT`, `EVALUATION_PROFILE_NOT_SUPPORTED`, validation과 network 결과 불명을 구분한다.
+- `TEST_SUITE_EMPTY`, `IDEMPOTENCY_KEY_CONFLICT`, validation과 network 결과 불명을 구분한다.
 
 생성 후 Result Detail로 이동한다. network 결과 불명에서는 동일 payload/key를 유지하며 화면 이탈 후 복원과 장기 보존은 `미결정`이다.
 
@@ -216,7 +212,6 @@ filter URL 보존, 진행 Run 자동 갱신과 refresh interval은 `미결정`�
 
 - TestSuite ID
 - 단일 Application Target type, identifier, required model과 optional revision
-- 요청한 Evaluation Profile checks와 strictness
 - lifecycle, progress, execution outcome
 - Quality Gate status
 - created/started/completed/updated 시각
@@ -286,7 +281,7 @@ lifecycle 완료는 Quality Gate PASS와 별개의 상태다.
 가진 semantic table로 제공하고 색상 외 텍스트로도 결과를 구분한다.
 
 - verdict 없는 실행 실패는 분류 집계에 포함하지 않는다.
-- 현재 Evaluation Profile 맥락에서 Expected와 Evaluator verdict의 관계임을 설명한다.
+- TestCase의 Expected와 응답에서 관측된 Evaluator verdict의 관계임을 설명한다.
 - 일부 result page를 가지고 전체 metrics를 재계산하지 않는다.
 - 일반적인 모델 성능이나 절대 ground truth로 과장하지 않는다.
 
@@ -325,7 +320,7 @@ Regression Detail은 기존 `RegressionComparisonSection`과 `regressionService`
 
 1. `GET /api/v1/test-runs/{testRunId}/comparable-runs`를 조회한다.
 2. backend가 반환한 후보만 page 단위로 표시한다.
-3. 과거 Run의 target, evaluationProfile과 completedAt을 비교 맥락으로 표시한다.
+3. 과거 Run의 target과 completedAt을 비교 맥락으로 표시한다.
 4. 후보를 선택해 `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}`를 조회한다.
 5. summary의 `totalCases`, `changedCount`, `unchangedCount`, `regressedCount`, `improvedCount`, `notComparableCount`를 서버 값 그대로 표시한다.
 6. case-level에서 Expected, Previous/Current verdict, `comparabilityStatus`, `changeType`을 동일 컨텍스트에서 확인한다.

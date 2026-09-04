@@ -1,6 +1,6 @@
 # GuardBench Web Frontend
 
-GuardBench(Amazon Bedrock Guardrail 정책 회귀 테스트 플랫폼)의 공식 웹 프론트엔드 모듈입니다.
+GuardBench(AI Application 응답 동작 및 정책 회귀 테스트 플랫폼)의 공식 웹 프론트엔드 모듈입니다.
 
 ## 🚀 주요 기능 및 화면
 
