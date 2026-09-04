@@ -2,14 +2,14 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-09-02
-> Scope: GitHub Issues #33, #62
-> AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
+> Last reviewed: 2026-09-04
+> Scope: GitHub Issues #33, #62, #72
+> AS-IS baseline: `main@39c74d6efc355665516b3069fbe538f18d327d24`
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
 > Screen specification: [`screen-spec.md`](screen-spec.md)
 > API consumption contract: [`../contracts/api-integration.md`](../contracts/api-integration.md)
 
-이 문서는 TestSuite 준비부터 Application TestRun 실행, Evaluator 결과 검토와 선택적 Regression 비교까지 사용자의 목표와 상태 전이를 연결한다. API schema를 복제하지 않고 최신 OpenAPI의 endpoint와 schema를 참조한다.
+이 문서는 TestSuite 준비부터 Application TestRun 실행, Evaluator 결과 검토와 Regression 비교까지 사용자의 목표와 상태 전이를 연결한다. Regression comparison 기능과 Backend comparison API 소비는 MVP 필수이며, 별도 Regression 전용 page만 Optional이다. API schema를 복제하지 않고 최신 OpenAPI의 endpoint와 schema를 참조한다.
 
 ## 1. 읽는 방법
 
@@ -38,14 +38,13 @@ flowchart TD
     J --> K[TP/TN/FP/FN metrics 검토]
     I --> L{과거 Run 비교?}
     L -->|선택| M[Comparable Runs 조회]
-    M --> N[저장 결과 비교]
+    M --> N[Regression summary와 변화 case 확인]
     L -->|아니오| O[현재 Run 검토 종료]
 ```
 
-필수 핵심 흐름은 하나의 Application Target을 실행하고 Evaluation Profile에 따른 Evaluator verdict와 assertion을 확인하는 것이다. Regression은 현재 Run의 Quality Gate 입력이 아니며, 사용자가 원할 때 과거 comparable Run과 별도로 비교한다.
+필수 핵심 흐름은 하나의 Application Target을 실행하고 Evaluation Profile에 따른 Evaluator verdict와 assertion을 확인하는 것이다. Regression은 현재 Run의 Quality Gate 입력이 아니며, 사용자가 필요할 때 과거 comparable Run과 별도로 비교한다. 이 비교 기능 자체와 comparison API 소비는 MVP 필수다.
 
-현재 구현은 Suite/TestCase 관리, 최신 Target/Profile Run 생성, Polling, 결과와 Evaluator metrics 검토를
-API에 연결한다. Regression 비교 UI만 선택 구현으로 남아 있다. (`AS-IS`)
+현재 구현은 Suite/TestCase 관리, 최신 Target/Profile Run 생성, Polling, 결과와 Evaluator metrics 검토, comparable Run 조회와 저장 결과 비교까지 API에 연결한다. Regression은 별도 page가 아니라 Result Detail 내부 section으로 구현되어 있다. (`AS-IS`)
 
 ## 3. TestSuite와 TestCase 준비
 
@@ -213,7 +212,7 @@ stateDiagram-v2
 
 ### 사용자 목표
 
-Run의 처리 신뢰도와 Quality Gate를 확인하고 TestCaseSnapshot별 Evaluator 판정을 검토한다.
+Run의 처리 신뢰도와 Quality Gate를 확인하고 TestCaseSnapshot별 Evaluator 판정을 검토한다. 같은 Result Detail에서 Regression 비교를 통해 변화가 발생한 case를 우선 탐색할 수 있다.
 
 ### 6.1 상세 요약
 
@@ -283,7 +282,7 @@ filter가 적용된 현재 page로 전체 TP/TN/FP/FN metrics나 Quality Gate를
 ### 6.5 현재 구현 (`AS-IS`)
 
 현재 결과 화면은 단일 Application execution, Evaluator verdict, assertion, outcome과 안전한 오류를
-표시한다. 결과 filter/page, Evaluator metrics와 Quality Gate는 각 서버 응답을 독립적으로 사용한다.
+표시한다. 결과 filter/page, Evaluator metrics와 Quality Gate는 각 서버 응답을 독립적으로 사용한다. 같은 Result Detail 내부에서 `RegressionComparisonSection`을 통해 historical Run 비교를 수행한다.
 
 ## 7. Evaluator 분석
 
@@ -302,9 +301,9 @@ filter가 적용된 현재 page로 전체 TP/TN/FP/FN metrics나 Quality Gate를
 
 ## 8. 과거 Run과 Regression 비교
 
-### 사용자 목표 (`TO-BE`)
+### 사용자 목표 (`AS-IS`)
 
-현재 Run과 동일한 테스트 정의 및 실제 Evaluator 설정을 사용한 과거 FINISHED Run을 선택해 저장 결과를 비교한다.
+현재 Run과 backend가 comparable로 판정한 과거 FINISHED Run을 선택해 저장 결과를 비교하고, 전체 정상 케이스를 훑기 전에 Regression/변화 케이스를 우선 탐색한다.
 
 ```mermaid
 flowchart TD
@@ -312,9 +311,11 @@ flowchart TD
     B -->|items 없음| C[비교 가능한 과거 Run 없음]
     B -->|items 있음| D[과거 Run 선택]
     D --> E[GET comparisons]
-    E -->|성공| F[확정된 비교 결과 표시]
-    E -->|TEST_RUNS_NOT_COMPARABLE| G[비교 조건 변경 안내]
-    E -->|TEST_RUN_NOT_FINISHED| H[Run 상태 재확인]
+    E -->|성공| F[Regression summary 확인]
+    F --> G[변화 case 우선 탐색]
+    G --> H[Expected와 Previous/Current verdict 비교]
+    E -->|TEST_RUNS_NOT_COMPARABLE| I[비교 조건 변경 안내]
+    E -->|TEST_RUN_NOT_FINISHED| J[Run 상태 재확인]
 ```
 
 - 프론트는 같은 Suite라는 이유로 후보를 추가하지 않는다.
@@ -322,10 +323,15 @@ flowchart TD
 - Evaluation Profile은 사용자 맥락으로 표시하지만 실제 comparability 판정은 backend가 소유한다.
 - 비교 중 Application이나 Evaluator를 다시 호출하지 않는다.
 - Quality Gate와 Regression을 하나의 PASS/FAIL로 합치지 않는다.
+- summary의 changed/unchanged/regressed/improved/notComparable 값을 서버 값 그대로 사용한다.
+- case-level `changeType`과 `comparabilityStatus`를 재계산하지 않는다.
+- 현재 구현의 changed-only filter를 사용해 변화 case를 먼저 볼 수 있다. 향후 tab/filter 표현이 바뀌어도 Regression/Improvement/변화 우선 탐색이라는 목적은 유지한다.
+- 한 case에서 Expected, Previous verdict, Current verdict, comparability와 change type을 같은 상세 맥락에서 확인한다.
+- 현재 데이터만으로 가능한 경우 `ALLOW → BLOCK`, `BLOCK → ALLOW` 같은 action transition을 보조 표현으로 사용할 수 있으나 이를 위해 신규 backend API를 요구하지 않는다.
 
-comparison response는 summary count와 case별 이전·현재 verdict, comparability status 및 change type을
-확정했다. 프론트는 `SECURITY_REGRESSION`, `USABILITY_REGRESSION`, `IMPROVEMENT`,
-`POLICY_BEHAVIOR_CHANGED`, `NO_CHANGE`를 서버 값 그대로 사용한다. #30은 선택 구현 이슈다.
+comparison response는 `SECURITY_REGRESSION`, `USABILITY_REGRESSION`, `IMPROVEMENT`, `POLICY_BEHAVIOR_CHANGED`, `NO_CHANGE`를 확정해서 반환한다. 프론트는 서버 값을 그대로 사용한다.
+
+별도 Regression 전용 page는 Optional이다. 현재처럼 Result Detail의 section/modal/drawer 안에서 `비교 Run 선택 → summary 확인 → 변화 case 탐색 → case 비교`가 완결되면 MVP 요구사항을 충족한다.
 
 ## 9. 공통 예외와 복구
 
@@ -353,8 +359,8 @@ comparison response는 summary count와 case별 이전·현재 verdict, comparab
 | Run 진행·요약 | 결과 상세 | `GET /api/v1/test-runs/{testRunId}` | 구현 |
 | 개별 결과 | 결과 상세 | `GET /api/v1/test-runs/{testRunId}/results` | 구현 |
 | Evaluator metrics | Evaluator 분석 | `GET /api/v1/test-runs/{testRunId}/evaluator-metrics` | 구현 |
-| 비교 후보 | Regression | `GET /api/v1/test-runs/{testRunId}/comparable-runs` | 미구현, #30 |
-| Run 비교 | Regression | `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}` | DTO 확정, UI 선택 구현 #30 |
+| 비교 후보 | Result Detail Regression section | `GET /api/v1/test-runs/{testRunId}/comparable-runs` | 구현, #30/PR #71 |
+| Run 비교 | Result Detail Regression section | `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}` | 구현, #30/PR #71 |
 
 ## 11. 미결정 사항
 
@@ -364,7 +370,7 @@ comparison response는 summary count와 case별 이전·현재 verdict, comparab
 - pagination/filter의 URL 보존
 - error code별 최종 사용자 문구
 - Evaluator 분석의 tab/별도 화면 배치
-- comparison 상세 탐색과 filter UI 방식
+- Regression section의 세부 시각적 표현과 action transition 표시 방식
 - report/export 범위
 
 Application 자연어 응답 비공개는 미결정 사항이 아니라 현재 확정된 정책이다.
@@ -375,10 +381,13 @@ Application 자연어 응답 비공개는 미결정 사항이 아니라 현재 �
 - [`screen-spec.md`](screen-spec.md)
 - [`../contracts/api-integration.md`](../contracts/api-integration.md)
 - `src/App.tsx`
-- `src/components/views/`
+- `src/components/views/ResultDetailView.tsx`
+- `src/components/views/RegressionComparisonSection.tsx`
 - `src/components/common/`
+- `src/services/regressionService.ts`
 - `src/services/`
 - `src/hooks/useLiveRunProgress.ts`
-- GitHub Issues #19, #27, #28, #29, #30, #33
+- GitHub Issues #19, #27, #28, #29, #30, #33, #72
+- GitHub PR #71
 
 이 문서는 프론트엔드 코드 또는 OpenAPI를 변경하지 않는다.
