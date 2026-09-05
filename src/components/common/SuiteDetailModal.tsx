@@ -2,12 +2,31 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Severity, TestCase, TestSuite } from '../../types';
 import { X, Plus, Trash2, Edit2, AlertCircle, Loader2 } from 'lucide-react';
-import { getTestCases, createTestCase, deleteTestCase, type TestCaseListApiResponse } from '../../services/testCaseService';
+import {
+  getTestCases,
+  createTestCase,
+  updateTestCase,
+  deleteTestCase,
+  type TestCaseListApiResponse,
+} from '../../services/testCaseService';
 import { deleteTestSuite } from '../../services/testSuiteService';
 import { ApiError, presentApiError } from '../../services/apiClient';
 import { RequestErrorBanner } from './RequestErrorBanner';
 import { useDialogFocus } from '../../hooks/useDialogFocus';
 import { LAYER_CLASS } from '../../config/layers';
+import {
+  EMPTY_TEST_CASE_EDIT,
+  beginTestCaseEdit,
+  canStartTestCaseEditSave,
+  changeTestCaseEdit,
+  failTestCaseEditSave,
+  isTestCaseEditDirty,
+  startTestCaseEditSave,
+  testCaseApiId,
+  validateTestCaseEdit,
+  type CaseValidation,
+  type CaseValidationField,
+} from './testCaseEditState';
 
 const TEST_CASE_PAGE_SIZE = 20;
 
@@ -37,13 +56,6 @@ interface SuiteDetailModalProps {
   onNotify: (msg: string) => void;
 }
 
-type AddCaseValidationField = 'name' | 'input' | 'category' | 'request';
-
-type AddCaseValidation = {
-  field: AddCaseValidationField;
-  message: string;
-};
-
 export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClose, onDeleted, onNotify }) => {
   const [cases, setCases] = useState<TestCase[]>([]);
   const [casesOwnerSuiteId, setCasesOwnerSuiteId] = useState<string | null>(null);
@@ -56,7 +68,8 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<unknown>(null);
-  const [addValidation, setAddValidation] = useState<AddCaseValidation | null>(null);
+  const [addValidation, setAddValidation] = useState<CaseValidation | null>(null);
+  const [editState, setEditState] = useState(EMPTY_TEST_CASE_EDIT);
   const [newCase, setNewCase] = useState<Partial<TestCase>>({
     name: '',
     input: '',
@@ -67,9 +80,25 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   const caseNameRef = useRef<HTMLInputElement>(null);
   const caseInputRef = useRef<HTMLTextAreaElement>(null);
   const caseCategoryRef = useRef<HTMLInputElement>(null);
+  const editCaseNameRef = useRef<HTMLInputElement>(null);
+  const editCaseInputRef = useRef<HTMLTextAreaElement>(null);
+  const editCaseCategoryRef = useRef<HTMLInputElement>(null);
+  const editErrorRef = useRef<HTMLDivElement>(null);
+  const editButtonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const pendingEditButtonFocusRef = useRef<string | null>(null);
+  const pendingFocusSawLoadingRef = useRef(false);
+  const editInFlightRef = useRef(false);
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const deleteInFlightRef = useRef(false);
-  const dialogRef = useDialogFocus({ isOpen: suite !== null, onClose });
+  const closeSuiteDetail = () => {
+    if (editInFlightRef.current) return;
+    if (isTestCaseEditDirty(editState) && !window.confirm('저장하지 않은 수정사항이 있습니다. 상세창을 닫을까요?')) return;
+    setEditState(EMPTY_TEST_CASE_EDIT);
+    setIsAdding(false);
+    setAddValidation(null);
+    onClose();
+  };
+  const dialogRef = useDialogFocus({ isOpen: suite !== null, onClose: closeSuiteDetail });
   const deleteConfirmDialogRef = useDialogFocus({
     isOpen: isDeleteConfirmOpen,
     onClose: () => {
@@ -123,6 +152,20 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     };
   }, [suiteId, page, reloadToken]);
 
+  useEffect(() => {
+    if (!pendingEditButtonFocusRef.current) return;
+    if (isLoading) {
+      pendingFocusSawLoadingRef.current = true;
+      return;
+    }
+    if (!pendingFocusSawLoadingRef.current) return;
+
+    const caseId = pendingEditButtonFocusRef.current;
+    pendingEditButtonFocusRef.current = null;
+    pendingFocusSawLoadingRef.current = false;
+    requestAnimationFrame(() => editButtonRefs.current.get(caseId)?.focus());
+  }, [isLoading]);
+
   if (!suite) return null;
 
   const isCurrentSuiteLoaded = casesOwnerSuiteId === suite.id;
@@ -130,7 +173,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   const visiblePageMeta = isCurrentSuiteLoaded ? pageMeta : null;
   const totalCaseCount = visiblePageMeta?.totalElements;
 
-  const failAddValidation = (field: AddCaseValidationField, message: string) => {
+  const failAddValidation = (field: CaseValidationField, message: string) => {
     setAddValidation({ field, message });
     requestAnimationFrame(() => {
       const target = {
@@ -143,11 +186,11 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     });
   };
 
-  const clearAddValidation = (field: AddCaseValidationField) => {
+  const clearAddValidation = (field: CaseValidationField) => {
     setAddValidation((current) => current?.field === field ? null : current);
   };
 
-  const addCaseServerField = (field: string): AddCaseValidationField => {
+  const caseServerField = (field: string): CaseValidationField => {
     if (field.endsWith('name')) return 'name';
     if (field.endsWith('input')) return 'input';
     if (field.endsWith('category')) return 'category';
@@ -200,7 +243,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     } catch (error) {
       const presented = presentApiError(error, '테스트 케이스를 추가하지 못했습니다.');
       if (error instanceof ApiError && error.fieldErrors?.length) {
-        failAddValidation(addCaseServerField(error.fieldErrors[0].field), presented.message);
+        failAddValidation(caseServerField(error.fieldErrors[0].field), presented.message);
       } else {
         failAddValidation('request', presented.message);
       }
@@ -208,9 +251,75 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     }
   };
 
+  const openEditCase = (testCase: TestCase) => {
+    setIsAdding(false);
+    setAddValidation(null);
+    setEditState(beginTestCaseEdit(testCase));
+    requestAnimationFrame(() => editCaseNameRef.current?.focus());
+  };
+
+  const cancelEditCase = () => {
+    if (editInFlightRef.current) return;
+    if (isTestCaseEditDirty(editState) && !window.confirm('저장하지 않은 수정사항을 취소할까요?')) return;
+    const caseId = editState.caseId;
+    setEditState(EMPTY_TEST_CASE_EDIT);
+    if (caseId) requestAnimationFrame(() => editButtonRefs.current.get(caseId)?.focus());
+  };
+
+  const failEditValidation = (field: CaseValidationField, message: string) => {
+    setEditState((current) => failTestCaseEditSave(current, { field, message }));
+    requestAnimationFrame(() => {
+      const target = {
+        name: editCaseNameRef.current,
+        input: editCaseInputRef.current,
+        category: editCaseCategoryRef.current,
+        request: editErrorRef.current,
+      }[field];
+      target?.focus();
+    });
+  };
+
+  const handleEditCase = async () => {
+    if (!canStartTestCaseEditSave(editState) || editInFlightRef.current) return;
+
+    const result = validateTestCaseEdit(editState.draft);
+    if (result.validation) {
+      failEditValidation(result.validation.field, result.validation.message);
+      return;
+    }
+
+    const payload = result.payload;
+    const editingCaseId = editState.caseId;
+    const cleanCaseId = testCaseApiId(editingCaseId);
+
+    editInFlightRef.current = true;
+    setEditState((current) => startTestCaseEditSave(current));
+    try {
+      await updateTestCase(cleanCaseId, payload);
+      editInFlightRef.current = false;
+      setCases((current) => current.map((testCase) => testCase.id === editingCaseId
+        ? { ...testCase, ...payload }
+        : testCase));
+      setEditState(EMPTY_TEST_CASE_EDIT);
+      pendingEditButtonFocusRef.current = editingCaseId;
+      pendingFocusSawLoadingRef.current = false;
+      setReloadToken((token) => token + 1);
+      onNotify(`테스트 케이스 '${payload.name}'가 수정되었습니다.`);
+    } catch (error) {
+      editInFlightRef.current = false;
+      const presented = presentApiError(error, `'${payload.name}' 수정에 실패했습니다.`);
+      if (error instanceof ApiError && error.fieldErrors?.length) {
+        failEditValidation(caseServerField(error.fieldErrors[0].field), presented.message);
+      } else {
+        failEditValidation('request', presented.message);
+      }
+      onNotify(`[수정 실패 · ${presented.code}] ${presented.message}`);
+    }
+  };
+
   const handleDeleteCase = async (id: string, name: string) => {
     try {
-      const cleanCaseId = id.replace('tc-', '');
+      const cleanCaseId = testCaseApiId(id);
       await deleteTestCase(cleanCaseId);
       // 삭제 뒤 서버 메타데이터를 다시 읽어, 비어 버린 마지막 페이지는 자동으로 이전 페이지로 이동한다.
       setReloadToken((token) => token + 1);
@@ -270,9 +379,10 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={closeSuiteDetail}
+            disabled={editState.isSaving}
             aria-label="테스트 스위트 상세 창 닫기"
-            className="p-2 rounded-xl text-[#697586] hover:bg-gray-200 transition-colors"
+            className="p-2 rounded-xl text-[#697586] hover:bg-gray-200 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
           >
             <X size={20} />
           </button>
@@ -307,11 +417,12 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
               )}
             </div>
             <button
+              type="button"
               onClick={() => {
                 setIsAdding(!isAdding);
                 setAddValidation(null);
               }}
-              disabled={!isCurrentSuiteLoaded || isLoading}
+              disabled={!isCurrentSuiteLoaded || isLoading || editState.caseId !== null || editState.isSaving}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus size={14} /> {isAdding ? '취소' : '케이스 추가'}
@@ -421,39 +532,181 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
               </thead>
               <tbody className="divide-y divide-[#e5e9ee]">
                 {visibleCases.map((c) => (
-                  <tr key={c.id} className="hover:bg-[#fafcfb]">
-                    <td className="p-3">
-                      <b className="block text-[#17202a]">{c.name}</b>
-                      <small className="text-[#697586]">{c.category}</small>
-                    </td>
-                    <td className="p-3 font-mono text-[#697586] max-w-xs truncate">{c.input}</td>
-                    <td className="p-3 font-mono font-bold">
-                      <span className={c.expectedAction === 'BLOCK' ? 'text-[#1a7f5a]' : 'text-[#246fa8]'}>
-                        {c.expectedAction}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <span className="px-2 py-0.5 rounded text-[9px] font-black bg-[#eef1f4] text-[#566271]">
-                        {c.severity}
-                      </span>
-                    </td>
-                    <td className="p-3 text-right space-x-1">
-                      <button
-                        onClick={() => onNotify(`'${c.name}' 편집 화면으로 이동합니다.`)}
-                        className="p-1.5 rounded text-[#697586] hover:bg-gray-100"
-                        title="수정"
-                      >
-                        <Edit2 size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteCase(c.id, c.name)}
-                        className="p-1.5 rounded text-[#bd3b35] hover:bg-[#fff0ef]"
-                        title="삭제"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
-                  </tr>
+                  <React.Fragment key={c.id}>
+                    <tr className="hover:bg-[#fafcfb]">
+                      <td className="p-3">
+                        <b className="block text-[#17202a]">{c.name}</b>
+                        <small className="text-[#697586]">{c.category}</small>
+                      </td>
+                      <td className="p-3 font-mono text-[#697586] max-w-xs truncate">{c.input}</td>
+                      <td className="p-3 font-mono font-bold">
+                        <span className={c.expectedAction === 'BLOCK' ? 'text-[#1a7f5a]' : 'text-[#246fa8]'}>
+                          {c.expectedAction}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <span className="px-2 py-0.5 rounded text-[9px] font-black bg-[#eef1f4] text-[#566271]">
+                          {c.severity}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right space-x-1">
+                        <button
+                          ref={(node) => {
+                            if (node) editButtonRefs.current.set(c.id, node);
+                            else editButtonRefs.current.delete(c.id);
+                          }}
+                          type="button"
+                          onClick={() => openEditCase(c)}
+                          disabled={isLoading || editState.caseId !== null || editState.isSaving}
+                          className="p-1.5 rounded text-[#697586] hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
+                          title="수정"
+                          aria-label={`${c.name} 수정`}
+                        >
+                          <Edit2 size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCase(c.id, c.name)}
+                          disabled={editState.caseId !== null || editState.isSaving}
+                          className="p-1.5 rounded text-[#bd3b35] hover:bg-[#fff0ef] disabled:cursor-not-allowed disabled:opacity-40"
+                          title="삭제"
+                          aria-label={`${c.name} 삭제`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                    {editState.caseId === c.id && editState.draft && (
+                      <tr className="bg-[#f1faf6]">
+                        <td colSpan={5} className="p-4">
+                          <form
+                            aria-label={`${c.name} 수정`}
+                            className="space-y-4"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              void handleEditCase();
+                            }}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <h4 className="text-xs font-extrabold text-[#1a7f5a]">TestCase 수정</h4>
+                              {editState.isSaving && (
+                                <span role="status" className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#4e5a68]">
+                                  <Loader2 size={13} className="animate-spin" /> 저장 중...
+                                </span>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
+                              <div>
+                                <label htmlFor={`edit-case-name-${c.id}`} className="mb-1 block text-[11px] font-bold text-[#4e5a68]">케이스 이름 *</label>
+                                <input
+                                  ref={editCaseNameRef}
+                                  id={`edit-case-name-${c.id}`}
+                                  type="text"
+                                  value={editState.draft.name}
+                                  disabled={editState.isSaving}
+                                  onChange={(event) => {
+                                    setEditState((current) => changeTestCaseEdit(current, { name: event.target.value }, 'name'));
+                                  }}
+                                  aria-invalid={editState.validation?.field === 'name'}
+                                  aria-describedby={editState.validation?.field === 'name' ? `edit-case-validation-${c.id}` : undefined}
+                                  className="w-full rounded-lg border border-[#dce1e6] bg-white p-2.5 outline-none focus:border-[#1a7f5a] disabled:opacity-60"
+                                />
+                              </div>
+                              <div>
+                                <label htmlFor={`edit-case-category-${c.id}`} className="mb-1 block text-[11px] font-bold text-[#4e5a68]">카테고리 *</label>
+                                <input
+                                  ref={editCaseCategoryRef}
+                                  id={`edit-case-category-${c.id}`}
+                                  type="text"
+                                  value={editState.draft.category}
+                                  disabled={editState.isSaving}
+                                  onChange={(event) => {
+                                    setEditState((current) => changeTestCaseEdit(current, { category: event.target.value }, 'category'));
+                                  }}
+                                  aria-invalid={editState.validation?.field === 'category'}
+                                  aria-describedby={editState.validation?.field === 'category' ? `edit-case-validation-${c.id}` : undefined}
+                                  className="w-full rounded-lg border border-[#dce1e6] bg-white p-2.5 outline-none focus:border-[#1a7f5a] disabled:opacity-60"
+                                />
+                              </div>
+                              <div className="sm:col-span-2">
+                                <label htmlFor={`edit-case-input-${c.id}`} className="mb-1 block text-[11px] font-bold text-[#4e5a68]">입력 프롬프트 (Input) *</label>
+                                <textarea
+                                  ref={editCaseInputRef}
+                                  id={`edit-case-input-${c.id}`}
+                                  rows={3}
+                                  value={editState.draft.input}
+                                  disabled={editState.isSaving}
+                                  onChange={(event) => {
+                                    setEditState((current) => changeTestCaseEdit(current, { input: event.target.value }, 'input'));
+                                  }}
+                                  aria-invalid={editState.validation?.field === 'input'}
+                                  aria-describedby={editState.validation?.field === 'input' ? `edit-case-validation-${c.id}` : undefined}
+                                  className="w-full rounded-lg border border-[#dce1e6] bg-white p-2.5 outline-none focus:border-[#1a7f5a] disabled:opacity-60"
+                                />
+                              </div>
+                              <div>
+                                <label htmlFor={`edit-case-action-${c.id}`} className="mb-1 block text-[11px] font-bold text-[#4e5a68]">기대 동작</label>
+                                <select
+                                  id={`edit-case-action-${c.id}`}
+                                  value={editState.draft.expectedAction}
+                                  disabled={editState.isSaving}
+                                  onChange={(event) => setEditState((current) => changeTestCaseEdit(current, { expectedAction: event.target.value as 'ALLOW' | 'BLOCK' }))}
+                                  className="w-full rounded-lg border border-[#dce1e6] bg-white p-2.5 outline-none disabled:opacity-60"
+                                >
+                                  <option value="BLOCK">BLOCK (차단)</option>
+                                  <option value="ALLOW">ALLOW (허용)</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label htmlFor={`edit-case-severity-${c.id}`} className="mb-1 block text-[11px] font-bold text-[#4e5a68]">Severity (심각도)</label>
+                                <select
+                                  id={`edit-case-severity-${c.id}`}
+                                  value={editState.draft.severity}
+                                  disabled={editState.isSaving}
+                                  onChange={(event) => setEditState((current) => changeTestCaseEdit(current, { severity: event.target.value as Severity }))}
+                                  className="w-full rounded-lg border border-[#dce1e6] bg-white p-2.5 outline-none disabled:opacity-60"
+                                >
+                                  <option value="CRITICAL">CRITICAL</option>
+                                  <option value="HIGH">HIGH</option>
+                                  <option value="MEDIUM">MEDIUM</option>
+                                  <option value="LOW">LOW</option>
+                                </select>
+                              </div>
+                            </div>
+                            {editState.validation && (
+                              <div
+                                ref={editErrorRef}
+                                id={`edit-case-validation-${c.id}`}
+                                role="alert"
+                                tabIndex={-1}
+                                className="rounded-lg border border-[#e7c47f] bg-[#fff7e8] px-3 py-2 text-xs font-semibold text-[#78501b]"
+                              >
+                                {editState.validation.message}
+                              </div>
+                            )}
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={cancelEditCase}
+                                disabled={editState.isSaving}
+                                className="rounded-lg border border-[#dce1e6] px-4 py-2 text-xs font-bold text-[#4e5a68] hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                취소
+                              </button>
+                              <button
+                                type="submit"
+                                aria-disabled={editState.isSaving}
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-[#1a7f5a] px-4 py-2 text-xs font-bold text-white hover:bg-[#146648] aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                              >
+                                {editState.isSaving && <Loader2 size={13} className="animate-spin" />}
+                                {editState.isSaving ? '저장 중...' : '변경사항 저장'}
+                              </button>
+                            </div>
+                          </form>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
                 {!isCurrentSuiteLoaded && isLoading && (
                   <tr>
@@ -480,7 +733,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
           <button
             type="button"
             onClick={openDeleteConfirmation}
-            disabled={isDeleting}
+            disabled={isDeleting || editState.caseId !== null || editState.isSaving}
             className="justify-self-start inline-flex items-center gap-1.5 rounded-xl border border-[#e7aaa5] bg-[#fff0ef] px-4 py-2 text-xs font-bold text-[#a82f2a] hover:bg-[#ffe0de] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Trash2 size={14} /> 스위트 삭제
@@ -489,7 +742,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             <button
               type="button"
               onClick={() => setPage(Math.max(1, (visiblePageMeta?.number ?? page) - 1))}
-              disabled={!visiblePageMeta?.hasPrevious || isLoading}
+              disabled={!visiblePageMeta?.hasPrevious || isLoading || editState.caseId !== null}
               className="rounded-lg border border-[#dce1e6] px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
             >
               이전
@@ -501,7 +754,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                 key={item}
                 type="button"
                 onClick={() => setPage(item)}
-                disabled={isLoading}
+                disabled={isLoading || editState.caseId !== null}
                 aria-current={item === visiblePageMeta.number ? 'page' : undefined}
                 aria-label={`${item}페이지`}
                 className={`min-w-8 rounded-lg px-2 py-2 text-xs font-bold disabled:cursor-not-allowed ${item === visiblePageMeta.number ? 'bg-[#17202a] text-white' : 'text-[#4e5a68] hover:bg-[#eef1f4]'}`}
@@ -512,15 +765,17 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             <button
               type="button"
               onClick={() => setPage((visiblePageMeta?.number ?? page) + 1)}
-              disabled={!visiblePageMeta?.hasNext || isLoading}
+              disabled={!visiblePageMeta?.hasNext || isLoading || editState.caseId !== null}
               className="rounded-lg border border-[#dce1e6] px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
             >
               다음
             </button>
           </nav>
           <button
-            onClick={onClose}
-            className="justify-self-end px-4 py-2 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545]"
+            type="button"
+            onClick={closeSuiteDetail}
+            disabled={editState.isSaving}
+            className="justify-self-end px-4 py-2 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545] disabled:cursor-not-allowed disabled:opacity-50"
           >
             닫기
           </button>
