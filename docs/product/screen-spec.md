@@ -119,6 +119,7 @@ pagination/filter UX, 삭제 확인 방식과 mutation 후 재조회 정책은 `
 ```text
 TestSuite
 + OpenAI-compatible HTTP endpoint / required model / optional revision
++ optional Quality Gate thresholds
 → POST /api/v1/test-runs
 → 202 Accepted
 → Run 상세 조회
@@ -128,7 +129,8 @@ TestSuite
 
 - Suite 목록은 실제 API에서 조회한다.
 - OpenAI-compatible full endpoint, 필수 model과 선택 revision을 입력받는다.
-- `testRunService`는 `testSuiteId`와 단일 `target`을 전송한다.
+- 기대 일치율과 실행 성공률의 최소 기준을 퍼센트로 입력받는다. 두 값을 모두 비우면 정책을 생략해 서버 기본 기준을 사용한다.
+- `testRunService`는 `testSuiteId`, 단일 `target`과 선택적인 `qualityGatePolicy`를 전송한다.
 - 동일 payload의 결과 불명 재시도에는 같은 Idempotency-Key를 유지한다.
 
 ### 현재 form 계약 (`AS-IS`)
@@ -139,11 +141,15 @@ TestSuite
 | Application | HTTP/HTTPS URL | 필수, URL parsing과 HTTP/HTTPS protocol 검사 |
 | Application model | Chat Completions request의 모델 식별자 | 필수, 공백 문자열 금지 |
 | Application revision | 배포·모델·commit 식별 문자열 | 선택, 공백 문자열 금지 |
+| 기대 일치율 최소 기준 | 이 Run에서 기대 동작과 일치해야 하는 최소 비율 | 선택, 설정 시 0~100% 숫자 |
+| 실행 성공률 최소 기준 | 이 Run에서 정상 실행돼야 하는 최소 비율 | 선택, 설정 시 0~100% 숫자 |
 
 - 사용자에게 Evaluator provider/type 또는 Guardrail ID/version을 입력받지 않는다.
 - Backend의 판정 모델과 prompt를 설정하는 입력을 만들지 않는다.
 - 예상 실행 수는 활성 TestCaseSnapshot당 단일 Application 처리 기준이며 기존 `caseCount * 2`를 사용하지 않는다.
-- 화면 요약에는 Suite와 Application URL/model/revision을 표시한다.
+- Quality Gate 기준은 둘 다 입력하거나 둘 다 생략한다. 입력한 퍼센트는 API의 0~1 비율로 변환한다.
+- 화면 요약에는 Suite, Application URL/model/revision과 Quality Gate 기준 또는 서버 기본 기준 사용 여부를 표시한다.
+- Quality Gate 기준을 작성하는 중에는 중립적인 “기준 입력 중”으로 표시하고, 제출 후 validation이 확정된 경우에만 “입력 확인 필요”로 표시한다. 유효한 값은 숫자를 정규화해 요약한다.
 - 한 논리적 제출 payload에는 같은 `Idempotency-Key`를 사용하고 payload가 바뀌면 새 key를 사용한다.
 
 ### 생성 결과와 오류 (`AS-IS`)

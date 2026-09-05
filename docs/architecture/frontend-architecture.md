@@ -159,7 +159,7 @@ query identity는 endpoint 결과를 유일하게 결정하는 입력을 포함�
 
 ```mermaid
 flowchart LR
-    Form[Suite + Target] --> Validate[Client validation]
+    Form[Suite + Target + optional Gate policy] --> Validate[Client validation]
     Validate --> Map[TestRunCreateReq]
     Map --> Key[Idempotency-Key]
     Key --> Service[createTestRun]
@@ -168,7 +168,7 @@ flowchart LR
 ```
 
 - form draft와 server mutation 상태를 분리한다.
-- request DTO는 `testSuiteId`, URL/model/선택 revision을 가진 단일 `target`, 선택적인 `qualityGatePolicy`를 지원한다. 현재 생성 화면은 정책을 생략해 backend 기본값을 사용한다.
+- request DTO는 `testSuiteId`, URL/model/선택 revision을 가진 단일 `target`, 선택적인 `qualityGatePolicy`를 지원한다. 화면은 두 threshold를 0~100%로 입력받아 함께 0~1로 변환하며, 둘 다 비우면 정책을 생략해 backend 기본값을 사용한다.
 - 같은 논리적 재전송은 같은 key와 body를 사용하고 다른 body에 key를 재사용하지 않는다.
 - `202`를 실행 완료로 처리하지 않는다.
 - 현재는 response의 Run ID로 Result Detail identity를 이동한다. `apiClient`가 `Location` header를 노출하지 않으므로 header 보존은 남은 계약 격차다.
@@ -176,7 +176,7 @@ flowchart LR
 - `IDEMPOTENCY_KEY_CONFLICT`는 같은 key를 다른 body에 사용한 충돌이므로 자동 재전송을 중단한다.
 - network/timeout은 접수 여부가 불명일 수 있으므로 명시적 validation/API 거부와 구분한다.
 
-현재 화면은 payload fingerprint별 key를 보존하고 network 결과 불명에서는 재사용하며 성공 또는 명시적
+현재 화면은 Quality Gate 정책을 포함한 payload fingerprint별 key를 보존하고 network 결과 불명에서는 재사용하며 성공 또는 명시적
 서버 거부 후 폐기한다. 화면 이탈 후 key 복원과 장기 보존은 `미결정`이다.
 
 ## 8. Polling 구조

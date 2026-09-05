@@ -4,13 +4,22 @@ import { ApiError } from '../../services/apiClient';
 import { createTestRun } from '../../services/testRunService';
 import { getTestSuites } from '../../services/testSuiteService';
 import { RequestErrorBanner } from '../common/RequestErrorBanner';
+import {
+  buildCreateTestRunPayload,
+  createTestRunPayloadFingerprint,
+  parseQualityGatePolicy,
+  QUALITY_GATE_PERCENT_MAX,
+  QUALITY_GATE_PERCENT_MIN,
+  qualityGatePolicySummary,
+  type QualityGatePolicyField,
+} from './newRunForm';
 
 interface NewRunViewProps {
   onNotify: (msg: string) => void;
   onRunCreated?: (runId: string) => void;
 }
 
-type RunValidationField = 'suite' | 'endpoint' | 'model';
+type RunValidationField = 'suite' | 'endpoint' | 'model' | QualityGatePolicyField;
 
 type RunValidation = {
   field: RunValidationField;
@@ -59,6 +68,8 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
   const [endpoint, setEndpoint] = useState('');
   const [revision, setRevision] = useState('');
   const [model, setModel] = useState('');
+  const [assertionThresholdPercent, setAssertionThresholdPercent] = useState('');
+  const [executionThresholdPercent, setExecutionThresholdPercent] = useState('');
   const [validation, setValidation] = useState<RunValidation | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<unknown>(null);
@@ -66,6 +77,8 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
   const suiteRef = useRef<HTMLSelectElement>(null);
   const endpointRef = useRef<HTMLInputElement>(null);
   const modelRef = useRef<HTMLInputElement>(null);
+  const assertionThresholdRef = useRef<HTMLInputElement>(null);
+  const executionThresholdRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -96,6 +109,16 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
   const normalizedEndpoint = endpoint.trim();
   const normalizedRevision = revision.trim();
   const normalizedModel = model.trim();
+  const parsedQualityGatePolicy = parseQualityGatePolicy({
+    assertionThresholdPercent,
+    executionThresholdPercent,
+  });
+  const policyValidationVisible = validation?.field === 'assertionThreshold'
+    || validation?.field === 'executionThreshold';
+  const policySummary = qualityGatePolicySummary({
+    assertionThresholdPercent,
+    executionThresholdPercent,
+  }, policyValidationVisible);
   const canSubmit = !submitting && !suiteLoading && suites.length > 0;
 
   const failValidation = (field: RunValidationField, message: string) => {
@@ -105,6 +128,8 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
         suite: suiteRef.current,
         endpoint: endpointRef.current,
         model: modelRef.current,
+        assertionThreshold: assertionThresholdRef.current,
+        executionThreshold: executionThresholdRef.current,
       }[field];
       target?.focus();
     });
@@ -117,18 +142,17 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
     if (caseCount === 0) return failValidation('suite', '빈 Suite는 실행할 수 없습니다. TestCase를 먼저 추가해 주세요.');
     if (!isHttpEndpoint(normalizedEndpoint)) return failValidation('endpoint', 'http:// 또는 https://로 시작하는 유효한 Application URL을 입력해 주세요.');
     if (!normalizedModel) return failValidation('model', 'Application 요청에 사용할 Model 식별자를 입력해 주세요.');
+    if (!parsedQualityGatePolicy.ok) return failValidation(parsedQualityGatePolicy.field, parsedQualityGatePolicy.message);
 
     setSubmitting(true);
-    const payload = {
+    const payload = buildCreateTestRunPayload({
       testSuiteId: suiteId,
-      target: {
-        type: 'HTTP_ENDPOINT' as const,
-        identifier: normalizedEndpoint,
-        ...(normalizedRevision ? { revision: normalizedRevision } : {}),
-        model: normalizedModel,
-      },
-    };
-    const fingerprint = JSON.stringify(payload);
+      endpoint: normalizedEndpoint,
+      model: normalizedModel,
+      revision: normalizedRevision,
+      qualityGatePolicy: parsedQualityGatePolicy.policy,
+    });
+    const fingerprint = createTestRunPayloadFingerprint(payload);
     if (idempotencyAttempt.current?.fingerprint !== fingerprint) {
       idempotencyAttempt.current = { fingerprint, key: createIdempotencyKey() };
     }
@@ -193,6 +217,22 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
               </div>
             </div>
           </div>
+
+          <div className="pt-6">
+            <h2 className="text-base font-bold text-[#17202a]">3. Quality Gate 기준</h2>
+            <p className="mb-4 mt-1 text-xs text-[#697586]">이번 Test Run을 통과시키기 위한 최소 비율입니다. 두 값을 모두 비워두면 서버 기본 기준을 사용합니다.</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="run-assertion-threshold" className="mb-2 block text-xs font-bold text-[#4e5a68]">기대 일치율 최소 기준 (%) <span className="font-normal text-[#697586]">선택</span></label>
+                <input ref={assertionThresholdRef} id="run-assertion-threshold" type="number" inputMode="decimal" min={QUALITY_GATE_PERCENT_MIN} max={QUALITY_GATE_PERCENT_MAX} step="0.01" value={assertionThresholdPercent} onChange={(event) => { setAssertionThresholdPercent(event.target.value); setValidation(null); }} aria-invalid={validation?.field === 'assertionThreshold'} aria-describedby={validation?.field === 'assertionThreshold' ? 'quality-gate-policy-help run-validation-summary' : 'quality-gate-policy-help'} placeholder="서버 기본값" className={fieldClass} />
+              </div>
+              <div>
+                <label htmlFor="run-execution-threshold" className="mb-2 block text-xs font-bold text-[#4e5a68]">실행 성공률 최소 기준 (%) <span className="font-normal text-[#697586]">선택</span></label>
+                <input ref={executionThresholdRef} id="run-execution-threshold" type="number" inputMode="decimal" min={QUALITY_GATE_PERCENT_MIN} max={QUALITY_GATE_PERCENT_MAX} step="0.01" value={executionThresholdPercent} onChange={(event) => { setExecutionThresholdPercent(event.target.value); setValidation(null); }} aria-invalid={validation?.field === 'executionThreshold'} aria-describedby={validation?.field === 'executionThreshold' ? 'quality-gate-policy-help run-validation-summary' : 'quality-gate-policy-help'} placeholder="서버 기본값" className={fieldClass} />
+              </div>
+            </div>
+            <p id="quality-gate-policy-help" className="mt-2 text-[11px] text-[#697586]">직접 설정하려면 두 기준을 모두 입력해 주세요. 입력한 기준은 이 Run의 최종 판정 근거로 저장됩니다.</p>
+          </div>
         </article>
 
         <aside className="sticky top-24 space-y-4 rounded-2xl border border-[#e5e9ee] bg-white p-6 shadow-[0_3px_15px_rgba(17,31,44,0.025)]">
@@ -201,6 +241,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
             <div className="flex justify-between gap-4 py-3"><dt className="text-[#697586]">TestSuite</dt><dd className="text-right font-bold">{selectedSuite?.name || '—'}</dd></div>
             <div className="flex justify-between py-3"><dt className="text-[#697586]">예상 실행 수</dt><dd className="font-bold">{caseCount}회</dd></div>
             <div className="py-3"><dt className="text-[#697586]">Application</dt><dd className="mt-1 break-all font-bold">{normalizedEndpoint || '—'}</dd><dd className="mt-1 text-[10px] text-[#697586]">Model: {normalizedModel || '입력 필요'}</dd>{normalizedRevision && <dd className="mt-1 text-[10px] text-[#697586]">Revision: {normalizedRevision}</dd>}</div>
+            <div className="py-3"><dt className="text-[#697586]">Quality Gate 기준</dt><dd className="mt-1 font-bold">{policySummary}</dd></div>
           </dl>
           <div className="flex gap-2 rounded-xl bg-[#eef8f4] p-3.5 text-[11px] leading-relaxed text-[#27634f]"><ShieldCheck size={16} className="shrink-0" /><span>각 Snapshot은 Application에서 1회 실행됩니다. 응답 행동 분류는 GuardBench가 내부에서 일관되게 수행합니다.</span></div>
           {validation && <div id="run-validation-summary" className="rounded-xl border border-[#e7c47f] bg-[#fff7e8] px-4 py-3 text-xs font-semibold text-[#78501b]">{validation.message}</div>}
