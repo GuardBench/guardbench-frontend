@@ -66,6 +66,13 @@ test('a loaded detail comparison is reused after a Result Detail round trip', ()
   assert.equal(stateHelpers.shouldLoadComparison(key, key, ''), false);
 });
 
+test('Regression Detail uses the full comparison without requesting a duplicate summary', () => {
+  const key = stateHelpers.comparisonKey('901', '800');
+  assert.equal(stateHelpers.shouldLoadSummary(true, key, '', '', ''), false);
+  assert.equal(stateHelpers.shouldLoadSummary(false, key, '', '', key), false);
+  assert.equal(stateHelpers.shouldLoadSummary(false, key, '', '', ''), true);
+});
+
 test('candidate refresh preserves a selected baseline while it is still available', () => {
   assert.equal(stateHelpers.preserveSelectedCandidate('800', ['850', '800']), '800');
   assert.equal(stateHelpers.preserveSelectedCandidate('700', ['850', '800']), '850');

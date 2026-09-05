@@ -60,12 +60,12 @@ export function App() {
     navigate({ view: 'regression', runId: selectedRunId });
   };
 
-  const regressionSummary = currentView === 'result' ? (
+  const regressionSummary = (
     <RegressionSummaryEntry
       regression={regression.summary}
       onOpenDetail={handleOpenRegression}
     />
-  ) : undefined;
+  );
 
   return (
     <div className="min-h-screen flex bg-[#f6f7f9] text-[#17202a]">
@@ -127,6 +127,7 @@ export function App() {
             />
           )}
           {currentView === 'result' && (
+            // ResultDetailView의 Run별 UI 상태는 key에 의해 함께 초기화된다.
             <ResultDetailView
               key={selectedRunId}
               selectedRunId={selectedRunId}

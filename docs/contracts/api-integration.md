@@ -336,6 +336,7 @@ Regression comparison API 소비는 MVP 필수다. UI는 `Result Detail summary/
 1. 현재 Run의 `comparable-runs` endpoint가 반환한 후보만 표시한다.
 2. 같은 Suite라는 이유만으로 프론트가 후보를 추가하지 않는다.
 3. 선택한 후보와 current Run을 comparisons endpoint로 조회한다.
+   전체 comparison을 조회하는 동안에는 같은 키의 summary endpoint를 중복 호출하지 않는다.
 4. summary의 `totalCases`, `changedCount`, `unchangedCount`, `improvedCount`, `regressedCount`, `notComparableCount`를 보존한다.
 5. 각 item의 `snapshotId`, `testCaseId`, `name`, `input`, `expectedAction`, `comparisonVerdict`, `currentVerdict`, `comparabilityStatus`, `changeType`을 보존한다.
 6. `COMPARABLE`/`NOT_COMPARABLE`과 `NO_CHANGE`, `SECURITY_REGRESSION`, `USABILITY_REGRESSION`, `IMPROVEMENT`, `POLICY_BEHAVIOR_CHANGED`를 서버 분류 그대로 표시한다.

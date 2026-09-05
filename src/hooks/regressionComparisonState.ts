@@ -6,6 +6,18 @@ export function shouldLoadComparison(requestedKey: string, loadedKey: string, fa
   return Boolean(requestedKey) && requestedKey !== loadedKey && requestedKey !== failedKey;
 }
 
+export function shouldLoadSummary(
+  loadDetails: boolean,
+  requestedKey: string,
+  summaryLoadedKey: string,
+  summaryFailedKey: string,
+  comparisonLoadedKey: string,
+) {
+  return !loadDetails
+    && comparisonLoadedKey !== requestedKey
+    && shouldLoadComparison(requestedKey, summaryLoadedKey, summaryFailedKey);
+}
+
 export function preserveSelectedCandidate(selectedId: string, candidateIds: string[]) {
   return candidateIds.includes(selectedId) ? selectedId : (candidateIds[0] ?? '');
 }

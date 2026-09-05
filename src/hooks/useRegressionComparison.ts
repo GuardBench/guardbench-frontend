@@ -9,7 +9,12 @@ import {
   type TestRunComparisonRes,
   type TestRunComparisonSummaryRes,
 } from '../services/regressionService';
-import { comparisonKey, preserveSelectedCandidate, shouldLoadComparison } from './regressionComparisonState';
+import {
+  comparisonKey,
+  preserveSelectedCandidate,
+  shouldLoadComparison,
+  shouldLoadSummary,
+} from './regressionComparisonState';
 
 const AUTO_RETRY_LIMIT = 5;
 const AUTO_RETRY_DELAY_MS = 2000;
@@ -118,7 +123,7 @@ export function useRegressionComparison(runId: string, loadDetails: boolean): Re
   const selectedKey = comparisonKey(runId, current.selectedComparisonId);
 
   useEffect(() => {
-    if (!runId || current.runId !== runId) return;
+    if (!runId) return;
     if (retryRunIdRef.current !== runId) {
       retryRunIdRef.current = runId;
       autoRetryCountRef.current = 0;
@@ -198,9 +203,15 @@ export function useRegressionComparison(runId: string, loadDetails: boolean): Re
       active = false;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [runId, current.runId, current.candidatePage, current.candidateReloadToken]);
+  }, [runId, current.candidatePage, current.candidateReloadToken]);
 
-  const summaryNeedsLoad = shouldLoadComparison(selectedKey, current.summaryLoadedKey, current.summaryErrorKey);
+  const summaryNeedsLoad = shouldLoadSummary(
+    loadDetails,
+    selectedKey,
+    current.summaryLoadedKey,
+    current.summaryErrorKey,
+    current.comparisonLoadedKey,
+  );
   useEffect(() => {
     if (!summaryNeedsLoad) return;
     let active = true;
@@ -219,7 +230,7 @@ export function useRegressionComparison(runId: string, loadDetails: boolean): Re
           : previous);
       });
     return () => { active = false; };
-  }, [runId, current.selectedComparisonId, current.summaryReloadToken, selectedKey, summaryNeedsLoad]);
+  }, [loadDetails, runId, current.selectedComparisonId, current.summaryReloadToken, selectedKey, summaryNeedsLoad]);
 
   const comparisonNeedsLoad = loadDetails
     && shouldLoadComparison(selectedKey, current.comparisonLoadedKey, current.comparisonErrorKey);
@@ -276,13 +287,17 @@ export function useRegressionComparison(runId: string, loadDetails: boolean): Re
   } : previous);
 
   const candidatesLoading = current.candidatesLoading;
-  const summaryError = current.candidatesError ?? current.summaryError;
+  const summaryError = current.candidatesError
+    ?? (current.summaryErrorKey === selectedKey ? current.summaryError : null);
+  const visibleSummary = current.comparisonLoadedKey === selectedKey
+    ? current.comparison
+    : current.summaryLoadedKey === selectedKey ? current.summary : null;
   return {
     summary: {
       runId: current.runId,
       selectedCandidate,
       selectedAutomatically: current.selectedAutomatically,
-      summary: current.summaryLoadedKey === selectedKey ? current.summary : null,
+      summary: visibleSummary,
       loading: candidatesLoading || summaryNeedsLoad,
       error: summaryError,
       notFinished: current.notFinished,
