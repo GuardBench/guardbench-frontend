@@ -291,14 +291,15 @@ Evaluator metrics는 현재 Result Detail에서 Quality Gate와 구분된 판정
 
 `RegressionSummaryEntry`는 Result Detail 상단의 보조 요약 컴포넌트다.
 
-- Result Detail과 Regression Detail이 `useRegressionComparison`의 후보, 선택 baseline과 comparison 상태를 공유한다.
+- Result Detail과 Regression Detail이 `useRegressionComparison`의 후보와 선택 baseline을 공유한다.
+- Result Detail은 case-level `items`가 없는 summary endpoint만 선조회하고 전체 comparison은 Regression Detail 진입 시 조회한다.
 - 선택된 baseline Run ID와 `regressedCount`, `improvedCount`, `unchangedCount`, `notComparableCount`를 backend 응답 그대로 표시한다.
 - 첫 후보 자동 선택은 UI에 명시하며 Regression Detail에서 baseline을 바꿀 수 있다.
 - 현재 Run이 아직 종료되지 않았으면 완료 후 재확인한다.
 - 비교 가능한 Run이 없으면 상세 진입 action을 비활성화한다.
 - 비교 가능한 Run이 있으면 `회귀 상세 보기`로 `RegressionDetailView`에 진입한다.
 - 후보 없음, loading과 오류를 Regression 0건과 구분한다.
-- 상단 요약과 상세 화면에서 comparison API를 중복 호출하지 않는다.
+- 이미 불러온 전체 comparison은 Result Detail ↔ Regression Detail 왕복에서 재호출하지 않는다.
 - 이 컴포넌트에서 case-level comparison table을 렌더링하지 않는다.
 
 ## 9. Regression 상세

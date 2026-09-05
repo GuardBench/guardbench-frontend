@@ -323,15 +323,15 @@ Regression comparison API 소비는 MVP 필수다. UI는 `Result Detail summary/
 `RegressionSummaryEntry`는 comparison 전체 결과를 보여주는 컴포넌트가 아니다.
 
 1. 현재 Run의 `comparable-runs` endpoint를 작은 page size로 조회한다.
-2. `page.totalElements`를 이용해 comparable historical Run 존재 여부와 개수를 표현한다.
+2. 첫 comparable historical Run을 baseline으로 선택하고 case-level `items`가 없는 comparison summary endpoint에서 변화 집계를 조회한다.
 3. 현재 Run이 완료되지 않았으면 `TEST_RUN_NOT_FINISHED`를 진행 상태로 처리하고 재확인한다.
 4. comparable Run이 없으면 상세 진입 action을 비활성화한다.
 5. comparable Run이 있으면 `회귀 상세 보기` action으로 `RegressionDetailView`에 진입한다.
-6. Result Detail에서 case-level comparison table이나 Regression classification을 다시 계산하지 않는다.
+6. Result Detail에서 전체 comparison payload를 선조회하거나 Regression classification을 다시 계산하지 않는다.
 
 ### 10.2 Regression Detail
 
-기존 `RegressionComparisonSection`과 `regressionService`를 재사용한다.
+기존 `RegressionComparisonSection`과 `regressionService`를 재사용한다. 전체 comparison은 이 화면에 진입할 때만 조회하고, Result Detail로 돌아갔다 다시 진입하면 같은 Run/baseline 응답을 재사용한다.
 
 1. 현재 Run의 `comparable-runs` endpoint가 반환한 후보만 표시한다.
 2. 같은 Suite라는 이유만으로 프론트가 후보를 추가하지 않는다.

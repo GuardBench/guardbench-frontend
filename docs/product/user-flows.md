@@ -276,7 +276,7 @@ filter가 적용된 현재 page로 전체 TP/TN/FP/FN metrics나 Quality Gate를
 
 현재 결과 화면은 단일 Application execution, Evaluator verdict, assertion, outcome과 안전한 오류를 표시한다. 결과 filter/page, Evaluator metrics와 Quality Gate는 각 서버 응답을 독립적으로 사용한다.
 
-`RegressionSummaryEntry`는 `GET /api/v1/test-runs/{testRunId}/comparable-runs`를 사용해 비교 가능한 과거 Run 존재 여부를 확인하고, 비교 가능한 Run이 있으면 `회귀 상세 보기` action을 제공한다. 전체 comparison table은 Result Detail에 표시하지 않는다.
+`RegressionSummaryEntry`는 `GET /api/v1/test-runs/{testRunId}/comparable-runs`로 baseline을 고르고 case-level `items`가 없는 comparison summary endpoint에서 변화 집계를 조회한다. 비교 가능한 Run이 있으면 `회귀 상세 보기` action을 제공하며, 전체 comparison payload와 table은 Regression Detail 진입 전에는 불러오거나 표시하지 않는다.
 
 ## 7. Evaluator 분석
 

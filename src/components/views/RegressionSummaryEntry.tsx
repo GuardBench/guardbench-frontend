@@ -1,56 +1,58 @@
 import { ArrowRight, GitCompareArrows, Loader2 } from 'lucide-react';
-import type { RegressionComparisonState } from '../../hooks/useRegressionComparison';
+import type { RegressionSummaryState } from '../../hooks/useRegressionComparison';
 import { RequestErrorBanner } from '../common/RequestErrorBanner';
 import { regressionSummaryItems } from './regressionSummary';
 
 interface RegressionSummaryEntryProps {
-  runId: string;
-  regression: RegressionComparisonState;
+  regression: RegressionSummaryState;
   onOpenDetail: () => void;
 }
 
-export function RegressionSummaryEntry({ runId, regression, onOpenDetail }: RegressionSummaryEntryProps) {
+export function RegressionSummaryEntry({ regression, onOpenDetail }: RegressionSummaryEntryProps) {
   const {
-    candidates,
-    candidatesLoading,
-    candidatesError,
-    comparison,
-    comparisonLoading,
-    comparisonError,
+    runId,
+    summary,
+    loading,
+    error,
     hasLoadedCandidates,
+    hasComparableRun,
     notFinished,
+    autoRetryExhausted,
     selectedCandidate,
     selectedAutomatically,
-    refresh,
+    retry,
   } = regression;
-  const summaryItems = comparison ? regressionSummaryItems(comparison) : [];
-  const loading = candidatesLoading || comparisonLoading;
+  const summaryItems = summary ? regressionSummaryItems(summary) : [];
 
   return (
     <section className="rounded-2xl border border-[#dbe8e2] bg-[#f4fbf8] p-5 shadow-[0_3px_15px_rgba(17,31,44,0.02)] sm:p-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
+        <div aria-live="polite">
           <div className="mb-1 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-[#1a7f5a]">
             <GitCompareArrows size={14} /> Regression
           </div>
           <h2 className="text-base font-extrabold text-[#17202a]">과거 Run 대비 변화 확인</h2>
-          {candidatesLoading && (
+          {loading && !selectedCandidate && (
             <p className="mt-2 flex items-center gap-2 text-xs text-[#697586]">
               <Loader2 size={13} className="animate-spin" /> 비교 가능한 과거 Run을 확인하고 있습니다.
             </p>
           )}
-          {!candidatesLoading && comparisonLoading && (
+          {loading && selectedCandidate && (
             <p className="mt-2 flex items-center gap-2 text-xs text-[#697586]">
               <Loader2 size={13} className="animate-spin" /> 선택한 Run과의 변화 요약을 불러오고 있습니다.
             </p>
           )}
           {!loading && notFinished && (
-            <p className="mt-2 text-xs text-[#78501b]">현재 Run이 종료되면 비교 가능한 과거 Run을 자동으로 확인합니다.</p>
+            <p className="mt-2 text-xs text-[#78501b]">
+              {autoRetryExhausted
+                ? '자동 확인을 5회 마쳤습니다. Run 상태를 확인한 뒤 다시 시도해 주세요.'
+                : '현재 Run이 종료되면 비교 가능한 과거 Run을 자동으로 확인합니다.'}
+            </p>
           )}
-          {!loading && !notFinished && hasLoadedCandidates && candidates.length === 0 && (
+          {!loading && !notFinished && hasLoadedCandidates && !hasComparableRun && (
             <p className="mt-2 text-xs text-[#697586]">현재 비교 가능한 과거 Run이 없습니다.</p>
           )}
-          {!loading && selectedCandidate && comparison && (
+          {!loading && selectedCandidate && summary && (
             <div className="mt-3">
               <p className="text-xs font-extrabold text-[#17202a]">
                 Run #{selectedCandidate.id} 대비
@@ -71,21 +73,19 @@ export function RegressionSummaryEntry({ runId, regression, onOpenDetail }: Regr
         <button
           type="button"
           onClick={onOpenDetail}
-          disabled={!runId || candidates.length === 0 || notFinished}
+          disabled={!runId || !hasComparableRun || notFinished}
           className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#17202a] px-4 py-2.5 text-xs font-extrabold text-white transition-colors hover:bg-[#25313d] disabled:cursor-not-allowed disabled:opacity-40"
         >
           회귀 상세 보기 <ArrowRight size={14} />
         </button>
       </div>
 
-      {(candidatesError !== null || comparisonError !== null) && !loading && (
+      {error !== null && !loading && (
         <div className="mt-4">
           <RequestErrorBanner
-            error={candidatesError ?? comparisonError}
-            fallbackMessage={candidatesError !== null
-              ? '비교 가능한 과거 Run을 불러오지 못했습니다.'
-              : '선택한 Run과의 Regression 요약을 불러오지 못했습니다.'}
-            onRetry={refresh}
+            error={error}
+            fallbackMessage="Regression 요약을 불러오지 못했습니다."
+            onRetry={retry}
           />
         </div>
       )}

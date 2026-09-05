@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react';
 import { GitCompareArrows, Loader2, RefreshCw } from 'lucide-react';
-import type { RegressionComparisonState } from '../../hooks/useRegressionComparison';
+import type { RegressionDetailState } from '../../hooks/useRegressionComparison';
 import type { RegressionChangeType } from '../../services/regressionService';
 import { RequestErrorBanner } from '../common/RequestErrorBanner';
 
 interface RegressionComparisonSectionProps {
-  runId: string;
-  regression: RegressionComparisonState;
+  regression: RegressionDetailState;
 }
 
 const completedAtLabel = (value: string) => new Intl.DateTimeFormat('ko-KR', {
@@ -36,8 +35,9 @@ const changeTypeClass = (changeType: RegressionChangeType | null) => {
 
 const verdictLabel = (value: 'ALLOW' | 'BLOCK' | null) => value ?? '—';
 
-export function RegressionComparisonSection({ runId, regression }: RegressionComparisonSectionProps) {
+export function RegressionComparisonSection({ regression }: RegressionComparisonSectionProps) {
   const {
+    runId,
     candidates,
     candidatePageMeta,
     selectedComparisonId,
@@ -49,10 +49,12 @@ export function RegressionComparisonSection({ runId, regression }: RegressionCom
     candidatesError,
     comparisonError,
     notFinished,
+    autoRetryExhausted,
     hasLoadedCandidates,
     setCandidatePage,
     selectComparison,
-    refresh,
+    refreshCandidates,
+    refreshComparison,
   } = regression;
   const [changedOnly, setChangedOnly] = useState(true);
   const [includeNotComparable, setIncludeNotComparable] = useState(false);
@@ -84,7 +86,10 @@ export function RegressionComparisonSection({ runId, regression }: RegressionCom
         </div>
         <button
           type="button"
-          onClick={refresh}
+          onClick={() => {
+            refreshCandidates();
+            refreshComparison();
+          }}
           disabled={candidatesLoading || comparisonLoading}
           className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-[#e5e9ee] px-3 py-2 text-xs font-bold disabled:opacity-50"
         >
@@ -94,7 +99,9 @@ export function RegressionComparisonSection({ runId, regression }: RegressionCom
 
       {notFinished && (
         <div className="rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]">
-          현재 Run이 종료된 뒤 비교 가능한 과거 Run을 자동으로 다시 확인합니다.
+          {autoRetryExhausted
+            ? '자동 확인을 5회 마쳤습니다. Run 상태를 확인한 뒤 다시 시도해 주세요.'
+            : '현재 Run이 종료된 뒤 비교 가능한 과거 Run을 자동으로 다시 확인합니다.'}
         </div>
       )}
 
@@ -102,7 +109,7 @@ export function RegressionComparisonSection({ runId, regression }: RegressionCom
         <RequestErrorBanner
           error={candidatesError}
           fallbackMessage="비교 가능한 과거 Run을 불러오지 못했습니다."
-          onRetry={refresh}
+          onRetry={refreshCandidates}
         />
       )}
 
@@ -182,7 +189,7 @@ export function RegressionComparisonSection({ runId, regression }: RegressionCom
         <RequestErrorBanner
           error={comparisonError}
           fallbackMessage="선택한 Run과의 Regression 비교를 불러오지 못했습니다."
-          onRetry={refresh}
+          onRetry={refreshComparison}
         />
       )}
 

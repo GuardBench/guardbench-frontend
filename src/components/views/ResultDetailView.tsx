@@ -256,15 +256,6 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     };
   }, [selectedRunId]);
 
-  useEffect(() => {
-    setFilters(EMPTY_RESULT_FILTERS);
-    setAttentionTypes([]);
-    setAttentionFacets(null);
-    loadedFacetFilterKeyRef.current = null;
-    attentionInitializedRunIdRef.current = null;
-    setResultPage(1);
-  }, [selectedRunId]);
-
   const refreshAll = () => {
     raceRetryCountRef.current = 0;
     if (raceRetryTimerRef.current) clearTimeout(raceRetryTimerRef.current);

@@ -50,6 +50,8 @@ export interface TestRunComparisonRes {
   items: TestRunComparisonItemRes[];
 }
 
+export type TestRunComparisonSummaryRes = Omit<TestRunComparisonRes, 'items'>;
+
 export async function getComparableTestRuns(
   testRunId: number | string,
   params?: { page?: number; size?: number },
@@ -70,5 +72,14 @@ export async function getTestRunComparison(
 ): Promise<TestRunComparisonRes> {
   return apiRequest<TestRunComparisonRes>(
     `/test-runs/${currentRunId}/comparisons/${comparisonRunId}`,
+  );
+}
+
+export async function getTestRunComparisonSummary(
+  currentRunId: number | string,
+  comparisonRunId: number | string,
+): Promise<TestRunComparisonSummaryRes> {
+  return apiRequest<TestRunComparisonSummaryRes>(
+    `/test-runs/${currentRunId}/comparisons/${comparisonRunId}/summary`,
   );
 }

@@ -29,20 +29,44 @@ test('regression summary preserves backend counts including non-comparable cases
   ]);
 });
 
-test('regression summary omits only a zero non-comparable count', () => {
+test('regression summary displays a zero non-comparable count from the backend', () => {
   assert.deepEqual(regressionSummaryItems({ ...comparison, notComparableCount: 0 }), [
     { label: 'Regression', value: 2 },
     { label: 'Improvement', value: 1 },
     { label: 'Unchanged', value: 74 },
+    { label: '비교 불가', value: 0 },
   ]);
 });
 
-test('summary and detail components do not own comparison API calls', () => {
+test('summary and detail components only use type imports from regression services', () => {
   for (const path of [
     '../src/components/views/RegressionSummaryEntry.tsx',
     '../src/components/views/RegressionComparisonSection.tsx',
   ]) {
     const source = readFileSync(new URL(path, import.meta.url), 'utf8');
-    assert.doesNotMatch(source, /getComparableTestRuns|getTestRunComparison/);
+    const sourceFile = ts.createSourceFile(path, source, ts.ScriptTarget.ES2023, true, ts.ScriptKind.TSX);
+    const valueImports = sourceFile.statements
+      .filter((statement) => ts.isImportDeclaration(statement))
+      .filter((statement) => statement.moduleSpecifier.text.includes('regressionService'))
+      .filter((statement) => {
+        const clause = statement.importClause;
+        if (!clause || clause.isTypeOnly) return false;
+        if (!clause.namedBindings || !ts.isNamedImports(clause.namedBindings)) return true;
+        return clause.namedBindings.elements.some((element) => !element.isTypeOnly);
+      });
+    assert.equal(valueImports.length, 0, `${path} must not own regression API calls`);
   }
+});
+
+const stateHelpers = await import(compile('../src/hooks/regressionComparisonState.ts'));
+
+test('a loaded detail comparison is reused after a Result Detail round trip', () => {
+  const key = stateHelpers.comparisonKey('901', '800');
+  assert.equal(stateHelpers.shouldLoadComparison(key, '', ''), true);
+  assert.equal(stateHelpers.shouldLoadComparison(key, key, ''), false);
+});
+
+test('candidate refresh preserves a selected baseline while it is still available', () => {
+  assert.equal(stateHelpers.preserveSelectedCandidate('800', ['850', '800']), '800');
+  assert.equal(stateHelpers.preserveSelectedCandidate('700', ['850', '800']), '850');
 });

@@ -22,7 +22,7 @@ export function App() {
   const currentView = route.view;
   const layoutView = route.view === 'invalid-run' ? route.sourceView : route.view;
   const selectedRunId = 'runId' in route ? route.runId : '';
-  const regression = useRegressionComparison(selectedRunId);
+  const regression = useRegressionComparison(selectedRunId, currentView === 'regression');
 
   useEffect(() => {
     const syncRoute = () => setRoute(parseRoute(window.location.pathname));
@@ -59,6 +59,13 @@ export function App() {
     if (!selectedRunId) return;
     navigate({ view: 'regression', runId: selectedRunId });
   };
+
+  const regressionSummary = currentView === 'result' ? (
+    <RegressionSummaryEntry
+      regression={regression.summary}
+      onOpenDetail={handleOpenRegression}
+    />
+  ) : undefined;
 
   return (
     <div className="min-h-screen flex bg-[#f6f7f9] text-[#17202a]">
@@ -124,17 +131,12 @@ export function App() {
               key={selectedRunId}
               selectedRunId={selectedRunId}
               onGoNewRun={() => handleSelectView('new-run')}
-              regressionSummary={<RegressionSummaryEntry
-                runId={selectedRunId}
-                regression={regression}
-                onOpenDetail={handleOpenRegression}
-              />}
+              regressionSummary={regressionSummary}
             />
           )}
           {currentView === 'regression' && (
             <RegressionDetailView
-              runId={selectedRunId}
-              regression={regression}
+              regression={regression.detail}
               onBack={() => navigate({ view: 'result', runId: selectedRunId })}
             />
           )}
