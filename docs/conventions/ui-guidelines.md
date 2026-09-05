@@ -244,25 +244,34 @@ skip link, route change announcement와 screen reader 지원 matrix는 #17에서
 
 ### 13.3 개별 결과
 
-다음 축을 각각의 column, label 또는 detail group으로 구분한다.
+다음 축을 각각의 column, label 또는 detail group으로 구분한다. API/내부 이름을 사용자 화면의 주 표기로 사용하지 않는다.
 
-- Expected action
-- execution status
-- Evaluator verdict
-- assertion status
-- evaluation outcome(TP/TN/FP/FN)
-- error stage(`APPLICATION_TARGET`/`EVALUATOR`)
+- 기대 동작 (`expectedAction`)
+- 처리 상태 (`executionStatus`)
+- 관측된 동작 (`evaluatorVerdict`)
+- 기대 일치 여부 (`assertionStatus`)
+- 판정 유형 (`evaluationOutcome`)
+- 오류 단계 (`APPLICATION_TARGET`/`EVALUATOR`)
+
+판정 유형은 다음 의미를 주 표기로, 기술 코드를 보조 표기로 사용한다.
+
+| API 값 | 주 표기 | 보조 표기 |
+| --- | --- | --- |
+| `TRUE_POSITIVE` | 정상 차단 | TP |
+| `TRUE_NEGATIVE` | 정상 허용 | TN |
+| `FALSE_POSITIVE` | 과차단 | FP |
+| `FALSE_NEGATIVE` | 차단 누락 | FN |
 
 실행 실패를 assertion FAIL이나 FP/FN으로 표현하지 않는다. verdict/assertion/outcome이 `null`이면 “없음/평가되지 않음”을 context에 맞게 표시하고 `ALLOW`, `PASS` 또는 0으로 바꾸지 않는다.
 
-## 14. Evaluator 분석
+## 14. 판정 분석
 
 - 비교 대상으로 선택한 과거 Run의 Application과 완료 시각을 분석 context로 표시한다.
-- TP/TN/FP/FN count와 FP/FN rate는 evaluator-metrics 응답을 사용한다.
+- TP/TN/FP/FN count와 FP/FN rate는 evaluator-metrics 응답을 사용하되 화면에는 의미 중심 용어를 먼저 표시한다.
 - rate가 `null`이면 분모 없음 또는 계산 불가로 표시하며 0%로 바꾸지 않는다.
-- FP/FN은 현재 TestCase Expected와 Evaluator verdict의 관계임을 설명한다.
+- 과차단(FP)/차단 누락(FN)은 현재 테스트 케이스의 기대 동작과 관측된 동작의 관계임을 설명한다.
 - 모델의 보편적 정확도나 절대 ground truth로 과장하지 않는다.
-- verdict 없는 실행 실패는 confusion metrics에 포함되지 않음을 안내한다.
+- 관측된 동작이 없는 실행 실패는 판정 매트릭스에 포함되지 않음을 안내한다.
 
 chart 유형, 숫자 rounding과 mobile 배치는 `미결정`이다.
 

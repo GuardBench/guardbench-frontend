@@ -18,6 +18,7 @@ import { LAYER_CLASS } from '../../config/layers';
 import { RequestErrorBanner } from '../common/RequestErrorBanner';
 import { RunProgressStepper } from '../common/RunProgressStepper';
 import { StatusPill } from '../common/StatusPill';
+import { EVALUATION_OUTCOME_PRESENTATION, evaluationOutcomeLabel } from './evaluationOutcomePresentation';
 
 interface ResultDetailViewProps {
   selectedRunId?: string;
@@ -32,47 +33,6 @@ const executionLabel = (status: TestRunResultListItemRes['executionStatus']) => 
   SUCCEEDED: '정상 처리', FAILED: '처리 실패', TIMED_OUT: '시간 초과', NOT_STARTED: '미실행',
 }[status]);
 
-const OUTCOME_PRESENTATION: Record<EvaluationOutcome, {
-  label: string;
-  shortCode: string;
-  transition: string;
-  cellClassName: string;
-  labelClassName: string;
-}> = {
-  TRUE_POSITIVE: {
-    label: '정상 차단',
-    shortCode: 'TP',
-    transition: '차단 필요 → 차단됨',
-    cellClassName: 'border-[#cfe9dc] bg-[#f1faf6]',
-    labelClassName: 'text-[#146c4c]',
-  },
-  TRUE_NEGATIVE: {
-    label: '정상 허용',
-    shortCode: 'TN',
-    transition: '허용 필요 → 허용됨',
-    cellClassName: 'border-[#dfe5e9] bg-[#f6f8f9]',
-    labelClassName: 'text-[#43515d]',
-  },
-  FALSE_POSITIVE: {
-    label: '과차단',
-    shortCode: 'FP',
-    transition: '허용 필요 → 차단됨',
-    cellClassName: 'border-[#f0ddb0] bg-[#fff7e8]',
-    labelClassName: 'text-[#9a5c0a]',
-  },
-  FALSE_NEGATIVE: {
-    label: '차단 누락',
-    shortCode: 'FN',
-    transition: '차단 필요 → 허용됨',
-    cellClassName: 'border-[#f4c7c3] bg-[#fff0ef]',
-    labelClassName: 'text-[#a8322d]',
-  },
-};
-
-const outcomeLabel = (outcome: TestRunResultListItemRes['evaluationOutcome']) => outcome
-  ? `${OUTCOME_PRESENTATION[outcome].label} (${OUTCOME_PRESENTATION[outcome].shortCode})`
-  : '평가되지 않음';
-
 const severityPresentation: Record<TestRunResultListItemRes['severity'], { label: string; className: string }> = {
   CRITICAL: { label: 'CRITICAL', className: 'bg-[#a8322d] text-white' },
   HIGH: { label: 'HIGH', className: 'bg-[#fff0ef] text-[#a8322d]' },
@@ -81,7 +41,7 @@ const severityPresentation: Record<TestRunResultListItemRes['severity'], { label
 };
 
 const errorStageLabel = (stage: NonNullable<TestRunResultListItemRes['error']>['stage']) => (
-  stage === 'APPLICATION_TARGET' ? 'Application 실행' : 'Evaluator 평가'
+  stage === 'APPLICATION_TARGET' ? '대상 애플리케이션 실행' : '판정 처리'
 );
 
 type OutcomeFilter = 'ALL' | EvaluationOutcome;
@@ -104,8 +64,8 @@ const EMPTY_RESULT_FILTERS: ResultFilters = {
 };
 
 const ATTENTION_TYPES: Array<{ type: TestRunResultAttentionType; label: string; tone: string }> = [
-  { type: 'FALSE_NEGATIVE', label: '차단 누락', tone: 'border-[#f4c7c3] bg-[#fff0ef] text-[#a8322d]' },
-  { type: 'FALSE_POSITIVE', label: '과차단', tone: 'border-[#f0ddb0] bg-[#fff7e8] text-[#9a5c0a]' },
+  { type: 'FALSE_NEGATIVE', label: EVALUATION_OUTCOME_PRESENTATION.FALSE_NEGATIVE.label, tone: 'border-[#f4c7c3] bg-[#fff0ef] text-[#a8322d]' },
+  { type: 'FALSE_POSITIVE', label: EVALUATION_OUTCOME_PRESENTATION.FALSE_POSITIVE.label, tone: 'border-[#f0ddb0] bg-[#fff7e8] text-[#9a5c0a]' },
   { type: 'EXECUTION_FAILED', label: '처리 실패', tone: 'border-[#dfe5e9] bg-[#f6f8f9] text-[#43515d]' },
   { type: 'TIMED_OUT', label: '시간 초과', tone: 'border-[#dfe5e9] bg-[#f6f8f9] text-[#43515d]' },
   { type: 'NOT_STARTED', label: '미실행', tone: 'border-[#dfe5e9] bg-[#f6f8f9] text-[#43515d]' },
@@ -113,10 +73,10 @@ const ATTENTION_TYPES: Array<{ type: TestRunResultAttentionType; label: string; 
 
 const OUTCOME_FILTERS: Array<{ value: OutcomeFilter; label: string }> = [
   { value: 'ALL', label: '전체' },
-  { value: 'FALSE_NEGATIVE', label: '차단 누락 (FN)' },
-  { value: 'FALSE_POSITIVE', label: '과차단 (FP)' },
-  { value: 'TRUE_POSITIVE', label: '정상 차단 (TP)' },
-  { value: 'TRUE_NEGATIVE', label: '정상 허용 (TN)' },
+  { value: 'FALSE_NEGATIVE', label: evaluationOutcomeLabel('FALSE_NEGATIVE') },
+  { value: 'FALSE_POSITIVE', label: evaluationOutcomeLabel('FALSE_POSITIVE') },
+  { value: 'TRUE_POSITIVE', label: evaluationOutcomeLabel('TRUE_POSITIVE') },
+  { value: 'TRUE_NEGATIVE', label: evaluationOutcomeLabel('TRUE_NEGATIVE') },
 ];
 
 const percentageLabel = (rate: number) => `${(Math.floor(rate * 10_000) / 100).toFixed(2)}%`;
@@ -160,7 +120,7 @@ const MatrixCell = ({ outcome, count, rate }: {
   count: number | null;
   rate?: number | null;
 }) => {
-  const presentation = OUTCOME_PRESENTATION[outcome];
+  const presentation = EVALUATION_OUTCOME_PRESENTATION[outcome];
   return <div className={`min-w-[150px] rounded-xl border p-4 ${presentation.cellClassName}`}>
     <div className="flex items-start justify-between gap-2">
       <span className={`text-sm font-black ${presentation.labelClassName}`}>{presentation.label}</span>
@@ -173,7 +133,7 @@ const MatrixCell = ({ outcome, count, rate }: {
 };
 
 const ResultMeaning = ({ item }: { item: TestRunResultListItemRes }) => {
-  const presentation = item.evaluationOutcome ? OUTCOME_PRESENTATION[item.evaluationOutcome] : null;
+  const presentation = item.evaluationOutcome ? EVALUATION_OUTCOME_PRESENTATION[item.evaluationOutcome] : null;
   const attention = item.attentionType
     ? ATTENTION_TYPES.find(({ type }) => type === item.attentionType) : null;
   return presentation
@@ -419,7 +379,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
   const summaryDescription = notFinished
     ? '실행이 끝나면 판정 결과와 확인이 필요한 케이스를 집계합니다.'
     : gateStatus === 'NOT_EVALUATED'
-      ? `${detail?.testCaseCount ?? 0}건 중 평가 가능한 Assertion이 없어 판정을 완료하지 못했습니다.`
+      ? `${detail?.testCaseCount ?? 0}건 중 기대 일치 여부를 판정할 수 있는 결과가 없어 판정을 완료하지 못했습니다.`
       : attentionCount === null
         ? '결과 집계를 불러오는 중입니다.'
         : attentionCount === 0
@@ -450,7 +410,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
     {autoRefreshStopped && detail && !detailLoading && <div className="rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs font-bold text-[#78501b]">자동 갱신이 중단됐습니다. 다시 시도를 눌러주세요.</div>}
     {detailError !== null && detail && !detailLoading && <RequestErrorBanner error={detailError} fallbackMessage="최신 실행 상세를 불러오지 못했습니다." stale={detailStale} onRetry={refreshAll} />}
     {resultsError !== null && !resultsLoading && <RequestErrorBanner error={resultsError} fallbackMessage="Snapshot 결과를 불러오지 못했습니다." stale={hasLoadedResults} onRetry={refreshAll} />}
-    {metricsError !== null && !metricsLoading && <RequestErrorBanner error={metricsError} fallbackMessage="Evaluator 지표를 불러오지 못했습니다." stale={loadedMetricsRunId === selectedRunId && evaluatorMetrics !== null} onRetry={refreshAll} />}
+    {metricsError !== null && !metricsLoading && <RequestErrorBanner error={metricsError} fallbackMessage="판정 지표를 불러오지 못했습니다." stale={loadedMetricsRunId === selectedRunId && evaluatorMetrics !== null} onRetry={refreshAll} />}
 
     <article className={`overflow-hidden rounded-2xl border ${gateStatus === 'PASS' ? 'border-[#cfe9dc] bg-[#f1faf6]' : gateStatus === 'FAIL' ? 'border-[#f4c7c3] bg-[#fff0ef]' : 'border-[#dfe5e9] bg-[#f6f8f9]'}`}>
       <div className="grid gap-6 p-6 lg:grid-cols-[1fr_1.4fr] lg:p-7">
@@ -460,18 +420,18 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
           <p aria-live="polite" className="mt-2 text-base font-bold text-[#17202a]">{summaryDescription}</p>
           {!notFinished && attentionCount !== null && attentionCount > 0 && <p className="mt-1 text-xs text-[#697586]">판정 불일치 {mismatchCount}건 · 판정 미완료 {incompleteCount}건</p>}
           {metrics ? <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-black/10 pt-4 text-xs">
-            <div><dt className="text-[#697586]">Assertion 통과율</dt><dd className="mt-0.5 font-black text-[#17202a]">{percentageLabel(metrics.assertionPassRate)} <span className="font-medium text-[#697586]">· 기준 95%</span></dd></div>
+            <div><dt className="text-[#697586]">기대 일치율</dt><dd className="mt-0.5 font-black text-[#17202a]">{percentageLabel(metrics.assertionPassRate)} <span className="font-medium text-[#697586]">· 기준 95%</span></dd></div>
             <div><dt className="text-[#697586]">실행 성공률</dt><dd className="mt-0.5 font-black text-[#17202a]">{percentageLabel(metrics.executionSuccessRate)} <span className="font-medium text-[#697586]">· 기준 95%</span></dd></div>
           </dl> : <p className="mt-5 border-t border-black/10 pt-4 text-xs text-[#697586]">{!detail
             ? 'Quality Gate 정보를 불러오는 중입니다.'
             : detail.qualityGate?.status === 'NOT_EVALUATED'
-              ? '평가 가능한 Assertion이 없어 Quality Gate 지표를 계산하지 않았습니다.'
+              ? '기대 일치 여부를 판정할 수 있는 결과가 없어 Quality Gate 지표를 계산하지 않았습니다.'
               : detail.qualityGate ? 'Quality Gate 지표가 제공되지 않았습니다.' : '실행 종료 후 Quality Gate 지표가 결정됩니다.'}</p>}
         </div>
         <div aria-label="판정 요약" className="grid grid-cols-2 items-stretch gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
           <SummaryMetric label="정상 판정" value={normalCount} tone="success" />
-          <SummaryMetric label="차단 누락" value={attentionFacets?.attentionTypes.FALSE_NEGATIVE ?? visibleEvaluatorMetrics?.falseNegative ?? null} tone="danger" onClick={() => selectAttentionTypes(['FALSE_NEGATIVE'])} />
-          <SummaryMetric label="과차단" value={attentionFacets?.attentionTypes.FALSE_POSITIVE ?? visibleEvaluatorMetrics?.falsePositive ?? null} tone="warning" onClick={() => selectAttentionTypes(['FALSE_POSITIVE'])} />
+          <SummaryMetric label={EVALUATION_OUTCOME_PRESENTATION.FALSE_NEGATIVE.label} value={attentionFacets?.attentionTypes.FALSE_NEGATIVE ?? visibleEvaluatorMetrics?.falseNegative ?? null} tone="danger" onClick={() => selectAttentionTypes(['FALSE_NEGATIVE'])} />
+          <SummaryMetric label={EVALUATION_OUTCOME_PRESENTATION.FALSE_POSITIVE.label} value={attentionFacets?.attentionTypes.FALSE_POSITIVE ?? visibleEvaluatorMetrics?.falsePositive ?? null} tone="warning" onClick={() => selectAttentionTypes(['FALSE_POSITIVE'])} />
           <SummaryMetric label="판정 미완료" value={incompleteCount} onClick={() => selectAttentionTypes(['EXECUTION_FAILED', 'TIMED_OUT', 'NOT_STARTED'])} />
         </div>
       </div>
@@ -503,7 +463,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
             <label>기대 동작<select value={filters.expectedAction} onChange={(event) => { setFilters((current) => ({ ...current, expectedAction: event.target.value as ResultFilters['expectedAction'] })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5"><option value="">전체</option><option value="ALLOW">ALLOW</option><option value="BLOCK">BLOCK</option></select></label>
             <label>위험도<select value={filters.severity} onChange={(event) => { setFilters((current) => ({ ...current, severity: event.target.value as ResultFilters['severity'] })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5"><option value="">전체</option>{Object.keys(severityPresentation).map((severity) => <option key={severity} value={severity}>{severity}</option>)}</select></label>
             <label>처리 상태<select value={filters.executionStatus} onChange={(event) => { setFilters((current) => ({ ...current, executionStatus: event.target.value as ResultFilters['executionStatus'] })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5"><option value="">전체</option><option value="SUCCEEDED">정상 처리</option><option value="FAILED">처리 실패</option><option value="TIMED_OUT">시간 초과</option><option value="NOT_STARTED">미실행</option></select></label>
-            <label>Assertion<select value={filters.assertionStatus} onChange={(event) => { setFilters((current) => ({ ...current, assertionStatus: event.target.value as ResultFilters['assertionStatus'] })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5"><option value="">전체</option><option value="PASS">PASS</option><option value="FAIL">FAIL</option></select></label>
+            <label>기대 일치 여부<select value={filters.assertionStatus} onChange={(event) => { setFilters((current) => ({ ...current, assertionStatus: event.target.value as ResultFilters['assertionStatus'] })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5"><option value="">전체</option><option value="PASS">일치 (PASS)</option><option value="FAIL">불일치 (FAIL)</option></select></label>
             <label>판정 유형<select value={filters.evaluationOutcome} onChange={(event) => { setFilters((current) => ({ ...current, evaluationOutcome: event.target.value as OutcomeFilter })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5">{OUTCOME_FILTERS.map((filter) => <option key={filter.value} value={filter.value}>{filter.label}</option>)}</select></label>
             <label>정렬<select value={filters.sort} onChange={(event) => { setFilters((current) => ({ ...current, sort: event.target.value as ResultFilters['sort'] })); setResultPage(1); }} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5"><option value="">기본 정렬</option><option value="severity,desc">위험도 높은 순</option><option value="severity,asc">위험도 낮은 순</option><option value="name,asc">이름순</option><option value="name,desc">이름 역순</option></select></label>
           </div>
@@ -539,22 +499,22 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
 
     <article className="rounded-2xl border border-[#e5e9ee] bg-white p-5">
       <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
-        <div><h2 className="text-sm font-bold">Evaluator 판정 매트릭스</h2><p className="mt-1 text-xs text-[#697586]">기대 동작과 Evaluator 판정의 관계를 한국어 의미 중심으로 보여줍니다.</p></div>
+        <div><h2 className="text-sm font-bold">기대·관측 동작 매트릭스</h2><p className="mt-1 text-xs text-[#697586]">기대 동작과 관측된 동작의 관계를 의미 중심으로 보여줍니다.</p></div>
         <span className="text-xs font-bold text-[#43515d]">평가 완료 {evaluatedCount ?? '—'}건</span>
       </div>
       {notFinished
         ? <p className="rounded-xl bg-[#f6f8f9] p-4 text-xs text-[#697586]">실행 완료 후 판정 매트릭스가 표시됩니다.</p>
         : <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] border-separate border-spacing-2 text-left">
-            <caption className="sr-only">행은 기대 동작, 열은 Evaluator 판정인 2×2 평가 매트릭스</caption>
-            <thead><tr><th scope="col" className="w-[150px] px-3 py-2 text-[11px] font-bold text-[#697586]">기대 동작 ↓</th><th scope="col" className="px-3 py-2 text-xs font-black text-[#43515d]">Evaluator: 허용</th><th scope="col" className="px-3 py-2 text-xs font-black text-[#43515d]">Evaluator: 차단</th></tr></thead>
+            <caption className="sr-only">행은 기대 동작, 열은 관측된 동작인 2×2 평가 매트릭스</caption>
+            <thead><tr><th scope="col" className="w-[150px] px-3 py-2 text-[11px] font-bold text-[#697586]">기대 동작 ↓</th><th scope="col" className="px-3 py-2 text-xs font-black text-[#43515d]">관측된 동작: 허용</th><th scope="col" className="px-3 py-2 text-xs font-black text-[#43515d]">관측된 동작: 차단</th></tr></thead>
             <tbody>
-              <tr><th scope="row" className="rounded-xl bg-[#f8f9fa] px-3 py-4 text-xs font-black text-[#43515d]">허용해야 함<br /><span className="text-[10px] font-medium text-[#697586]">Expected ALLOW</span></th><td><MatrixCell outcome="TRUE_NEGATIVE" count={metricCount(visibleEvaluatorMetrics, 'TRUE_NEGATIVE')} /></td><td><MatrixCell outcome="FALSE_POSITIVE" count={metricCount(visibleEvaluatorMetrics, 'FALSE_POSITIVE')} rate={visibleEvaluatorMetrics?.falsePositiveRate} /></td></tr>
-              <tr><th scope="row" className="rounded-xl bg-[#f8f9fa] px-3 py-4 text-xs font-black text-[#43515d]">차단해야 함<br /><span className="text-[10px] font-medium text-[#697586]">Expected BLOCK</span></th><td><MatrixCell outcome="FALSE_NEGATIVE" count={metricCount(visibleEvaluatorMetrics, 'FALSE_NEGATIVE')} rate={visibleEvaluatorMetrics?.falseNegativeRate} /></td><td><MatrixCell outcome="TRUE_POSITIVE" count={metricCount(visibleEvaluatorMetrics, 'TRUE_POSITIVE')} /></td></tr>
+              <tr><th scope="row" className="rounded-xl bg-[#f8f9fa] px-3 py-4 text-xs font-black text-[#43515d]">허용해야 함<br /><span className="text-[10px] font-medium text-[#697586]">ALLOW</span></th><td><MatrixCell outcome="TRUE_NEGATIVE" count={metricCount(visibleEvaluatorMetrics, 'TRUE_NEGATIVE')} /></td><td><MatrixCell outcome="FALSE_POSITIVE" count={metricCount(visibleEvaluatorMetrics, 'FALSE_POSITIVE')} rate={visibleEvaluatorMetrics?.falsePositiveRate} /></td></tr>
+              <tr><th scope="row" className="rounded-xl bg-[#f8f9fa] px-3 py-4 text-xs font-black text-[#43515d]">차단해야 함<br /><span className="text-[10px] font-medium text-[#697586]">BLOCK</span></th><td><MatrixCell outcome="FALSE_NEGATIVE" count={metricCount(visibleEvaluatorMetrics, 'FALSE_NEGATIVE')} rate={visibleEvaluatorMetrics?.falseNegativeRate} /></td><td><MatrixCell outcome="TRUE_POSITIVE" count={metricCount(visibleEvaluatorMetrics, 'TRUE_POSITIVE')} /></td></tr>
             </tbody>
           </table>
         </div>}
-      <p className="mt-3 text-[11px] text-[#697586]">실행 실패나 Evaluator 판정이 없는 결과는 매트릭스에 포함되지 않습니다. 현재 TestCase의 Expected를 기준으로 한 분류입니다.</p>
+      <p className="mt-3 text-[11px] text-[#697586]">실행 실패나 관측된 동작이 없는 결과는 매트릭스에 포함되지 않습니다. 현재 테스트 케이스의 기대 동작을 기준으로 한 분류입니다.</p>
     </article>
 
     <article className="rounded-2xl border border-[#e5e9ee] bg-white p-6">
@@ -565,7 +525,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
     </article>
 
     {selected && createPortal(<div className={`fixed inset-0 ${LAYER_CLASS.dialog} flex items-center justify-center bg-black/40 p-4`}><button type="button" className="absolute inset-0 cursor-default" tabIndex={-1} aria-hidden="true" onClick={closeResultDialog} /><section ref={resultDialogRef} role="dialog" aria-modal="true" aria-labelledby="result-dialog-title" tabIndex={-1} className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"><div className="flex justify-between gap-4"><div><h2 id="result-dialog-title" className="text-lg font-bold">{selected.name}</h2><p className="text-xs text-[#697586]">Snapshot #{selected.testCaseSnapshotId}</p></div><button type="button" aria-label="Snapshot 결과 상세 창 닫기" onClick={closeResultDialog}><X size={20} /></button></div>
-      <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2"><div className="sm:col-span-2"><dt className="text-xs font-bold text-[#697586]">Input</dt><dd className="mt-1 rounded-xl bg-[#f6f8f9] p-3 whitespace-pre-wrap">{selected.input}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Application 실행</dt><dd className="mt-1">{executionLabel(selected.executionStatus)}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Evaluator Verdict</dt><dd className="mt-1 font-mono">{selected.evaluatorVerdict ?? '없음'}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Expected</dt><dd className="mt-1 font-mono">{selected.expectedAction}</dd></div><div><dt className="text-xs font-bold text-[#697586]">Assertion / Outcome</dt><dd className="mt-1">{selected.assertionStatus ?? '평가되지 않음'} · {outcomeLabel(selected.evaluationOutcome)}</dd></div>{selected.error && <div className="sm:col-span-2 rounded-xl border border-[#f4c7c3] bg-[#fff0ef] p-3"><dt className="text-xs font-bold">{errorStageLabel(selected.error.stage)} 오류 · {selected.error.code}</dt><dd className="mt-1 text-xs">{selected.error.message}</dd></div>}</dl>
+      <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2"><div className="sm:col-span-2"><dt className="text-xs font-bold text-[#697586]">입력</dt><dd className="mt-1 rounded-xl bg-[#f6f8f9] p-3 whitespace-pre-wrap">{selected.input}</dd></div><div><dt className="text-xs font-bold text-[#697586]">대상 애플리케이션 실행</dt><dd className="mt-1">{executionLabel(selected.executionStatus)}</dd></div><div><dt className="text-xs font-bold text-[#697586]">기대 동작</dt><dd className="mt-1 font-mono">{selected.expectedAction}</dd></div><div><dt className="text-xs font-bold text-[#697586]">관측된 동작</dt><dd className="mt-1 font-mono">{selected.evaluatorVerdict ?? '없음'}</dd></div><div><dt className="text-xs font-bold text-[#697586]">기대 일치 여부</dt><dd className="mt-1">{selected.assertionStatus === 'PASS' ? '일치 (PASS)' : selected.assertionStatus === 'FAIL' ? '불일치 (FAIL)' : '평가되지 않음'}</dd></div><div><dt className="text-xs font-bold text-[#697586]">판정 유형</dt><dd className="mt-1">{evaluationOutcomeLabel(selected.evaluationOutcome)}</dd></div>{selected.error && <div className="sm:col-span-2 rounded-xl border border-[#f4c7c3] bg-[#fff0ef] p-3"><dt className="text-xs font-bold">{errorStageLabel(selected.error.stage)} 오류 · {selected.error.code}</dt><dd className="mt-1 text-xs">{selected.error.message}</dd></div>}</dl>
       <p className="mt-6 text-xs text-[#697586]">Application 자연어 응답은 보안 정책에 따라 표시하지 않습니다.</p></section></div>, document.body)}
   </section>;
 };

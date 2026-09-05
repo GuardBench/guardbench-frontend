@@ -230,7 +230,7 @@ flowchart TD
     A[Run 상세] --> B{status FINISHED?}
     B -->|아니오| C[상세 Polling 유지]
     B -->|예| D[GET results]
-    D -->|items 있음| E[실행·Verdict·Assertion 표시]
+    D -->|items 있음| E[실행·관측 동작·기대 일치 여부 표시]
     D -->|filter 결과 없음| F[조건에 맞는 결과 없음]
     D -->|TEST_RUN_NOT_FINISHED| C
     D -->|오류| G[오류와 재시도]
@@ -238,25 +238,25 @@ flowchart TD
 
 각 결과에서 다음을 구분한다.
 
-- TestCaseSnapshot의 input과 Expected
-- Application/Evaluator 처리의 execution status
-- Evaluator verdict
-- Expected와 verdict의 assertion
-- TP/TN/FP/FN evaluation outcome
-- Application Target 또는 Evaluator failure stage와 안전한 오류
+- 테스트 케이스 Snapshot의 입력과 기대 동작
+- 대상 애플리케이션과 판정 처리의 실행 상태
+- 관측된 동작
+- 기대 동작과 관측된 동작의 기대 일치 여부
+- `정상 차단 (TP) / 정상 허용 (TN) / 과차단 (FP) / 차단 누락 (FN)` 판정 유형
+- 대상 애플리케이션 또는 판정 처리의 실패 단계와 안전한 오류
 
 Application 자연어 응답은 현재 public API에 없으며 프론트엔드는 원문을 조회·저장·표시하지 않는다. 관리자 또는 배포 전 테스트라는 이유만으로 공개하지 않는다.
 
 ### 6.3 결과 해석
 
-| Expected | Verdict | Outcome | Assertion |
+| 기대 동작 | 관측된 동작 | 판정 유형 | 기대 일치 여부 |
 | --- | --- | --- | --- |
-| BLOCK | BLOCK | TRUE_POSITIVE | PASS |
-| BLOCK | ALLOW | FALSE_NEGATIVE | FAIL |
-| ALLOW | BLOCK | FALSE_POSITIVE | FAIL |
-| ALLOW | ALLOW | TRUE_NEGATIVE | PASS |
+| BLOCK | BLOCK | 정상 차단 (TP) | 일치 (PASS) |
+| BLOCK | ALLOW | 차단 누락 (FN) | 불일치 (FAIL) |
+| ALLOW | BLOCK | 과차단 (FP) | 불일치 (FAIL) |
+| ALLOW | ALLOW | 정상 허용 (TN) | 일치 (PASS) |
 
-verdict가 없으면 assertion과 outcome도 `null`일 수 있다. 실행 실패를 FALSE_POSITIVE/FALSE_NEGATIVE 또는 assertion FAIL로 추정하지 않는다.
+관측된 동작이 없으면 기대 일치 여부와 판정 유형도 `null`일 수 있다. 실행 실패를 `과차단 (FP)`/`차단 누락 (FN)` 또는 기대 불일치(FAIL)로 추정하지 않는다.
 
 ### 6.4 결과 filter와 빈 상태
 
@@ -265,32 +265,32 @@ filter는 저장된 Run 결과를 다시 실행하거나 재평가하지 않고,
 - name과 input: 부분 일치 검색
 - category, expected action과 severity: TestCaseSnapshot 속성으로 제한
 - execution status: 실패, timeout, 미시작 등 실행 처리 상태로 제한
-- assertion status: PASS 또는 FAIL로 제한
-- evaluation outcome: TP, TN, FP 또는 FN으로 제한
+- 기대 일치 여부: PASS 또는 FAIL로 제한
+- 판정 유형: `정상 차단 (TP)`, `정상 허용 (TN)`, `과차단 (FP)` 또는 `차단 누락 (FN)`으로 제한
 
-예를 들어 `evaluationOutcome=FALSE_NEGATIVE`는 Expected가 BLOCK이지만 Evaluator verdict가 ALLOW인 저장 결과만 조회한다. filter 결과가 비어 있으면 “현재 조건과 일치하는 결과 없음”으로 표시하며 Run 전체 결과 없음과 구분한다.
+예를 들어 `evaluationOutcome=FALSE_NEGATIVE`는 기대 동작이 BLOCK이지만 관측된 동작이 ALLOW인 저장 결과만 조회하며 화면에는 `차단 누락 (FN)`으로 표시한다. filter 결과가 비어 있으면 “현재 조건과 일치하는 결과 없음”으로 표시하며 Run 전체 결과 없음과 구분한다.
 
 filter가 적용된 현재 page로 전체 TP/TN/FP/FN metrics나 Quality Gate를 다시 계산하지 않는다. 전체 집계는 evaluator-metrics와 Run 상세 응답을 source of truth로 사용한다.
 
 ### 6.5 현재 구현 (`AS-IS`)
 
-현재 결과 화면은 단일 Application execution, Evaluator verdict, assertion, outcome과 안전한 오류를 표시한다. 결과 filter/page, Evaluator metrics와 Quality Gate는 각 서버 응답을 독립적으로 사용한다.
+현재 결과 화면은 단일 Application 실행, 관측된 동작, 기대 일치 여부, 판정 유형과 안전한 오류를 표시한다. 결과 filter/page, evaluator-metrics와 Quality Gate는 각 서버 응답을 독립적으로 사용한다.
 
 `RegressionSummaryEntry`는 `GET /api/v1/test-runs/{testRunId}/comparable-runs`로 baseline을 고르고 case-level `items`가 없는 comparison summary endpoint에서 변화 집계를 조회한다. 비교 가능한 Run이 있으면 `회귀 상세 보기` action을 제공하며, 전체 comparison payload와 table은 Regression Detail 진입 전에는 불러오거나 표시하지 않는다.
 
-## 7. Evaluator 분석
+## 7. 판정 분석
 
 ### 사용자 목표 (`AS-IS`)
 
-관측된 Evaluator verdict가 TestCase의 Expected와 어떻게 일치했는지 aggregate 관점에서 검토한다.
+관측된 동작이 테스트 케이스의 기대 동작과 어떻게 일치했는지 집계 관점에서 검토한다.
 
 1. FINISHED Run에서 evaluator-metrics endpoint를 조회한다.
-2. 서버가 반환한 TP/TN/FP/FN count를 표시한다.
+2. 서버가 반환한 TP/TN/FP/FN count를 `정상 차단 / 정상 허용 / 과차단 / 차단 누락`으로 표시하고 기술 코드는 보조 표기로 둔다.
 3. 분모가 없는 경우 `null`일 수 있는 FP/FN rate를 0으로 바꾸지 않는다.
-4. false positive/negative 항목을 보고 싶으면 결과 endpoint의 evaluation outcome filter를 사용한다.
+4. 과차단/차단 누락 항목을 보고 싶으면 결과 endpoint의 evaluation outcome filter를 사용한다.
 5. result page 일부에서 전체 metrics를 다시 계산하지 않는다.
 
-이 분석은 현재 TestCase Expected를 기준으로 한 결과이지 모델의 보편적 정확도나 절대 ground truth가 아니다. verdict 없는 실행 실패는 metrics에서 제외한다. 현재 Result Detail 안에서 제공한다.
+이 분석은 현재 테스트 케이스의 기대 동작을 기준으로 한 결과이지 모델의 보편적 정확도나 절대 ground truth가 아니다. 관측된 동작이 없는 실행 실패는 metrics에서 제외한다. 현재 Result Detail 안에서 제공한다.
 
 ## 8. 과거 Run과 Regression 비교
 
