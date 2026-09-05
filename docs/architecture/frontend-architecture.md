@@ -249,6 +249,12 @@ Regression은 현재 Run 자체의 Quality Gate와 독립적인 조회 기능이
 6. `TEST_RUN_NOT_FINISHED`이면 관련 Run detail을 다시 확인한다.
 7. `TEST_RUNS_NOT_COMPARABLE`이면 comparison state를 비우고 comparable-runs를 재조회하거나 다른 후보를 선택하게 한다.
 
+`App`이 current Run별 `useRegressionComparison` 상태를 소유한다. Result Detail은 case-level `items`가 없는
+comparison summary endpoint를 사용하고, Regression Detail에 진입할 때만 전체 comparison을 조회한다.
+두 화면은 후보와 선택 baseline을 공유하고, 이미 불러온 전체 comparison은 왕복 화면 전환에서 재사용한다.
+화면 전환이나 재시도로 선택 baseline을 초기화하지 않고 current Run이 바뀌면 render commit 전에 전체
+Regression state를 무효화한다. Summary와 Detail consumer에는 각 화면이 필요한 좁은 state 계약만 전달한다.
+
 comparability 규칙을 프론트에서 복제하거나 같은 Suite라는 이유로 후보를 추가하지 않는다. comparison
 응답의 summary count, 이전·현재 verdict, comparability status와 change type은 서버 값을 보존한다.
 `NOT_COMPARABLE` item의 nullable verdict/change type 표현은 backend #144에서 OpenAPI 3.0.3 도구
@@ -354,11 +360,11 @@ feature-based 폴더, query library와 generated API package 도입은 이 문�
 
 ### 현재 (`AS-IS`)
 
-- package script는 `dev`, `build`, `lint`, `preview`를 제공하지만 자동화된 `test` script는 없다.
-- Playwright dependency와 `test_playwright.cjs`가 있지만 표준 test 실행 계약은 없다.
-- 현재 workflow는 `main` 대상 PR/push에서 build를 실행하고 `docs/**` 변경은 제외한다. `dev` 대상 문서 PR에는 CI check가 생성되지 않는다.
+- package script는 `dev`, `build`, `lint`, `test`, `preview`를 제공하며 `npm test`는 Node test runner 기반 계약 테스트를 실행한다.
+- Playwright dependency와 `test_playwright.cjs`가 있지만 표준 E2E 실행 계약은 없다.
+- 현재 workflow는 `main` 대상 PR/push에서 lint → test → build를 실행하고 `docs/**` 변경은 제외한다. `dev` 대상 문서 PR에는 CI check가 생성되지 않는다.
 - `src/contracts/openapiNullability.contract.ts`는 `tsc -b`에서 OpenAPI의 대표 required + nullable DTO 조합을 compile-time contract로 검증한다.
-- 자동화된 unit/component/E2E 기반과 OpenAPI fixture 기반 contract test는 없다.
+- 자동화된 component/E2E 기반과 OpenAPI fixture 기반 contract test는 없다.
 
 ### 목표 검증 경계
 

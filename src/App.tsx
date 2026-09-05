@@ -13,6 +13,7 @@ import { ArchitectureView } from './components/views/ArchitectureView';
 import { runtimeConfig } from './config/runtimeConfig';
 import { LAYER_CLASS } from './config/layers';
 import { parseRoute, routeForView, routePath, type AppRoute } from './routing/routes';
+import { useRegressionComparison } from './hooks/useRegressionComparison';
 
 export function App() {
   const [route, setRoute] = useState<AppRoute>(() => parseRoute(window.location.pathname));
@@ -21,6 +22,7 @@ export function App() {
   const currentView = route.view;
   const layoutView = route.view === 'invalid-run' ? route.sourceView : route.view;
   const selectedRunId = 'runId' in route ? route.runId : '';
+  const regression = useRegressionComparison(selectedRunId, currentView === 'regression');
 
   useEffect(() => {
     const syncRoute = () => setRoute(parseRoute(window.location.pathname));
@@ -57,6 +59,13 @@ export function App() {
     if (!selectedRunId) return;
     navigate({ view: 'regression', runId: selectedRunId });
   };
+
+  const regressionSummary = (
+    <RegressionSummaryEntry
+      regression={regression.summary}
+      onOpenDetail={handleOpenRegression}
+    />
+  );
 
   return (
     <div className="min-h-screen flex bg-[#f6f7f9] text-[#17202a]">
@@ -118,21 +127,17 @@ export function App() {
             />
           )}
           {currentView === 'result' && (
-            <div className="space-y-6">
-              <ResultDetailView
-                key={selectedRunId}
-                selectedRunId={selectedRunId}
-                onGoNewRun={() => handleSelectView('new-run')}
-              />
-              <RegressionSummaryEntry
-                runId={selectedRunId}
-                onOpenDetail={handleOpenRegression}
-              />
-            </div>
+            // ResultDetailView의 Run별 UI 상태는 key에 의해 함께 초기화된다.
+            <ResultDetailView
+              key={selectedRunId}
+              selectedRunId={selectedRunId}
+              onGoNewRun={() => handleSelectView('new-run')}
+              regressionSummary={regressionSummary}
+            />
           )}
           {currentView === 'regression' && (
             <RegressionDetailView
-              runId={selectedRunId}
+              regression={regression.detail}
               onBack={() => navigate({ view: 'result', runId: selectedRunId })}
             />
           )}

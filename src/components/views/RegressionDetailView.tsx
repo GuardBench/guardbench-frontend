@@ -1,12 +1,13 @@
 import { ArrowLeft } from 'lucide-react';
+import type { RegressionDetailState } from '../../hooks/useRegressionComparison';
 import { RegressionComparisonSection } from './RegressionComparisonSection';
 
 interface RegressionDetailViewProps {
-  runId: string;
+  regression: RegressionDetailState;
   onBack: () => void;
 }
 
-export function RegressionDetailView({ runId, onBack }: RegressionDetailViewProps) {
+export function RegressionDetailView({ regression, onBack }: RegressionDetailViewProps) {
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
@@ -20,12 +21,12 @@ export function RegressionDetailView({ runId, onBack }: RegressionDetailViewProp
           </button>
           <h1 className="text-2xl font-black tracking-tight text-[#17202a]">Regression 상세</h1>
           <p className="mt-1 text-sm text-[#697586]">
-            Current Run #{runId}과 비교 가능한 과거 Run의 저장 결과 변화를 분석합니다.
+            Current Run #{regression.runId}과 비교 가능한 과거 Run의 저장 결과 변화를 분석합니다.
           </p>
         </div>
       </div>
 
-      <RegressionComparisonSection runId={runId} />
+      <RegressionComparisonSection regression={regression} />
     </div>
   );
 }

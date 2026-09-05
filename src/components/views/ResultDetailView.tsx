@@ -22,6 +22,7 @@ import { StatusPill } from '../common/StatusPill';
 interface ResultDetailViewProps {
   selectedRunId?: string;
   onGoNewRun: () => void;
+  regressionSummary?: React.ReactNode;
 }
 
 const executionLabel = (status: TestRunResultListItemRes['executionStatus']) => ({
@@ -175,7 +176,7 @@ const ResultMeaning = ({ item }: { item: TestRunResultListItemRes }) => {
     ? <><b className={`block text-sm ${presentation.labelClassName}`}>{presentation.label} <span className="text-[10px] text-[#697586]">{presentation.shortCode}</span></b><span className="mt-1 block text-[#586473]">{presentation.transition}</span></>
     : <><b className="block text-sm text-[#586473]">{attention?.label ?? '판정 미완료'}</b><span className="mt-1 block text-[#697586]">{executionLabel(item.executionStatus)}로 판정을 확인할 수 없습니다.</span></>;
 };
-export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunId, onGoNewRun }) => {
+export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunId, onGoNewRun, regressionSummary }) => {
   const [results, setResults] = useState<TestRunResultListItemRes[]>([]);
   const [resultPage, setResultPage] = useState(1);
   const [filters, setFilters] = useState<ResultFilters>(EMPTY_RESULT_FILTERS);
@@ -253,15 +254,6 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
       if (raceRetryTimerRef.current) clearTimeout(raceRetryTimerRef.current);
       raceRetryTimerRef.current = null;
     };
-  }, [selectedRunId]);
-
-  useEffect(() => {
-    setFilters(EMPTY_RESULT_FILTERS);
-    setAttentionTypes([]);
-    setAttentionFacets(null);
-    loadedFacetFilterKeyRef.current = null;
-    attentionInitializedRunIdRef.current = null;
-    setResultPage(1);
   }, [selectedRunId]);
 
   const refreshAll = () => {
@@ -422,6 +414,8 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
         <button type="button" onClick={onGoNewRun} className="rounded-xl bg-[#17202a] px-4 py-2 text-xs font-bold text-white">다시 실행</button>
       </div>
     </header>
+
+    {regressionSummary}
 
     {notFinishedRace && !detailLoading
       ? <div className="flex items-center gap-2 rounded-xl border border-[#f0ddb0] bg-[#fff7e8] px-4 py-3 text-xs text-[#78501b]"><AlertCircle size={14} />{raceRecoveryExhausted ? '결과 준비 상태를 확인하지 못했습니다. 다시 시도해 주세요.' : '실행은 종료됐지만 결과가 아직 준비되지 않았습니다. 자동으로 다시 확인하고 있습니다.'}</div>
