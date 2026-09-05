@@ -1,11 +1,14 @@
 import type {
   Action,
   AssertionStatus,
+  CreateTestRunPayload,
   EvaluatorMetricsRes,
   EvaluationOutcome,
   ExecutionErrorDetailRes,
   ExecutionOutcome,
+  QualityGateMetricRes,
   QualityGateMetricsRes,
+  QualityGatePolicyReq,
   QualityGateRes,
   TargetReferenceReq,
   TargetReferenceRes,
@@ -61,9 +64,16 @@ export type TestRunResultFacetContract = [
 
 export type QualityGateMetricsContract = [
   Assert<Equal<QualityGateRes['metrics'], QualityGateMetricsRes | null>>,
-  Assert<Equal<keyof QualityGateMetricsRes, 'assertionPassRate' | 'executionSuccessRate'>>,
+  Assert<Equal<keyof QualityGateMetricsRes, 'assertionPassRate' | 'executionSuccessRate' | 'assertion' | 'execution'>>,
   Assert<Equal<QualityGateMetricsRes['assertionPassRate'], number>>,
   Assert<Equal<QualityGateMetricsRes['executionSuccessRate'], number>>,
+  Assert<Equal<QualityGateMetricsRes['assertion'], QualityGateMetricRes>>,
+  Assert<Equal<QualityGateMetricsRes['execution'], QualityGateMetricRes>>,
+  Assert<Equal<keyof QualityGateMetricRes, 'value' | 'threshold' | 'passed'>>,
+  Assert<Equal<QualityGateMetricRes['passed'], boolean>>,
+  Assert<Equal<CreateTestRunPayload['qualityGatePolicy'], QualityGatePolicyReq | undefined>>,
+  Assert<Equal<QualityGatePolicyReq['assertionPassRateThreshold'], number>>,
+  Assert<Equal<QualityGatePolicyReq['executionSuccessRateThreshold'], number>>,
 ];
 
 export type EvaluatorMetricsNullabilityContract = [

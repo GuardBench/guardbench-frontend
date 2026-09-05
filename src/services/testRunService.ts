@@ -16,9 +16,15 @@ export interface TargetReferenceRes {
   model: string;
 }
 
+export interface QualityGatePolicyReq {
+  assertionPassRateThreshold: number;
+  executionSuccessRateThreshold: number;
+}
+
 export interface CreateTestRunPayload {
   testSuiteId: number;
   target: TargetReferenceReq;
+  qualityGatePolicy?: QualityGatePolicyReq;
 }
 
 export interface CreateTestRunResponse {
@@ -45,8 +51,18 @@ export interface QualityGateRes {
 }
 
 export interface QualityGateMetricsRes {
+  /** @deprecated assertion.value를 사용합니다. */
   assertionPassRate: number;
+  /** @deprecated execution.value를 사용합니다. */
   executionSuccessRate: number;
+  assertion: QualityGateMetricRes;
+  execution: QualityGateMetricRes;
+}
+
+export interface QualityGateMetricRes {
+  value: number;
+  threshold: number;
+  passed: boolean;
 }
 
 export interface TestRunDetailRes {
