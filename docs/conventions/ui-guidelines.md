@@ -241,6 +241,7 @@ skip link, route change announcement와 screen reader 지원 matrix는 #17에서
 - PASS/FAIL에서는 `assertion`, `execution`의 현재값·기준·통과 여부를 별도 label로 표시한다.
 - FAIL 이유는 backend의 `passed: false`인 metric에만 연결하며 수치 비교로 판정을 다시 만들지 않는다.
 - Quality Gate metrics를 퍼센트로 formatting할 수 있지만 status나 metric별 `passed`를 프론트에서 재계산하지 않는다.
+- 현재값과 기준이 서로 다른데 같은 퍼센트 문자열로 반올림되면 두 값이 구분될 때까지 표시 정밀도를 함께 높인다.
 - status를 색상만으로 전달하지 않고 text label을 제공한다.
 
 ### 13.3 개별 결과

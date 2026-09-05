@@ -17,6 +17,21 @@ export const qualityGateTitle = (status: QualityGateStatus | null) => (
       : status === 'NOT_EVALUATED' ? 'Quality Gate 평가 불가' : 'Quality Gate 평가 전'
 );
 
+export const qualityGatePercentageLabels = (value: number, threshold: number) => {
+  for (let fractionDigits = 2; fractionDigits <= 16; fractionDigits += 1) {
+    const valueLabel = `${(value * 100).toFixed(fractionDigits)}%`;
+    const thresholdLabel = `${(threshold * 100).toFixed(fractionDigits)}%`;
+    if (value === threshold || valueLabel !== thresholdLabel) {
+      return { valueLabel, thresholdLabel };
+    }
+  }
+
+  return {
+    valueLabel: `${value * 100}%`,
+    thresholdLabel: `${threshold * 100}%`,
+  };
+};
+
 export const failedQualityGateReasons = (metrics: QualityGateMetricsRes | null) => {
   if (!metrics) return [];
   return (Object.keys(QUALITY_GATE_METRIC_PRESENTATION) as Array<keyof typeof QUALITY_GATE_METRIC_PRESENTATION>)

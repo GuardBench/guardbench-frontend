@@ -23,6 +23,7 @@ import { EVALUATION_OUTCOME_PRESENTATION, evaluationOutcomeLabel } from './evalu
 import {
   failedQualityGateReasons,
   QUALITY_GATE_METRIC_PRESENTATION,
+  qualityGatePercentageLabels,
   qualityGateTitle,
 } from './qualityGatePresentation';
 
@@ -94,11 +95,12 @@ const QualityGateMetricEvidence = ({ metricKey, metric }: {
   metric: QualityGateMetricRes;
 }) => {
   const presentation = QUALITY_GATE_METRIC_PRESENTATION[metricKey];
+  const { valueLabel, thresholdLabel } = qualityGatePercentageLabels(metric.value, metric.threshold);
   return <div className="rounded-xl border border-black/10 bg-white/60 p-3">
     <dt className="text-[#697586]">{presentation.label}</dt>
     <dd className="mt-1">
-      <span className="block font-black text-[#17202a]">현재 {percentageLabel(metric.value)}</span>
-      <span className="mt-0.5 block text-[11px] font-medium text-[#697586]">최소 기준 {percentageLabel(metric.threshold)}</span>
+      <span className="block font-black text-[#17202a]">현재 {valueLabel}</span>
+      <span className="mt-0.5 block text-[11px] font-medium text-[#697586]">최소 기준 {thresholdLabel}</span>
       <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-black ${metric.passed ? 'bg-[#d9f2e5] text-[#146c4c]' : 'bg-[#f9d9d6] text-[#a8322d]'}`}>
         {metric.passed ? '기준 충족' : '기준 미달'}
       </span>
@@ -446,10 +448,10 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
               <QualityGateMetricEvidence metricKey="assertion" metric={metrics.assertion} />
               <QualityGateMetricEvidence metricKey="execution" metric={metrics.execution} />
             </dl>
-            {gateFailureReasons.length > 0 && <div className="mt-3 rounded-xl border border-[#f4c7c3] bg-white/70 p-3 text-xs text-[#8f2f2a]" role="alert">
-              <b>실패 이유</b>
+            {gateFailureReasons.length > 0 && <section aria-labelledby="quality-gate-failure-title" className="mt-3 rounded-xl border border-[#f4c7c3] bg-white/70 p-3 text-xs text-[#8f2f2a]">
+              <h3 id="quality-gate-failure-title" className="font-bold">실패 이유</h3>
               <ul className="mt-1 list-disc space-y-1 pl-4">{gateFailureReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
-            </div>}
+            </section>}
           </> : <p className="mt-5 border-t border-black/10 pt-4 text-xs text-[#697586]">{!detail
             ? 'Quality Gate 정보를 불러오는 중입니다.'
             : detail.qualityGate?.status === 'NOT_EVALUATED'

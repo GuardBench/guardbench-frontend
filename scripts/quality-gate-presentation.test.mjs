@@ -40,11 +40,26 @@ test('실패 이유는 value와 threshold를 재비교하지 않고 backend pass
   assert.deepEqual(presentation.failedQualityGateReasons(contradictoryEvidence), []);
 });
 
-test('결과 상세는 nested evidence를 표시하고 고정 95% 문구를 사용하지 않는다', () => {
+test('같게 반올림되는 현재값과 기준은 구분될 때까지 정밀도를 높인다', () => {
+  assert.deepEqual(presentation.qualityGatePercentageLabels(0.9, 0.98), {
+    valueLabel: '90.00%',
+    thresholdLabel: '98.00%',
+  });
+  assert.deepEqual(presentation.qualityGatePercentageLabels(0.950001, 0.950009), {
+    valueLabel: '95.000%',
+    thresholdLabel: '95.001%',
+  });
+  assert.deepEqual(presentation.qualityGatePercentageLabels(0.950009, 0.950001), {
+    valueLabel: '95.001%',
+    thresholdLabel: '95.000%',
+  });
+  assert.deepEqual(presentation.qualityGatePercentageLabels(0.95, 0.95), {
+    valueLabel: '95.00%',
+    thresholdLabel: '95.00%',
+  });
+});
+
+test('결과 상세에 고정 95% 기준 문구를 사용하지 않는다', () => {
   const source = readFileSync(new URL('../src/components/views/ResultDetailView.tsx', import.meta.url), 'utf8');
-  assert.match(source, /metric=\{metrics\.assertion\}/);
-  assert.match(source, /metric=\{metrics\.execution\}/);
-  assert.match(source, /metric\.threshold/);
-  assert.match(source, /metric\.passed/);
   assert.doesNotMatch(source, /기준 95%/);
 });
