@@ -251,6 +251,8 @@ Regression은 현재 Run 자체의 Quality Gate와 독립적인 조회 기능이
 
 `App`이 current Run별 `useRegressionComparison` 상태를 소유한다. Result Detail은 case-level `items`가 없는
 comparison summary endpoint를 사용하고, Regression Detail에 진입할 때만 전체 comparison을 조회한다.
+Result Detail의 Run 상태 polling이 `FINISHED` 전환을 확인하면, `TEST_RUN_NOT_FINISHED`로 대기 중이던
+Regression 후보 조회를 다시 시작한다. 고정 재시도 횟수를 실행 시간의 완료 조건으로 사용하지 않는다.
 두 화면은 후보와 선택 baseline을 공유하고, 이미 불러온 전체 comparison은 왕복 화면 전환에서 재사용한다.
 화면 전환이나 재시도로 선택 baseline을 초기화하지 않고 current Run이 바뀌면 render commit 전에 전체
 Regression state를 무효화한다. Summary와 Detail consumer에는 각 화면이 필요한 좁은 state 계약만 전달한다.

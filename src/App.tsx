@@ -14,6 +14,7 @@ import { runtimeConfig } from './config/runtimeConfig';
 import { LAYER_CLASS } from './config/layers';
 import { parseRoute, routeForView, routePath, type AppRoute } from './routing/routes';
 import { useRegressionComparison } from './hooks/useRegressionComparison';
+import { shouldRefreshRegressionAfterRunFinished } from './hooks/regressionComparisonState';
 
 export function App() {
   const [route, setRoute] = useState<AppRoute>(() => parseRoute(window.location.pathname));
@@ -23,6 +24,11 @@ export function App() {
   const layoutView = route.view === 'invalid-run' ? route.sourceView : route.view;
   const selectedRunId = 'runId' in route ? route.runId : '';
   const regression = useRegressionComparison(selectedRunId, currentView === 'regression');
+  const {
+    runId: regressionRunId,
+    notFinished: regressionNotFinished,
+    retry: retryRegression,
+  } = regression.summary;
 
   useEffect(() => {
     const syncRoute = () => setRoute(parseRoute(window.location.pathname));
@@ -59,6 +65,17 @@ export function App() {
     if (!selectedRunId) return;
     navigate({ view: 'regression', runId: selectedRunId });
   };
+
+  const handleRunFinished = useCallback((finishedRunId: string) => {
+    const shouldRefresh = shouldRefreshRegressionAfterRunFinished(
+      regressionRunId,
+      finishedRunId,
+      regressionNotFinished,
+    );
+    if (!shouldRefresh) return false;
+    retryRegression();
+    return true;
+  }, [regressionNotFinished, regressionRunId, retryRegression]);
 
   const regressionSummary = (
     <RegressionSummaryEntry
@@ -132,6 +149,7 @@ export function App() {
               key={selectedRunId}
               selectedRunId={selectedRunId}
               onGoNewRun={() => handleSelectView('new-run')}
+              onRunFinished={handleRunFinished}
               regressionSummary={regressionSummary}
             />
           )}

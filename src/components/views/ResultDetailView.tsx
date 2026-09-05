@@ -22,6 +22,7 @@ import { StatusPill } from '../common/StatusPill';
 interface ResultDetailViewProps {
   selectedRunId?: string;
   onGoNewRun: () => void;
+  onRunFinished?: (runId: string) => boolean;
   regressionSummary?: React.ReactNode;
 }
 
@@ -176,7 +177,12 @@ const ResultMeaning = ({ item }: { item: TestRunResultListItemRes }) => {
     ? <><b className={`block text-sm ${presentation.labelClassName}`}>{presentation.label} <span className="text-[10px] text-[#697586]">{presentation.shortCode}</span></b><span className="mt-1 block text-[#586473]">{presentation.transition}</span></>
     : <><b className="block text-sm text-[#586473]">{attention?.label ?? '판정 미완료'}</b><span className="mt-1 block text-[#697586]">{executionLabel(item.executionStatus)}로 판정을 확인할 수 없습니다.</span></>;
 };
-export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunId, onGoNewRun, regressionSummary }) => {
+export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
+  selectedRunId,
+  onGoNewRun,
+  onRunFinished,
+  regressionSummary,
+}) => {
   const [results, setResults] = useState<TestRunResultListItemRes[]>([]);
   const [resultPage, setResultPage] = useState(1);
   const [filters, setFilters] = useState<ResultFilters>(EMPTY_RESULT_FILTERS);
@@ -198,6 +204,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
   const [reloadToken, setReloadToken] = useState(0);
   const raceRetryCountRef = useRef(0);
   const raceRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notifiedFinishedRunIdRef = useRef<string | null>(null);
   const {
     detail,
     error: detailError,
@@ -206,6 +213,14 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     isLoading: detailLoading,
     refresh: refreshDetail,
   } = useLiveRunProgress({ runId: selectedRunId ?? null });
+
+  useEffect(() => {
+    if (!selectedRunId || detail?.status !== 'FINISHED' || String(detail.id) !== selectedRunId) return;
+    if (notifiedFinishedRunIdRef.current === selectedRunId) return;
+    const regressionRefreshed = onRunFinished?.(selectedRunId) ?? false;
+    if (regressionRefreshed) notifiedFinishedRunIdRef.current = selectedRunId;
+  }, [detail?.id, detail?.status, onRunFinished, selectedRunId]);
+
   const closeResultDialog = useCallback(() => setSelected(null), []);
   const resultDialogRef = useDialogFocus({ isOpen: selected !== null, onClose: closeResultDialog });
   const notFinishedRace = notFinishedRaceRunId === selectedRunId;
