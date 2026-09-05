@@ -235,12 +235,12 @@ export function RegressionComparisonSection({ regression }: RegressionComparison
             <table className="min-w-[850px] w-full text-left text-xs">
               <thead className="bg-[#f8f9fa] text-[#697586]">
                 <tr>
-                  <th className="px-4 py-3 font-bold">TestCase</th>
-                  <th className="px-3 py-3 font-bold">Expected</th>
-                  <th className="px-3 py-3 font-bold">Previous</th>
-                  <th className="px-3 py-3 font-bold">Current</th>
-                  <th className="px-3 py-3 font-bold">Change</th>
-                  <th className="px-3 py-3 font-bold">Comparability</th>
+                  <th className="px-4 py-3 font-bold">테스트 케이스</th>
+                  <th className="px-3 py-3 font-bold">기대 동작</th>
+                  <th className="px-3 py-3 font-bold">과거 동작</th>
+                  <th className="px-3 py-3 font-bold">현재 동작</th>
+                  <th className="px-3 py-3 font-bold">변화</th>
+                  <th className="px-3 py-3 font-bold">비교 가능 여부</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e5e9ee]">

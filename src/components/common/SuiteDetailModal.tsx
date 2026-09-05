@@ -366,7 +366,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-[#4e5a68] mb-1">Expected Action</label>
+                  <label className="block text-[11px] font-bold text-[#4e5a68] mb-1">기대 동작</label>
                   <select
                     value={newCase.expectedAction}
                     onChange={(e) => setNewCase({ ...newCase, expectedAction: e.target.value as 'ALLOW' | 'BLOCK' })}
@@ -414,7 +414,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                 <tr className="bg-[#fafbfb] border-b border-[#e5e9ee] text-[#7a8592] font-bold uppercase text-[10px]">
                   <th className="p-3">케이스명 / 카테고리</th>
                   <th className="p-3">입력 프롬프트</th>
-                  <th className="p-3">Expected</th>
+                  <th className="p-3">기대 동작</th>
                   <th className="p-3">Severity</th>
                   <th className="p-3 text-right">관리</th>
                 </tr>

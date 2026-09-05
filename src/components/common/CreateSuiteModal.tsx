@@ -388,7 +388,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                   />
                 </div>
                 <div>
-                  <label htmlFor="initial-case-expected-action" className="mb-1 block font-bold text-[#4e5a68]">Expected Action</label>
+                  <label htmlFor="initial-case-expected-action" className="mb-1 block font-bold text-[#4e5a68]">기대 동작</label>
                   <select
                     id="initial-case-expected-action"
                     value={initialCase.expectedAction}
@@ -493,7 +493,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                   {bulkIssues.length > 0 && <ul className="space-y-1 border-b border-[#e5e9ee] bg-[#fff7e8] px-3 py-2 text-[11px] text-[#78501b]">
                     {bulkIssues.map((issue, index) => <li key={`${issue.row}-${issue.message}-${index}`}>{issue.message}</li>)}
                   </ul>}
-                  {bulkCases.length > 0 && <div className="max-h-48 overflow-y-auto"><table className="w-full text-left text-[11px]"><thead className="sticky top-0 bg-[#fafbfb] text-[#697586]"><tr><th className="px-3 py-2">이름</th><th className="px-3 py-2">Expected</th><th className="px-3 py-2">Severity</th><th className="px-3 py-2">상태</th><th className="px-3 py-2" /></tr></thead><tbody className="divide-y divide-[#e5e9ee]">
+                  {bulkCases.length > 0 && <div className="max-h-48 overflow-y-auto"><table className="w-full text-left text-[11px]"><thead className="sticky top-0 bg-[#fafbfb] text-[#697586]"><tr><th className="px-3 py-2">이름</th><th className="px-3 py-2">기대 동작</th><th className="px-3 py-2">위험도</th><th className="px-3 py-2">상태</th><th className="px-3 py-2" /></tr></thead><tbody className="divide-y divide-[#e5e9ee]">
                     {bulkCases.map((testCase, index) => <tr key={`${testCase.name}-${index}`}><td className="max-w-48 truncate px-3 py-2 font-bold text-[#17202a]">{testCase.name}</td><td className="px-3 py-2 font-mono">{testCase.expectedAction}</td><td className="px-3 py-2 font-mono">{testCase.severity}</td><td className="px-3 py-2">{bulkServerErrors[index] ? <span className="font-bold text-[#bd3b35]">{bulkServerErrors[index]}</span> : <span className="text-[#1a7f5a]">준비됨</span>}</td><td className="px-3 py-2 text-right"><button type="button" aria-label={`${testCase.name} 제거`} onClick={() => { setBulkCases((current) => current.filter((_, itemIndex) => itemIndex !== index)); setBulkServerErrors({}); }} className="rounded p-1 text-[#697586] hover:bg-[#fff0ef] hover:text-[#bd3b35]"><Trash2 size={13} /></button></td></tr>)}
                   </tbody></table></div>}
                 </div>}

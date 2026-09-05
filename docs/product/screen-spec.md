@@ -194,16 +194,16 @@ filter URL 보존, 진행 Run 자동 갱신과 refresh interval은 `미결정`�
 
 ### 목적
 
-현재 Run 자체의 Application 실행 상태, Evaluator 판정, Assertion과 Quality Gate를 이해한다. Regression은 이 화면의 기본 판정에 섞지 않고 **요약/진입점만 제공**하며, 상세 비교는 별도 Regression Detail에서 수행한다.
+현재 Run 자체의 Application 실행 상태, 관측된 동작, 기대 일치 여부와 Quality Gate를 이해한다. Regression은 이 화면의 기본 판정에 섞지 않고 **요약/진입점만 제공**하며, 상세 비교는 별도 Regression Detail에서 수행한다.
 
 ### 현재 동작 (`AS-IS`)
 
 - `ResultDetailView`가 Run 상세와 결과 endpoint를 호출한다.
-- 단일 Application 실행, Evaluator verdict, assertion과 evaluation outcome을 표시한다.
-- 결과 page metadata와 server filter를 사용하고 Evaluator metrics를 별도로 조회한다.
+- 단일 Application 실행, 관측된 동작, 기대 일치 여부와 판정 유형을 표시한다.
+- 결과 page metadata와 server filter를 사용하고 판정 집계는 evaluator-metrics에서 별도로 조회한다.
 - Quality Gate 상태와 확인 필요 건수를 첫 요약에서 의미 중심으로 표시하고, 확정된 두 metrics를 서버 값 그대로 유지한다.
-- 결과 목록은 판정 의미를 먼저 표시하고 Expected, Evaluator verdict, Assertion, Outcome 원본 값은 상세 dialog에서 제공한다.
-- TP/TN/FP/FN 집계는 기대 동작과 Evaluator 판정을 축으로 하는 2×2 매트릭스로 표시한다.
+- 결과 목록은 판정 의미를 먼저 표시하고 기대 동작, 관측된 동작, 기대 일치 여부, 판정 유형은 상세 dialog에서 각각 제공한다.
+- TP/TN/FP/FN 집계는 기대 동작과 관측된 동작을 축으로 하는 2×2 매트릭스로 표시한다.
 - `RegressionSummaryEntry`가 선택된 historical Run과의 악화/개선/변화 없음/비교 불가 집계를 상단에 표시하고 `회귀 상세 보기` action을 제공한다.
 - Result Detail에서는 전체 Regression case table을 렌더링하지 않는다.
 - 다른 1차 화면으로 이동한 뒤 Sidebar의 결과 상세를 다시 선택하면 현재 세션에서 마지막으로 확인한 Run으로 복귀한다.
@@ -217,13 +217,13 @@ filter URL 보존, 진행 Run 자동 갱신과 refresh interval은 `미결정`�
 - Quality Gate status
 - created/started/completed/updated 시각
 
-`qualityGate: null`은 아직 결정 전이고 `NOT_EVALUATED + metrics: null`은 종료됐지만 평가 가능한 Assertion이 없는 상태다. PASS/FAIL에서는 `assertionPassRate`와 `executionSuccessRate`를 표시하되 프론트에서 Gate status를 다시 계산하지 않는다.
+`qualityGate: null`은 아직 결정 전이고 `NOT_EVALUATED + metrics: null`은 종료됐지만 기대 일치 여부를 판정할 수 있는 결과가 없는 상태다. PASS/FAIL에서는 `assertionPassRate`를 **기대 일치율**로, `executionSuccessRate`를 **실행 성공률**로 표시하되 프론트에서 Gate status를 다시 계산하지 않는다.
 
 진행 중인 Run은 `QUEUED → PREPARING → RUNNING → FINISHED` 단계형 Stepper와 서버 progress를
 표시한다. FINISHED Run은 Quality Gate 요약을 먼저 표시한 뒤 compact 완료 상태로 축소한다. 실행
 lifecycle 완료는 Quality Gate PASS와 별개의 상태다.
 
-상단 요약은 서버 Evaluator metrics와 전체 Snapshot 수를 사용해 서로 배타적인 네 수치를 표시한다.
+상단 요약은 서버 판정 지표와 전체 Snapshot 수를 사용해 서로 배타적인 네 수치를 표시한다.
 
 - 정상 판정: `TP + TN`
 - 차단 누락: `FN`
@@ -244,7 +244,7 @@ lifecycle 완료는 Quality Gate PASS와 별개의 상태다.
 | 테스트 위험도 | CRITICAL, HIGH, MEDIUM, LOW |
 | 결과 | 정상 허용, 정상 차단, 과차단, 차단 누락 또는 판정 미완료와 판정 흐름 |
 | 처리 상태 | `SUCCEEDED`, `FAILED`, `TIMED_OUT`, `NOT_STARTED`의 사용자용 표현 |
-| 상세 | Input, Expected, Evaluator verdict, Assertion, Outcome과 안전한 오류 정보 dialog |
+| 상세 | 입력, 기대 동작, 관측된 동작, 기대 일치 여부, 판정 유형과 안전한 오류 정보 dialog |
 
 - 실행 실패를 assertion FAIL로 바꾸지 않는다.
 - verdict가 없는 항목을 TP/TN/FP/FN으로 추정하지 않는다.
@@ -269,11 +269,11 @@ lifecycle 완료는 Quality Gate PASS와 별개의 상태다.
 - filter를 적용해도 Evaluator metrics와 Quality Gate를 현재 page에서 다시 계산하지 않는다. aggregate는 각각의 서버 응답을 source of truth로 사용한다.
 - page, size와 sort도 결과 endpoint에 함께 전달할 수 있다.
 
-### 8.3 Evaluator 판정 매트릭스 (`AS-IS`)
+### 8.3 기대·관측 동작 매트릭스 (`AS-IS`)
 
 `GET /api/v1/test-runs/{testRunId}/evaluator-metrics`를 사용해 서버가 집계한 TP/TN/FP/FN count와 FP/FN rate를 표시한다.
 
-| 기대 동작 | Evaluator 허용 | Evaluator 차단 |
+| 기대 동작 | 관측된 동작: 허용 | 관측된 동작: 차단 |
 | --- | --- | --- |
 | 허용해야 함 | 정상 허용 (TN) | 과차단 (FP) |
 | 차단해야 함 | 차단 누락 (FN) | 정상 차단 (TP) |
@@ -282,11 +282,11 @@ lifecycle 완료는 Quality Gate PASS와 별개의 상태다.
 가진 semantic table로 제공하고 색상 외 텍스트로도 결과를 구분한다.
 
 - verdict 없는 실행 실패는 분류 집계에 포함하지 않는다.
-- TestCase의 Expected와 응답에서 관측된 Evaluator verdict의 관계임을 설명한다.
+- 테스트 케이스의 기대 동작과 응답에서 관측된 동작의 관계임을 설명한다.
 - 일부 result page를 가지고 전체 metrics를 재계산하지 않는다.
 - 일반적인 모델 성능이나 절대 ground truth로 과장하지 않는다.
 
-Evaluator metrics는 현재 Result Detail에서 Quality Gate와 구분된 판정 매트릭스로 표시한다.
+Evaluator metrics API 값은 현재 Result Detail에서 Quality Gate와 구분된 기대·관측 동작 매트릭스로 표시한다. API/내부 계약의 TP/TN/FP/FN enum은 유지하되 화면에서는 각각 `정상 차단 / 정상 허용 / 과차단 / 차단 누락`을 주 표기로 사용한다.
 
 ### 8.4 Regression 요약/진입점 (`AS-IS`)
 
