@@ -7,6 +7,7 @@ import {
   getTestRunResults,
   type EvaluationOutcome,
   type EvaluatorMetricsRes,
+  type QualityGateMetricRes,
   type TestRunResultAttentionType,
   type TestRunResultFacetsRes,
   type TestRunResultListItemRes,
@@ -19,6 +20,11 @@ import { RequestErrorBanner } from '../common/RequestErrorBanner';
 import { RunProgressStepper } from '../common/RunProgressStepper';
 import { StatusPill } from '../common/StatusPill';
 import { EVALUATION_OUTCOME_PRESENTATION, evaluationOutcomeLabel } from './evaluationOutcomePresentation';
+import {
+  failedQualityGateReasons,
+  QUALITY_GATE_METRIC_PRESENTATION,
+  qualityGateTitle,
+} from './qualityGatePresentation';
 
 interface ResultDetailViewProps {
   selectedRunId?: string;
@@ -82,6 +88,23 @@ const OUTCOME_FILTERS: Array<{ value: OutcomeFilter; label: string }> = [
 const percentageLabel = (rate: number) => `${(Math.floor(rate * 10_000) / 100).toFixed(2)}%`;
 
 const rateLabel = (rate: number | null) => rate === null ? '분모 없음' : percentageLabel(rate);
+
+const QualityGateMetricEvidence = ({ metricKey, metric }: {
+  metricKey: keyof typeof QUALITY_GATE_METRIC_PRESENTATION;
+  metric: QualityGateMetricRes;
+}) => {
+  const presentation = QUALITY_GATE_METRIC_PRESENTATION[metricKey];
+  return <div className="rounded-xl border border-black/10 bg-white/60 p-3">
+    <dt className="text-[#697586]">{presentation.label}</dt>
+    <dd className="mt-1">
+      <span className="block font-black text-[#17202a]">현재 {percentageLabel(metric.value)}</span>
+      <span className="mt-0.5 block text-[11px] font-medium text-[#697586]">최소 기준 {percentageLabel(metric.threshold)}</span>
+      <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-black ${metric.passed ? 'bg-[#d9f2e5] text-[#146c4c]' : 'bg-[#f9d9d6] text-[#a8322d]'}`}>
+        {metric.passed ? '기준 충족' : '기준 미달'}
+      </span>
+    </dd>
+  </div>;
+};
 
 const metricCount = (metrics: EvaluatorMetricsRes | null, outcome: EvaluationOutcome) => {
   if (!metrics) return null;
@@ -353,10 +376,9 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
   }
 
   const gateStatus = detail?.qualityGate?.status ?? 'NOT_EVALUATED_BEFORE_FINISH';
-  const gateTitle = gateStatus === 'PASS' ? 'Quality Gate 통과'
-    : gateStatus === 'FAIL' ? 'Quality Gate 실패'
-      : gateStatus === 'NOT_EVALUATED' ? 'Quality Gate 평가 불가' : 'Quality Gate 평가 전';
+  const gateTitle = qualityGateTitle(detail?.qualityGate?.status ?? null);
   const metrics = detail?.qualityGate?.metrics;
+  const gateFailureReasons = gateStatus === 'FAIL' ? failedQualityGateReasons(metrics ?? null) : [];
   const visibleEvaluatorMetrics = loadedMetricsRunId === selectedRunId ? evaluatorMetrics : null;
   const evaluatedCount = visibleEvaluatorMetrics
     ? visibleEvaluatorMetrics.truePositive + visibleEvaluatorMetrics.trueNegative + visibleEvaluatorMetrics.falsePositive + visibleEvaluatorMetrics.falseNegative
@@ -419,10 +441,16 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
           <h2 className={`mt-4 text-2xl font-black ${gateStatus === 'PASS' ? 'text-[#146c4c]' : gateStatus === 'FAIL' ? 'text-[#a8322d]' : 'text-[#43515d]'}`}>{gateTitle}</h2>
           <p aria-live="polite" className="mt-2 text-base font-bold text-[#17202a]">{summaryDescription}</p>
           {!notFinished && attentionCount !== null && attentionCount > 0 && <p className="mt-1 text-xs text-[#697586]">판정 불일치 {mismatchCount}건 · 판정 미완료 {incompleteCount}건</p>}
-          {metrics ? <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-black/10 pt-4 text-xs">
-            <div><dt className="text-[#697586]">기대 일치율</dt><dd className="mt-0.5 font-black text-[#17202a]">{percentageLabel(metrics.assertionPassRate)} <span className="font-medium text-[#697586]">· 기준 95%</span></dd></div>
-            <div><dt className="text-[#697586]">실행 성공률</dt><dd className="mt-0.5 font-black text-[#17202a]">{percentageLabel(metrics.executionSuccessRate)} <span className="font-medium text-[#697586]">· 기준 95%</span></dd></div>
-          </dl> : <p className="mt-5 border-t border-black/10 pt-4 text-xs text-[#697586]">{!detail
+          {metrics ? <>
+            <dl className="mt-5 grid grid-cols-1 gap-3 border-t border-black/10 pt-4 text-xs sm:grid-cols-2">
+              <QualityGateMetricEvidence metricKey="assertion" metric={metrics.assertion} />
+              <QualityGateMetricEvidence metricKey="execution" metric={metrics.execution} />
+            </dl>
+            {gateFailureReasons.length > 0 && <div className="mt-3 rounded-xl border border-[#f4c7c3] bg-white/70 p-3 text-xs text-[#8f2f2a]" role="alert">
+              <b>실패 이유</b>
+              <ul className="mt-1 list-disc space-y-1 pl-4">{gateFailureReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+            </div>}
+          </> : <p className="mt-5 border-t border-black/10 pt-4 text-xs text-[#697586]">{!detail
             ? 'Quality Gate 정보를 불러오는 중입니다.'
             : detail.qualityGate?.status === 'NOT_EVALUATED'
               ? '기대 일치 여부를 판정할 수 있는 결과가 없어 Quality Gate 지표를 계산하지 않았습니다.'

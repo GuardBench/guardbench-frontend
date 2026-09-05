@@ -221,7 +221,7 @@ FINISHED 전후에 다음 정보를 표시한다.
 - Quality Gate status
 - 실행 관련 시각
 
-`qualityGate: null`은 결정 전이며 `NOT_EVALUATED + metrics: null`은 종료됐지만 평가 가능한 Assertion이 없는 상태다. PASS/FAIL에서는 서버의 `assertionPassRate`와 `executionSuccessRate`를 표시하고 Gate를 프론트에서 재계산하지 않는다.
+`qualityGate: null`은 결정 전이며 `NOT_EVALUATED + metrics: null`은 종료됐지만 평가 가능한 Assertion이 없는 상태다. PASS/FAIL에서는 서버의 `assertion`과 `execution`에 담긴 현재값·기준·통과 여부를 표시한다. FAIL이면 `passed: false`인 항목의 이유를 설명하고 Gate나 metric 판정을 프론트에서 재계산하지 않는다.
 
 ### 6.2 개별 결과 조회
 

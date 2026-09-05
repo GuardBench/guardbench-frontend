@@ -216,7 +216,7 @@ filter URL 보존, 진행 Run 자동 갱신과 refresh interval은 `미결정`�
 - Quality Gate status
 - created/started/completed/updated 시각
 
-`qualityGate: null`은 아직 결정 전이고 `NOT_EVALUATED + metrics: null`은 종료됐지만 기대 일치 여부를 판정할 수 있는 결과가 없는 상태다. PASS/FAIL에서는 `assertionPassRate`를 **기대 일치율**로, `executionSuccessRate`를 **실행 성공률**로 표시하되 프론트에서 Gate status를 다시 계산하지 않는다.
+`qualityGate: null`은 아직 결정 전이고 `NOT_EVALUATED + metrics: null`은 종료됐지만 기대 일치 여부를 판정할 수 있는 결과가 없는 상태다. PASS/FAIL에서는 `assertion`을 **기대 일치율**로, `execution`을 **실행 성공률**로 표시한다. 각 항목은 backend가 보존한 현재 비율(`value`), 판정 당시 최소 기준(`threshold`), 기준 충족 여부(`passed`)를 함께 보여준다. FAIL이면 기준 미달 항목마다 사용자가 이해할 수 있는 실패 이유를 표시하며, 프론트에서 Gate status나 `passed`를 다시 계산하지 않는다.
 
 진행 중인 Run은 `QUEUED → PREPARING → RUNNING → FINISHED` 단계형 Stepper와 서버 progress를
 표시한다. FINISHED Run은 Quality Gate 요약을 먼저 표시한 뒤 compact 완료 상태로 축소한다. 실행

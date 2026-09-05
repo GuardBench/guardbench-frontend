@@ -168,7 +168,7 @@ flowchart LR
 ```
 
 - form draft와 server mutation 상태를 분리한다.
-- request body는 `testSuiteId`와 URL/model/선택 revision을 가진 단일 `target`만 포함한다.
+- request DTO는 `testSuiteId`, URL/model/선택 revision을 가진 단일 `target`, 선택적인 `qualityGatePolicy`를 지원한다. 현재 생성 화면은 정책을 생략해 backend 기본값을 사용한다.
 - 같은 논리적 재전송은 같은 key와 body를 사용하고 다른 body에 key를 재사용하지 않는다.
 - `202`를 실행 완료로 처리하지 않는다.
 - 현재는 response의 Run ID로 Result Detail identity를 이동한다. `apiClient`가 `Location` header를 노출하지 않으므로 header 보존은 남은 계약 격차다.
@@ -234,8 +234,9 @@ RunDetail
 - 원문 Application response는 frontend state, modal과 export에 포함하지 않는다.
 - results 또는 evaluator-metrics가 `TEST_RUN_NOT_FINISHED`를 반환하면 detail 상태를 다시 조회하고 진행 흐름으로 복귀한다.
 
-Quality Gate의 `assertionPassRate`와 `executionSuccessRate`는 detail DTO에서 보존하고 표시 단계에서만
-퍼센트로 변환한다. Gate status와 두 비율을 result page에서 재계산하지 않는다.
+Quality Gate의 `assertion`과 `execution` evidence는 detail DTO에서 보존하고 `value`와 `threshold`만
+표시 단계에서 퍼센트로 변환한다. Gate status와 metric별 `passed`를 result page에서 재계산하지 않는다.
+실패 설명도 수치 비교가 아니라 backend의 `passed: false`를 기준으로 선택한다.
 
 ## 10. Comparable Runs와 comparison 경계
 

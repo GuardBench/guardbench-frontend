@@ -28,7 +28,7 @@
 | 사용자 선택 | Guardrail ID/version | OpenAI-compatible HTTP endpoint, 필수 model, 선택 revision |
 | 상세 Target | `targets.baseline`, `targets.candidate` | 단일 `target` |
 | 개별 결과 | baseline/candidate execution과 change type | Application 실행 상태, Evaluator verdict, assertion, evaluation outcome |
-| Quality Gate metrics | 고정 regression 지표 타입 | `assertionPassRate`, `executionSuccessRate` 또는 `null` |
+| Quality Gate metrics | 고정 regression 지표 타입 | `assertion`, `execution`의 현재값·기준·통과 여부 또는 `null` |
 | Regression | 현재 Run 안에서 변화 계산 | 비교 가능한 과거 Run과 저장 결과를 별도 endpoint로 비교 |
 
 핵심 생성·결과·Evaluator 구현은 #27~#29와 #60~#61에서 완료됐다. Regression comparison API 소비는 #30/PR #71에서 구현됐고, #72/PR #88에서는 **Result Detail의 요약/진입점과 별도 Regression Detail 화면**으로 UI 책임을 분리한다.
@@ -43,7 +43,7 @@
 | model | OpenAI-compatible Chat Completions request body에 전달할 모델 식별자 | request와 response에서 필수이며 공백이 아닌 문자열이어야 한다. | Application이 인식하는 모델 식별자로 설명한다. Evaluator provider나 Guardrail ID와 혼동하지 않는다. |
 | revision | 사용자가 실행 대상을 구분하기 위한 배포·모델·commit 식별 문자열 | request에서는 선택 사항이다. 전달할 때는 공백이 아닌 문자열이어야 하며, 생략하면 response의 `target.revision`은 `null`이다. | endpoint가 같아도 배포 버전을 구분하고 싶을 때 입력한다. 서버가 검증하거나 해석한 실제 버전이라고 과장하지 않는다. |
 
-생성 요청은 `testSuiteId`와 `target`만 포함한다. 상세와 비교 후보 응답에도 평가 정책 metadata를 추가하거나 빈 값으로 합성하지 않는다. 판정 모델 설정과 내부 분류 값은 프론트 계약에 포함하지 않는다.
+생성 요청은 `testSuiteId`, `target`과 선택적인 `qualityGatePolicy`를 포함할 수 있다. 정책을 생략하면 backend 기본값을 사용한다. 상세 응답에서는 판정 시점의 정책을 각 metric의 `threshold`로 보존하므로 프론트가 기본값을 추정하지 않는다. 판정 모델 설정과 내부 분류 값은 프론트 계약에 포함하지 않는다.
 
 ### 2.2 Quality Gate와 metrics의 nullable 구조
 
@@ -53,14 +53,15 @@ Quality Gate에는 서로 다른 두 종류의 `null`이 있다.
 | --- | --- | --- |
 | `qualityGate: null` | Run이 아직 진행 중이거나 Gate가 아직 결정되지 않았다. | `NOT_EVALUATED`로 바꾸지 않고 “평가 진행 전/결정 전” 상태로 표현한다. |
 | `qualityGate.status: NOT_EVALUATED`, `metrics: null` | Run은 종료됐지만 Gate를 계산할 수 없었다. | 종료된 평가 불가 상태로 표현하고 진행 중 상태와 구분한다. |
-| `qualityGate.status: PASS` 또는 `FAIL` | 현재 Run의 assertion 집계를 바탕으로 Gate가 결정됐다. | PASS/FAIL 상태는 표시할 수 있지만 metrics의 세부 카드 구성은 확정된 필드만 사용한다. |
+| `qualityGate.status: PASS` 또는 `FAIL` | 현재 Run의 assertion과 실행 집계를 바탕으로 Gate가 결정됐다. | 각 metric의 `value`, `threshold`, `passed`를 표시하고 FAIL이면 기준 미달 이유를 설명한다. |
 
-`QualityGateRes.metrics`는 필드 자체는 required지만 값은 nullable이다. 값이 있으면 `additionalProperties: false`인 객체이며 `assertionPassRate`와 `executionSuccessRate` 두 필드를 모두 포함한다. 두 값은 0~1의 서버 저장 비율이다. OpenAPI는 두 비율이 각각 0.95 이상이면 PASS, 하나라도 미만이면 FAIL이라고 정의한다.
+`QualityGateRes.metrics`는 필드 자체는 required지만 값은 nullable이다. 값이 있으면 `additionalProperties: false`인 객체이며 `assertion`과 `execution`을 포함한다. 각 객체의 `value`와 `threshold`는 0~1의 서버 저장 비율이고 `passed`는 backend 판정이다. 호환용 flat 필드 `assertionPassRate`, `executionSuccessRate`도 required이지만 deprecated이며 새 UI는 nested evidence를 사용한다.
 
 따라서 프론트엔드는 다음을 지킨다.
 
-- `status`와 두 metrics는 서버 응답을 source of truth로 사용한다.
-- 비율은 퍼센트로 formatting할 수 있지만 Gate status를 프론트에서 다시 계산하지 않는다.
+- `status`와 각 metric의 `value`, `threshold`, `passed`는 서버 응답을 source of truth로 사용한다.
+- 비율은 퍼센트로 formatting할 수 있지만 Gate status나 `passed`를 프론트에서 다시 계산하지 않는다.
+- FAIL에서는 `passed: false`인 metric만 실패 이유로 설명한다.
 - 기존 `candidateAssertionPassRate`, `securityRegressionRate`, `usabilityRegressionRate`를 새 계약으로 재사용하지 않는다.
 - `metrics: null`을 0% 객체로 바꾸거나 누락된 key를 추정하지 않는다.
 
@@ -240,7 +241,7 @@ timeout 값, 자동 재시도 대상, 인증·권한 오류 UX, runtime schema v
 - Gate `FAIL`과 execution `ERROR`를 같은 실패로 표현하지 않는다.
 - `qualityGate = null`과 종료 후 `qualityGate.status = NOT_EVALUATED`를 구분한다.
 - `QualityGateRes.metrics`는 Gate가 `NOT_EVALUATED`이면 `null`이다.
-- PASS/FAIL metrics는 `assertionPassRate`와 `executionSuccessRate`를 사용하며 둘 다 서버 저장 값을 표시한다.
+- PASS/FAIL metrics는 `assertion`과 `execution`의 현재값·기준·통과 여부를 사용하며 모두 서버 저장 값을 표시한다.
 
 ## 7. Polling과 결과 조회
 

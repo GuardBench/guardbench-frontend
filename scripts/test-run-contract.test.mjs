@@ -43,7 +43,12 @@ test('detail preserves absent and unevaluated Gate states without inventing a pr
     progress: { processedTestCaseCount: 1, percent: 100 }, executionOutcome: 'COMPLETED',
     createdAt: '2026-09-04T00:00:00Z', startedAt: null, completedAt: null, updatedAt: '2026-09-04T00:00:00Z' };
   for (const qualityGate of [null, { status: 'NOT_EVALUATED', metrics: null },
-    { status: 'FAIL', metrics: { assertionPassRate: 0.5, executionSuccessRate: 1 } }]) {
+    { status: 'FAIL', metrics: {
+      assertionPassRate: 0.5,
+      executionSuccessRate: 1,
+      assertion: { value: 0.5, threshold: 0.9, passed: false },
+      execution: { value: 1, threshold: 0.98, passed: true },
+    } }]) {
     const response = { ...detail, qualityGate };
     respond(t, response);
     assert.deepEqual(await runs.getTestRunDetail(901), response);
