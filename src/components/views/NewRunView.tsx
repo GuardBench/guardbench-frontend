@@ -8,6 +8,9 @@ import {
   buildCreateTestRunPayload,
   createTestRunPayloadFingerprint,
   parseQualityGatePolicy,
+  QUALITY_GATE_PERCENT_MAX,
+  QUALITY_GATE_PERCENT_MIN,
+  qualityGatePolicySummary,
   type QualityGatePolicyField,
 } from './newRunForm';
 
@@ -110,6 +113,12 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
     assertionThresholdPercent,
     executionThresholdPercent,
   });
+  const policyValidationVisible = validation?.field === 'assertionThreshold'
+    || validation?.field === 'executionThreshold';
+  const policySummary = qualityGatePolicySummary({
+    assertionThresholdPercent,
+    executionThresholdPercent,
+  }, policyValidationVisible);
   const canSubmit = !submitting && !suiteLoading && suites.length > 0;
 
   const failValidation = (field: RunValidationField, message: string) => {
@@ -215,11 +224,11 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="run-assertion-threshold" className="mb-2 block text-xs font-bold text-[#4e5a68]">기대 일치율 최소 기준 (%) <span className="font-normal text-[#697586]">선택</span></label>
-                <input ref={assertionThresholdRef} id="run-assertion-threshold" type="number" inputMode="decimal" min="0" max="100" step="0.01" value={assertionThresholdPercent} onChange={(event) => { setAssertionThresholdPercent(event.target.value); setValidation(null); }} aria-invalid={validation?.field === 'assertionThreshold'} aria-describedby={validation?.field === 'assertionThreshold' ? 'quality-gate-policy-help run-validation-summary' : 'quality-gate-policy-help'} placeholder="서버 기본값" className={fieldClass} />
+                <input ref={assertionThresholdRef} id="run-assertion-threshold" type="number" inputMode="decimal" min={QUALITY_GATE_PERCENT_MIN} max={QUALITY_GATE_PERCENT_MAX} step="0.01" value={assertionThresholdPercent} onChange={(event) => { setAssertionThresholdPercent(event.target.value); setValidation(null); }} aria-invalid={validation?.field === 'assertionThreshold'} aria-describedby={validation?.field === 'assertionThreshold' ? 'quality-gate-policy-help run-validation-summary' : 'quality-gate-policy-help'} placeholder="서버 기본값" className={fieldClass} />
               </div>
               <div>
                 <label htmlFor="run-execution-threshold" className="mb-2 block text-xs font-bold text-[#4e5a68]">실행 성공률 최소 기준 (%) <span className="font-normal text-[#697586]">선택</span></label>
-                <input ref={executionThresholdRef} id="run-execution-threshold" type="number" inputMode="decimal" min="0" max="100" step="0.01" value={executionThresholdPercent} onChange={(event) => { setExecutionThresholdPercent(event.target.value); setValidation(null); }} aria-invalid={validation?.field === 'executionThreshold'} aria-describedby={validation?.field === 'executionThreshold' ? 'quality-gate-policy-help run-validation-summary' : 'quality-gate-policy-help'} placeholder="서버 기본값" className={fieldClass} />
+                <input ref={executionThresholdRef} id="run-execution-threshold" type="number" inputMode="decimal" min={QUALITY_GATE_PERCENT_MIN} max={QUALITY_GATE_PERCENT_MAX} step="0.01" value={executionThresholdPercent} onChange={(event) => { setExecutionThresholdPercent(event.target.value); setValidation(null); }} aria-invalid={validation?.field === 'executionThreshold'} aria-describedby={validation?.field === 'executionThreshold' ? 'quality-gate-policy-help run-validation-summary' : 'quality-gate-policy-help'} placeholder="서버 기본값" className={fieldClass} />
               </div>
             </div>
             <p id="quality-gate-policy-help" className="mt-2 text-[11px] text-[#697586]">직접 설정하려면 두 기준을 모두 입력해 주세요. 입력한 기준은 이 Run의 최종 판정 근거로 저장됩니다.</p>
@@ -232,7 +241,7 @@ export const NewRunView: React.FC<NewRunViewProps> = ({ onNotify, onRunCreated }
             <div className="flex justify-between gap-4 py-3"><dt className="text-[#697586]">TestSuite</dt><dd className="text-right font-bold">{selectedSuite?.name || '—'}</dd></div>
             <div className="flex justify-between py-3"><dt className="text-[#697586]">예상 실행 수</dt><dd className="font-bold">{caseCount}회</dd></div>
             <div className="py-3"><dt className="text-[#697586]">Application</dt><dd className="mt-1 break-all font-bold">{normalizedEndpoint || '—'}</dd><dd className="mt-1 text-[10px] text-[#697586]">Model: {normalizedModel || '입력 필요'}</dd>{normalizedRevision && <dd className="mt-1 text-[10px] text-[#697586]">Revision: {normalizedRevision}</dd>}</div>
-            <div className="py-3"><dt className="text-[#697586]">Quality Gate 기준</dt><dd className="mt-1 font-bold">{parsedQualityGatePolicy.ok && parsedQualityGatePolicy.policy ? `기대 일치율 ${assertionThresholdPercent.trim()}% · 실행 성공률 ${executionThresholdPercent.trim()}%` : parsedQualityGatePolicy.ok ? '서버 기본 기준' : '입력 확인 필요'}</dd></div>
+            <div className="py-3"><dt className="text-[#697586]">Quality Gate 기준</dt><dd className="mt-1 font-bold">{policySummary}</dd></div>
           </dl>
           <div className="flex gap-2 rounded-xl bg-[#eef8f4] p-3.5 text-[11px] leading-relaxed text-[#27634f]"><ShieldCheck size={16} className="shrink-0" /><span>각 Snapshot은 Application에서 1회 실행됩니다. 응답 행동 분류는 GuardBench가 내부에서 일관되게 수행합니다.</span></div>
           {validation && <div id="run-validation-summary" className="rounded-xl border border-[#e7c47f] bg-[#fff7e8] px-4 py-3 text-xs font-semibold text-[#78501b]">{validation.message}</div>}

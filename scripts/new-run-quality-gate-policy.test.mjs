@@ -33,6 +33,10 @@ test('한 기준만 입력하면 나머지 기준 입력을 요청한다', () =>
 });
 
 test('0~100% 범위와 유한한 숫자만 허용한다', () => {
+  assert.equal(form.QUALITY_GATE_PERCENT_MIN, 0);
+  assert.equal(form.QUALITY_GATE_PERCENT_MAX, 100);
+  assert.equal(form.parseQualityGatePercent(''), null);
+  assert.equal(form.parseQualityGatePercent('  '), null);
   assert.equal(parse('-0.01', '95').field, 'assertionThreshold');
   assert.equal(parse('95', '100.01').field, 'executionThreshold');
   assert.equal(parse('not-a-number', '95').field, 'assertionThreshold');
@@ -40,6 +44,18 @@ test('0~100% 범위와 유한한 숫자만 허용한다', () => {
     ok: true,
     policy: { assertionPassRateThreshold: 0, executionSuccessRateThreshold: 1 },
   });
+});
+
+test('요약은 입력 중과 제출 후 오류를 구분하고 유효한 숫자를 정규화한다', () => {
+  const summary = (assertionThresholdPercent, executionThresholdPercent, showValidationError = false) => (
+    form.qualityGatePolicySummary({ assertionThresholdPercent, executionThresholdPercent }, showValidationError)
+  );
+  assert.equal(summary('', ''), '서버 기본 기준');
+  assert.equal(summary('9', ''), '기준 입력 중');
+  assert.equal(summary('9', '', true), '입력 확인 필요');
+  assert.equal(summary('101', '95'), '기준 입력 중');
+  assert.equal(summary('101', '95', true), '입력 확인 필요');
+  assert.equal(summary('090', '9.50'), '기대 일치율 90% · 실행 성공률 9.5%');
 });
 
 test('퍼센트를 API의 0~1 비율로 변환해 payload에 포함한다', () => {

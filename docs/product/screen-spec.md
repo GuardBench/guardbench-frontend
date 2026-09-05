@@ -149,6 +149,7 @@ TestSuite
 - 예상 실행 수는 활성 TestCaseSnapshot당 단일 Application 처리 기준이며 기존 `caseCount * 2`를 사용하지 않는다.
 - Quality Gate 기준은 둘 다 입력하거나 둘 다 생략한다. 입력한 퍼센트는 API의 0~1 비율로 변환한다.
 - 화면 요약에는 Suite, Application URL/model/revision과 Quality Gate 기준 또는 서버 기본 기준 사용 여부를 표시한다.
+- Quality Gate 기준을 작성하는 중에는 중립적인 “기준 입력 중”으로 표시하고, 제출 후 validation이 확정된 경우에만 “입력 확인 필요”로 표시한다. 유효한 값은 숫자를 정규화해 요약한다.
 - 한 논리적 제출 payload에는 같은 `Idempotency-Key`를 사용하고 payload가 바뀌면 새 key를 사용한다.
 
 ### 생성 결과와 오류 (`AS-IS`)
