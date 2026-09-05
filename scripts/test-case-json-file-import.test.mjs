@@ -71,4 +71,6 @@ test('the suite creation UI accepts JSON files in the existing JSON mode', () =>
   assert.match(modal, /accept="\.json,application\/json"/);
   assert.match(modal, /void selectJsonFile/);
   assert.match(modal, /불러온 파일:/);
+  assert.match(modal, /JSON 검증 및 적용/);
+  assert.doesNotMatch(modal, /JSON 미리보기/);
 });
