@@ -206,6 +206,7 @@ filter URL 보존, 진행 Run 자동 갱신과 refresh interval은 `미결정`�
 - TP/TN/FP/FN 집계는 기대 동작과 Evaluator 판정을 축으로 하는 2×2 매트릭스로 표시한다.
 - `RegressionSummaryEntry`가 선택된 historical Run과의 악화/개선/변화 없음/비교 불가 집계를 상단에 표시하고 `회귀 상세 보기` action을 제공한다.
 - Result Detail에서는 전체 Regression case table을 렌더링하지 않는다.
+- 다른 1차 화면으로 이동한 뒤 Sidebar의 결과 상세를 다시 선택하면 현재 세션에서 마지막으로 확인한 Run으로 복귀한다.
 - Application 자연어 응답과 legacy 한 Run 내부 Baseline/Candidate diff를 표시하지 않는다.
 
 ### 8.1 Run 요약 (`AS-IS`)

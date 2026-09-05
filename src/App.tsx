@@ -12,17 +12,24 @@ import { RegressionDetailView } from './components/views/RegressionDetailView';
 import { ArchitectureView } from './components/views/ArchitectureView';
 import { runtimeConfig } from './config/runtimeConfig';
 import { LAYER_CLASS } from './config/layers';
-import { parseRoute, routeForView, routePath, type AppRoute } from './routing/routes';
+import {
+  parseRoute,
+  routeForView,
+  routePath,
+  selectedRunIdForRoute,
+  type AppRoute,
+} from './routing/routes';
 import { useRegressionComparison } from './hooks/useRegressionComparison';
 import { shouldRefreshRegressionAfterRunFinished } from './hooks/regressionComparisonState';
 
 export function App() {
   const [route, setRoute] = useState<AppRoute>(() => parseRoute(window.location.pathname));
+  const [rememberedRunId, setRememberedRunId] = useState(() => selectedRunIdForRoute(route, ''));
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const currentView = route.view;
   const layoutView = route.view === 'invalid-run' ? route.sourceView : route.view;
-  const selectedRunId = 'runId' in route ? route.runId : '';
+  const selectedRunId = selectedRunIdForRoute(route, rememberedRunId);
   const regression = useRegressionComparison(selectedRunId, currentView === 'regression');
   const {
     runId: regressionRunId,
@@ -31,7 +38,11 @@ export function App() {
   } = regression.summary;
 
   useEffect(() => {
-    const syncRoute = () => setRoute(parseRoute(window.location.pathname));
+    const syncRoute = () => {
+      const nextRoute = parseRoute(window.location.pathname);
+      setRememberedRunId((current) => selectedRunIdForRoute(nextRoute, current));
+      setRoute(nextRoute);
+    };
     window.addEventListener('popstate', syncRoute);
     return () => window.removeEventListener('popstate', syncRoute);
   }, []);
@@ -48,6 +59,7 @@ export function App() {
     if (window.location.pathname !== nextPath) {
       window.history.pushState(null, '', nextPath);
     }
+    setRememberedRunId((current) => selectedRunIdForRoute(nextRoute, current));
     setRoute(nextRoute);
     setIsMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
