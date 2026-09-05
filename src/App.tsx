@@ -9,7 +9,6 @@ import { RunsView } from './components/views/RunsView';
 import { ResultDetailView } from './components/views/ResultDetailView';
 import { RegressionSummaryEntry } from './components/views/RegressionSummaryEntry';
 import { RegressionDetailView } from './components/views/RegressionDetailView';
-import { ArchitectureView } from './components/views/ArchitectureView';
 import { runtimeConfig } from './config/runtimeConfig';
 import { LAYER_CLASS } from './config/layers';
 import {
@@ -110,10 +109,6 @@ export function App() {
           currentView={layoutView}
           isMobileMenuOpen={isMobileMenuOpen}
           onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          onHelpClick={() => {
-            handleSelectView('architecture');
-            showToast('Notion 설계 문서를 바탕으로 구성한 아키텍처 뷰입니다.');
-          }}
         />
 
         <main className="flex-1 p-6 sm:p-8 max-w-[1500px] w-full mx-auto">
@@ -173,7 +168,6 @@ export function App() {
               onBack={() => navigate({ view: 'result', runId: selectedRunId })}
             />
           )}
-          {currentView === 'architecture' && <ArchitectureView />}
         </main>
       </div>
 

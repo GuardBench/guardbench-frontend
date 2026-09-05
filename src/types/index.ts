@@ -1,4 +1,4 @@
-export type ViewType = 'dashboard' | 'suites' | 'new-run' | 'runs' | 'result' | 'regression' | 'architecture';
+export type ViewType = 'dashboard' | 'suites' | 'new-run' | 'runs' | 'result' | 'regression';
 
 // P1. 세 축 분리 상태 타입
 export type ProgressState = 'QUEUED' | 'PREPARING' | 'RUNNING' | 'FINISHED';
@@ -72,10 +72,4 @@ export interface TestRun {
   versionChange: string;
   createdAt: string;
   progress?: RunProgress;
-}
-
-export interface ArchitectureRule {
-  number: string;
-  title: string;
-  description: string;
 }

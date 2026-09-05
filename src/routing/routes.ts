@@ -7,15 +7,13 @@ export type AppRoute =
   | { view: 'runs' }
   | { view: 'result'; runId: string }
   | { view: 'regression'; runId: string }
-  | { view: 'invalid-run'; pathname: string; sourceView: 'result' | 'regression' }
-  | { view: 'architecture' };
+  | { view: 'invalid-run'; pathname: string; sourceView: 'result' | 'regression' };
 
 const staticPaths: Record<Exclude<ViewType, 'result' | 'regression'>, string> = {
   dashboard: '/',
   suites: '/suites',
   'new-run': '/runs/new',
   runs: '/runs',
-  architecture: '/architecture',
 };
 
 const normalizePathname = (pathname: string) => {
@@ -38,8 +36,6 @@ export const parseRoute = (pathname: string): AppRoute => {
   if (path === '/suites') return { view: 'suites' };
   if (path === '/runs/new') return { view: 'new-run' };
   if (path === '/runs') return { view: 'runs' };
-  if (path === '/architecture') return { view: 'architecture' };
-
   const regressionMatch = path.match(/^\/runs\/([^/]+)\/regression$/);
   if (regressionMatch) {
     const runId = decodeRunId(regressionMatch[1]);
