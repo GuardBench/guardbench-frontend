@@ -3,6 +3,7 @@ import { GitCompareArrows, Loader2, RefreshCw } from 'lucide-react';
 import type { RegressionDetailState } from '../../hooks/useRegressionComparison';
 import type { RegressionChangeType } from '../../services/regressionService';
 import { RequestErrorBanner } from '../common/RequestErrorBanner';
+import { regressionChangeTypeLabel } from './regressionSummary';
 
 interface RegressionComparisonSectionProps {
   regression: RegressionDetailState;
@@ -12,17 +13,6 @@ const completedAtLabel = (value: string) => new Intl.DateTimeFormat('ko-KR', {
   dateStyle: 'short',
   timeStyle: 'short',
 }).format(new Date(value));
-
-const changeTypeLabel = (changeType: RegressionChangeType | null) => {
-  if (changeType === null) return '비교 불가';
-  return ({
-    NO_CHANGE: '변화 없음',
-    SECURITY_REGRESSION: '보안 회귀',
-    USABILITY_REGRESSION: '사용성 회귀',
-    IMPROVEMENT: '개선',
-    POLICY_BEHAVIOR_CHANGED: '정책 동작 변경',
-  } satisfies Record<RegressionChangeType, string>)[changeType];
-};
 
 const changeTypeClass = (changeType: RegressionChangeType | null) => {
   if (changeType === 'SECURITY_REGRESSION' || changeType === 'USABILITY_REGRESSION') {
@@ -265,7 +255,7 @@ export function RegressionComparisonSection({ regression }: RegressionComparison
                     <td className="px-3 py-3 font-bold">{verdictLabel(item.currentVerdict)}</td>
                     <td className="px-3 py-3">
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-extrabold ${changeTypeClass(item.changeType)}`}>
-                        {changeTypeLabel(item.changeType)}
+                        {regressionChangeTypeLabel(item.changeType)}
                       </span>
                     </td>
                     <td className="px-3 py-3 text-[#4e5a68]">{item.comparabilityStatus === 'COMPARABLE' ? '비교 가능' : '비교 불가'}</td>

@@ -331,7 +331,7 @@ Regression Detail은 기존 `RegressionComparisonSection`과 `regressionService`
 3. 과거 Run의 target과 completedAt을 비교 맥락으로 표시한다.
 4. 후보를 선택해 `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}`를 조회한다.
 5. summary의 `totalCases`, `changedCount`, `unchangedCount`, `regressedCount`, `improvedCount`, `notComparableCount`를 서버 값 그대로 표시한다.
-6. case-level에서 Expected, Previous/Current verdict, `comparabilityStatus`, `changeType`을 동일 컨텍스트에서 확인한다.
+6. case-level에서 Expected, Previous/Current verdict, `comparabilityStatus`, `changeType`을 동일 컨텍스트에서 확인하며, Regression 유형은 사용자에게 `보안 악화 / 사용성 악화`로 표시한다.
 7. changed-only filter 등으로 변화 case를 우선 탐색할 수 있게 한다.
 8. Application이나 Evaluator를 다시 실행하지 않는다.
 
@@ -340,7 +340,7 @@ Regression Detail은 기존 `RegressionComparisonSection`과 `regressionService`
 ### UX 원칙
 
 - Result Detail은 현재 Run 자체를 이해하는 화면이고 Regression Detail은 변화 분석을 위한 drill-down 화면이다.
-- Regression Detail은 Regression/Improvement/변화 case를 우선 탐색할 수 있게 한다.
+- Regression Detail은 악화/개선/변화 case를 우선 탐색할 수 있게 한다.
 - 한 case를 볼 때 Expected, Previous verdict, Current verdict, comparability와 change type을 같은 맥락에서 비교한다.
 - 현재 데이터만으로 표현할 수 있다면 `ALLOW → BLOCK`, `BLOCK → ALLOW`, `ALLOW → ALLOW`, `BLOCK → BLOCK` 같은 action transition을 보조 표현으로 사용할 수 있다. 이를 위해 신규 backend 집계 API를 요구하지 않는다.
 - Quality Gate와 Regression을 하나의 PASS/FAIL로 합치지 않는다.
