@@ -205,8 +205,8 @@ export function RegressionComparisonSection({ regression }: RegressionComparison
             {[
               ['전체', comparison.totalCases],
               ['변경', comparison.changedCount],
-              ['동일', comparison.unchangedCount],
-              ['회귀', comparison.regressedCount],
+              ['변화 없음', comparison.unchangedCount],
+              ['악화', comparison.regressedCount],
               ['개선', comparison.improvedCount],
               ['비교 불가', comparison.notComparableCount],
             ].map(([label, value]) => (

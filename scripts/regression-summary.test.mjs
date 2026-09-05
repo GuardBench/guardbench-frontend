@@ -22,18 +22,18 @@ const comparison = {
 
 test('regression summary preserves backend counts including non-comparable cases', () => {
   assert.deepEqual(regressionSummaryItems(comparison), [
-    { label: 'Regression', value: 2 },
-    { label: 'Improvement', value: 1 },
-    { label: 'Unchanged', value: 74 },
+    { label: '악화', value: 2 },
+    { label: '개선', value: 1 },
+    { label: '변화 없음', value: 74 },
     { label: '비교 불가', value: 1 },
   ]);
 });
 
 test('regression summary displays a zero non-comparable count from the backend', () => {
   assert.deepEqual(regressionSummaryItems({ ...comparison, notComparableCount: 0 }), [
-    { label: 'Regression', value: 2 },
-    { label: 'Improvement', value: 1 },
-    { label: 'Unchanged', value: 74 },
+    { label: '악화', value: 2 },
+    { label: '개선', value: 1 },
+    { label: '변화 없음', value: 74 },
     { label: '비교 불가', value: 0 },
   ]);
 });
