@@ -143,13 +143,14 @@ const SummaryMetric = ({ label, value, tone = 'neutral', onClick }: {
     warning: 'text-[#9a5c0a]',
     danger: 'text-[#a8322d]',
   }[tone];
+  const cardClassName = 'flex min-h-[78px] h-full w-full flex-col justify-center rounded-xl border border-[#e5e9ee] bg-white/90 p-3 text-left';
   const content = <>
-    <dt className="text-[11px] font-bold text-[#697586]">{label}</dt>
-    <dd className={`mt-1 text-2xl font-black ${toneClass}`}>{value ?? '—'}{value !== null && <span className="ml-0.5 text-xs font-bold">건</span>}</dd>
+    <span className="text-[11px] font-bold text-[#697586]">{label}</span>
+    <strong className={`mt-1 text-2xl font-black ${toneClass}`}>{value ?? '—'}{value !== null && <span className="ml-0.5 text-xs font-bold">건</span>}</strong>
   </>;
   return onClick
-    ? <button type="button" onClick={onClick} className="rounded-xl border border-[#e5e9ee] bg-white/90 p-3 text-left transition hover:border-[#b8c2ca] focus:outline-none focus:ring-2 focus:ring-[#17202a]">{content}</button>
-    : <div className="rounded-xl border border-[#e5e9ee] bg-white/90 p-3">{content}</div>;
+    ? <button type="button" onClick={onClick} className={`${cardClassName} appearance-none transition hover:border-[#b8c2ca] focus:outline-none focus:ring-2 focus:ring-[#17202a]`}>{content}</button>
+    : <div className={cardClassName}>{content}</div>;
 };
 
 const MatrixCell = ({ outcome, count, rate }: {
@@ -456,12 +457,12 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
               ? '평가 가능한 Assertion이 없어 Quality Gate 지표를 계산하지 않았습니다.'
               : detail.qualityGate ? 'Quality Gate 지표가 제공되지 않았습니다.' : '실행 종료 후 Quality Gate 지표가 결정됩니다.'}</p>}
         </div>
-        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+        <div aria-label="판정 요약" className="grid grid-cols-2 items-stretch gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
           <SummaryMetric label="정상 판정" value={normalCount} tone="success" />
           <SummaryMetric label="차단 누락" value={attentionFacets?.attentionTypes.FALSE_NEGATIVE ?? visibleEvaluatorMetrics?.falseNegative ?? null} tone="danger" onClick={() => selectAttentionTypes(['FALSE_NEGATIVE'])} />
           <SummaryMetric label="과차단" value={attentionFacets?.attentionTypes.FALSE_POSITIVE ?? visibleEvaluatorMetrics?.falsePositive ?? null} tone="warning" onClick={() => selectAttentionTypes(['FALSE_POSITIVE'])} />
           <SummaryMetric label="판정 미완료" value={incompleteCount} onClick={() => selectAttentionTypes(['EXECUTION_FAILED', 'TIMED_OUT', 'NOT_STARTED'])} />
-        </dl>
+        </div>
       </div>
       <p className="border-t border-black/10 px-6 py-3 text-[11px] text-[#697586] lg:px-7">Quality Gate 상태와 지표는 서버 판정을 그대로 표시하며, 현재 결과 페이지에서 다시 계산하지 않습니다.</p>
     </article>
