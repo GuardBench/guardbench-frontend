@@ -266,6 +266,7 @@ lifecycle 완료는 Quality Gate PASS와 별개의 상태다.
 - 여러 filter를 함께 보낼 때의 결합 규칙은 결과 endpoint 설명에 명시적으로 확정되지 않았으므로 프론트에서 추측하지 않는다.
 - filter 결과의 빈 `items`는 Run 전체 결과 없음이 아니라 현재 조건과 일치하는 항목 없음으로 표현한다.
 - filter를 적용해도 Evaluator metrics와 Quality Gate를 현재 page에서 다시 계산하지 않는다. aggregate는 각각의 서버 응답을 source of truth로 사용한다.
+- 확인 필요 유형이 선택된 조회에서는 해당 선택의 영향을 받지 않는 `facets.allResults`로 전체 결과 수를 확인한다. 일반 filter가 없을 때 이 수치와 고정 `testCaseCount`가 다르면 결과 데이터 불일치로 안내한다.
 - page, size와 sort도 결과 endpoint에 함께 전달할 수 있다.
 
 ### 8.3 기대·관측 동작 매트릭스 (`AS-IS`)
