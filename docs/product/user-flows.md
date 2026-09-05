@@ -118,7 +118,8 @@ flowchart TD
     E --> F[Application URL 입력]
     F --> G[필수 model 입력]
     G --> H[선택 revision 입력]
-    H --> K[실행 요약 확인]
+    H --> I[선택 Quality Gate 기준 입력]
+    I --> K[실행 요약 확인]
     K --> L{client validation}
     L -->|실패| M[관련 control 오류]
     L -->|통과| N[POST test-runs]
@@ -130,6 +131,7 @@ flowchart TD
 - **Application URL**: GuardBench가 호출할 OpenAI-compatible Chat Completions full endpoint
 - **Model**: Application request body에 전달할 필수 모델 식별자
 - **Revision**: 사용자가 배포·모델·commit을 구분하기 위한 선택 정보
+- **Quality Gate 기준**: 이번 Run의 기대 일치율과 실행 성공률에 적용할 최소 통과 비율. 둘 다 비우면 서버 기본 기준 사용
 
 TestCase의 기대 동작과 Backend가 관측한 동작을 비교하며, 사용자는 판정 모델이나 prompt를 설정하지 않는다.
 
@@ -137,7 +139,7 @@ TestCase의 기대 동작과 Backend가 관측한 동작을 비교하며, 사용
 
 ### 4.2 현재 흐름 (`AS-IS`)
 
-현재 화면은 Suite 목록을 API로 조회하고 `testSuiteId`와 URL/model/revision을 가진 단일 `target`을 최신 `TestRunCreateReq`로 전송한다. 접수 성공 시 Run 상세로 이동하며 결과 불명 network 오류에서는 동일 payload와 Idempotency-Key를 유지한다.
+현재 화면은 Suite 목록을 API로 조회하고 `testSuiteId`, URL/model/revision을 가진 단일 `target`, 선택적인 `qualityGatePolicy`를 최신 `TestRunCreateReq`로 전송한다. 사용자가 입력한 퍼센트는 0~1 비율로 변환하며 두 기준을 모두 비우면 정책을 생략한다. 접수 성공 시 Run 상세로 이동하며 결과 불명 network 오류에서는 동일 payload와 Idempotency-Key를 유지한다.
 
 ### 4.3 접수와 멱등성 (`AS-IS`)
 
@@ -154,7 +156,7 @@ TestCase의 기대 동작과 Backend가 관측한 동작을 비교하며, 사용
 
 | 상황 | 의미 | 다음 행동 |
 | --- | --- | --- |
-| validation | Suite, URL, model 또는 revision 오류 | 관련 control에 detail 표시 |
+| validation | Suite, URL, model, revision 또는 Quality Gate 기준 오류 | 관련 control에 detail 표시 |
 | `TEST_SUITE_NOT_FOUND` | 선택 Suite가 더 이상 존재하지 않음 | Suite 목록 재조회 |
 | `TEST_SUITE_EMPTY` | 활성 TestCase가 없음 | TestCase 준비로 이동 |
 | `IDEMPOTENCY_KEY_CONFLICT` | 같은 key를 다른 body에 재사용 | 자동 재시도 중단, 새 논리 시도 안내 |

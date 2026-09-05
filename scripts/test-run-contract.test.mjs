@@ -26,7 +26,7 @@ const respond = (t, data, check = () => {}) => t.mock.method(globalThis, 'fetch'
   });
 });
 
-test('creation sends only Suite and Application, preserving the idempotency key', async t => {
+test('creation can omit the policy while preserving the idempotency key', async t => {
   const payload = { testSuiteId: 1, target: { type: target.type, identifier: target.identifier, model: target.model } };
   const response = { id: 901, ...payload, target, status: 'QUEUED', testCaseCount: 1, createdAt: '2026-09-04T00:00:00Z' };
   respond(t, response, (url, options) => {
@@ -36,6 +36,22 @@ test('creation sends only Suite and Application, preserving the idempotency key'
     assert.equal(options.headers['Idempotency-Key'], 'attempt-1');
   });
   assert.deepEqual(await runs.createTestRun(payload, 'attempt-1'), response);
+});
+
+test('creation sends the per-Run Quality Gate policy unchanged', async t => {
+  const payload = {
+    testSuiteId: 1,
+    target: { type: target.type, identifier: target.identifier, model: target.model },
+    qualityGatePolicy: { assertionPassRateThreshold: 0.9, executionSuccessRateThreshold: 0.98 },
+  };
+  const response = { id: 902, testSuiteId: 1, target, status: 'QUEUED', testCaseCount: 1, createdAt: '2026-09-04T00:00:00Z' };
+  respond(t, response, (url, options) => {
+    assert.equal(url, 'https://contract.test/api/v1/test-runs');
+    assert.equal(options.method, 'POST');
+    assert.deepEqual(JSON.parse(options.body), payload);
+    assert.equal(options.headers['Idempotency-Key'], 'policy-attempt-1');
+  });
+  assert.deepEqual(await runs.createTestRun(payload, 'policy-attempt-1'), response);
 });
 
 test('detail preserves absent and unevaluated Gate states without inventing a profile', async t => {

@@ -42,6 +42,8 @@
 | Application HTTP endpoint | 테스트할 AI Application의 호출 주소 | `target.type`은 MVP에서 `HTTP_ENDPOINT`이고 `identifier`는 `http://` 또는 `https://` URI여야 한다. | “Application URL”처럼 사용자 목적에 맞는 이름을 사용한다. 내부 TargetReference나 provider 용어를 입력 라벨로 강제하지 않는다. |
 | model | OpenAI-compatible Chat Completions request body에 전달할 모델 식별자 | request와 response에서 필수이며 공백이 아닌 문자열이어야 한다. | Application이 인식하는 모델 식별자로 설명한다. Evaluator provider나 Guardrail ID와 혼동하지 않는다. |
 | revision | 사용자가 실행 대상을 구분하기 위한 배포·모델·commit 식별 문자열 | request에서는 선택 사항이다. 전달할 때는 공백이 아닌 문자열이어야 하며, 생략하면 response의 `target.revision`은 `null`이다. | endpoint가 같아도 배포 버전을 구분하고 싶을 때 입력한다. 서버가 검증하거나 해석한 실제 버전이라고 과장하지 않는다. |
+| assertion pass rate threshold | 해당 Run의 기대 일치율 최소 기준 | `qualityGatePolicy`에 포함할 때 0~1 숫자이며 execution 기준과 함께 필수다. | 화면에서는 0~100%로 입력받고 전송 직전에 0~1로 변환한다. |
+| execution success rate threshold | 해당 Run의 실행 성공률 최소 기준 | `qualityGatePolicy`에 포함할 때 0~1 숫자이며 assertion 기준과 함께 필수다. | 두 기준을 모두 비우면 객체를 합성하지 않고 서버 기본 정책을 사용한다. |
 
 생성 요청은 `testSuiteId`, `target`과 선택적인 `qualityGatePolicy`를 포함할 수 있다. 정책을 생략하면 backend 기본값을 사용한다. 상세 응답에서는 판정 시점의 정책을 각 metric의 `threshold`로 보존하므로 프론트가 기본값을 추정하지 않는다. 판정 모델 설정과 내부 분류 값은 프론트 계약에 포함하지 않는다.
 
@@ -73,7 +75,7 @@ Quality Gate에는 서로 다른 두 종류의 `null`이 있다.
 | Suite 상세·수정 | 테스트 스위트 | `GET/PATCH /api/v1/test-suites/{suiteId}` | API에 없는 상태, 통과율 또는 최근 실행을 서버 값처럼 만들지 않는다. |
 | TestCase 목록·생성 | TestCase 관리 | `GET/POST /api/v1/test-suites/{suiteId}/test-cases` | 빈 collection과 Suite 미존재를 구분한다. |
 | TestCase 상세·수정·삭제 | TestCase 관리 | `GET/PATCH/DELETE /api/v1/test-cases/{testCaseId}` | 삭제는 `204 No Content`로 처리하며 성공 전 로컬 제거를 확정하지 않는다. |
-| Run 생성 | 새 테스트 실행 | `POST /api/v1/test-runs` | Suite ID와 단일 Target을 전송한다. |
+| Run 생성 | 새 테스트 실행 | `POST /api/v1/test-runs` | Suite ID, 단일 Target과 선택적인 Run별 Quality Gate 정책을 전송한다. |
 | Run 이력 | 실행 이력 | `GET /api/v1/test-runs` | lifecycle, outcome, Gate를 독립 축으로 표시하고 서버 filter/page를 사용한다. |
 | Run 진행·요약 | 결과 상세 또는 실행 이력 | `GET /api/v1/test-runs/{testRunId}` | 즉시 조회 후 `FINISHED`까지 Polling한다. |
 | 개별 평가 결과 | 결과 상세 | `GET /api/v1/test-runs/{testRunId}/results` | `FINISHED` 이후 조회하고 실행·평가·assertion 상태를 분리한다. |
@@ -215,6 +217,10 @@ timeout 값, 자동 재시도 대상, 인증·권한 오류 UX, runtime schema v
   - `identifier`는 HTTP 또는 HTTPS URI
   - `model`은 OpenAI-compatible request body에 전달할 필수 non-blank 문자열이다.
   - `revision`은 선택적이며 공백 문자열을 보내지 않는다.
+- 선택적인 `qualityGatePolicy`
+  - `assertionPassRateThreshold`와 `executionSuccessRateThreshold`는 함께 포함한다.
+  - 화면의 0~100% 입력을 API의 0~1 값으로 변환한다.
+  - 두 입력을 모두 비우면 객체 자체를 보내지 않는다.
 
 사용자에게 Evaluator provider/type, Guardrail identifier/version, Snapshot identity를 요구하거나 request에 추가하지 않는다. `additionalProperties: false`이므로 화면 전용 필드를 body에 섞지 않는다.
 
@@ -227,7 +233,7 @@ timeout 값, 자동 재시도 대상, 인증·권한 오류 UX, runtime schema v
 5. 같은 key와 같은 body의 재전송은 기존 Run의 현재 status를 반환할 수 있다.
 6. `TEST_SUITE_EMPTY`, `IDEMPOTENCY_KEY_CONFLICT`를 일반 network 오류와 구분한다.
 
-현재 구현은 payload fingerprint별 key를 메모리에 보존하고 network 결과 불명에서는 재사용하며, 성공 또는 명시적 서버 거부 후 폐기한다. 화면 이탈 후 복원, 장기 보존과 OpenAPI에 없는 TTL은 `미결정`이다.
+현재 구현은 Quality Gate 정책까지 포함한 payload fingerprint별 key를 메모리에 보존하고 network 결과 불명에서는 재사용하며, 성공 또는 명시적 서버 거부 후 폐기한다. 화면 이탈 후 복원, 장기 보존과 OpenAPI에 없는 TTL은 `미결정`이다.
 
 ## 6. Run lifecycle, outcome과 Quality Gate
 
