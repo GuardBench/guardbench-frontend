@@ -38,10 +38,16 @@ export type BulkImportResult = {
   issues: BulkImportIssue[];
 };
 
+export type JsonFileImportResult = BulkImportResult & {
+  source: string | null;
+};
+
 const expectedActions = new Set<TestCaseCreatePayload['expectedAction']>(['ALLOW', 'BLOCK']);
 const severities = new Set<TestCaseCreatePayload['severity']>(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']);
 
 const rowLabel = (row: number | null) => row === null ? '' : `${row}행: `;
+
+const normalizeJsonSource = (source: string) => source.replace(/^\uFEFF/, '');
 
 const valueOf = (record: Record<string, unknown>, key: string): string => {
   const value = record[key];
@@ -145,7 +151,7 @@ const normalizeCsvRecord = (
 export const parseInitialTestCasesJson = (source: string): BulkImportResult => {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(source);
+    parsed = JSON.parse(normalizeJsonSource(source));
   } catch {
     return { cases: [], issues: [{ row: null, message: 'JSON 형식이 올바르지 않습니다.' }] };
   }
@@ -177,6 +183,29 @@ export const parseInitialTestCasesJson = (source: string): BulkImportResult => {
   });
 
   return { cases, issues };
+};
+
+export const importInitialTestCasesJsonFile = async (
+  file: Pick<File, 'name' | 'text'>,
+): Promise<JsonFileImportResult> => {
+  if (!file.name.toLowerCase().endsWith('.json')) {
+    return {
+      source: null,
+      cases: [],
+      issues: [{ row: null, message: 'JSON 파일만 업로드할 수 있습니다.' }],
+    };
+  }
+
+  try {
+    const source = normalizeJsonSource(await file.text());
+    return { source, ...parseInitialTestCasesJson(source) };
+  } catch {
+    return {
+      source: null,
+      cases: [],
+      issues: [{ row: null, message: 'JSON 파일을 읽지 못했습니다. UTF-8 JSON 파일인지 확인해 주세요.' }],
+    };
+  }
 };
 
 export const parseInitialTestCasesCsv = (source: string): BulkImportResult => {
