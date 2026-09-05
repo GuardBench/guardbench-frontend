@@ -1,18 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { GitCompareArrows, Loader2, RefreshCw } from 'lucide-react';
-import { ApiError } from '../../services/apiClient';
-import {
-  getComparableTestRuns,
-  getTestRunComparison,
-  type ComparableTestRunListItemRes,
-  type ComparableTestRunListRes,
-  type RegressionChangeType,
-  type TestRunComparisonRes,
-} from '../../services/regressionService';
+import type { RegressionComparisonState } from '../../hooks/useRegressionComparison';
+import type { RegressionChangeType } from '../../services/regressionService';
 import { RequestErrorBanner } from '../common/RequestErrorBanner';
 
 interface RegressionComparisonSectionProps {
   runId: string;
+  regression: RegressionComparisonState;
 }
 
 const completedAtLabel = (value: string) => new Intl.DateTimeFormat('ko-KR', {
@@ -42,97 +36,26 @@ const changeTypeClass = (changeType: RegressionChangeType | null) => {
 
 const verdictLabel = (value: 'ALLOW' | 'BLOCK' | null) => value ?? '—';
 
-export function RegressionComparisonSection({ runId }: RegressionComparisonSectionProps) {
-  const [candidates, setCandidates] = useState<ComparableTestRunListItemRes[]>([]);
-  const [candidatePage, setCandidatePage] = useState(1);
-  const [candidatePageMeta, setCandidatePageMeta] = useState<ComparableTestRunListRes['page'] | null>(null);
-  const [selectedComparisonId, setSelectedComparisonId] = useState('');
-  const [comparison, setComparison] = useState<TestRunComparisonRes | null>(null);
+export function RegressionComparisonSection({ runId, regression }: RegressionComparisonSectionProps) {
+  const {
+    candidates,
+    candidatePageMeta,
+    selectedComparisonId,
+    selectedCandidate,
+    selectedAutomatically,
+    comparison,
+    candidatesLoading,
+    comparisonLoading,
+    candidatesError,
+    comparisonError,
+    notFinished,
+    hasLoadedCandidates,
+    setCandidatePage,
+    selectComparison,
+    refresh,
+  } = regression;
   const [changedOnly, setChangedOnly] = useState(true);
   const [includeNotComparable, setIncludeNotComparable] = useState(false);
-  const [candidatesLoading, setCandidatesLoading] = useState(false);
-  const [comparisonLoading, setComparisonLoading] = useState(false);
-  const [candidatesError, setCandidatesError] = useState<unknown>(null);
-  const [comparisonError, setComparisonError] = useState<unknown>(null);
-  const [notFinished, setNotFinished] = useState(false);
-  const [hasLoadedCandidates, setHasLoadedCandidates] = useState(false);
-  const [reloadToken, setReloadToken] = useState(0);
-
-  useEffect(() => {
-    setCandidatePage(1);
-  }, [runId]);
-
-  useEffect(() => {
-    if (!runId) return;
-    let active = true;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-
-    setCandidatesLoading(true);
-    setCandidatesError(null);
-    setNotFinished(false);
-    setHasLoadedCandidates(false);
-    setCandidates([]);
-    setCandidatePageMeta(null);
-    setSelectedComparisonId('');
-    setComparison(null);
-    setComparisonError(null);
-
-    getComparableTestRuns(runId, { page: candidatePage, size: 20 })
-      .then((response) => {
-        if (!active) return;
-        setCandidates(response.items);
-        setCandidatePageMeta(response.page);
-        setSelectedComparisonId(response.items[0] ? String(response.items[0].id) : '');
-        setHasLoadedCandidates(true);
-      })
-      .catch((error) => {
-        if (!active) return;
-        if (error instanceof ApiError && error.code === 'TEST_RUN_NOT_FINISHED') {
-          setNotFinished(true);
-          setHasLoadedCandidates(true);
-          retryTimer = setTimeout(() => {
-            if (active) setReloadToken((value) => value + 1);
-          }, 2000);
-          return;
-        }
-        setCandidatesError(error);
-      })
-      .finally(() => {
-        if (active) setCandidatesLoading(false);
-      });
-
-    return () => {
-      active = false;
-      if (retryTimer) clearTimeout(retryTimer);
-    };
-  }, [runId, candidatePage, reloadToken]);
-
-  useEffect(() => {
-    if (!runId || !selectedComparisonId) {
-      setComparison(null);
-      return;
-    }
-
-    let active = true;
-    setComparisonLoading(true);
-    setComparisonError(null);
-    setComparison(null);
-
-    getTestRunComparison(runId, selectedComparisonId)
-      .then((response) => {
-        if (active) setComparison(response);
-      })
-      .catch((error) => {
-        if (active) setComparisonError(error);
-      })
-      .finally(() => {
-        if (active) setComparisonLoading(false);
-      });
-
-    return () => { active = false; };
-  }, [runId, selectedComparisonId]);
-
-  const selectedCandidate = candidates.find((candidate) => String(candidate.id) === selectedComparisonId);
   const visibleItems = useMemo(() => {
     if (!comparison) return [];
 
@@ -146,8 +69,6 @@ export function RegressionComparisonSection({ runId }: RegressionComparisonSecti
       return true;
     });
   }, [changedOnly, comparison, includeNotComparable]);
-
-  const refresh = () => setReloadToken((value) => value + 1);
 
   return (
     <section className="space-y-4 rounded-2xl border border-[#e5e9ee] bg-white p-6 shadow-[0_3px_15px_rgba(17,31,44,0.025)] sm:p-7">
@@ -204,7 +125,7 @@ export function RegressionComparisonSection({ runId }: RegressionComparisonSecti
             <select
               id="comparison-run"
               value={selectedComparisonId}
-              onChange={(event) => setSelectedComparisonId(event.target.value)}
+              onChange={(event) => selectComparison(event.target.value)}
               className="w-full rounded-xl border border-[#dce1e6] bg-white px-3.5 py-2.5 text-sm text-[#17202a] outline-none focus:border-[#1a7f5a] focus:ring-2 focus:ring-[#1a7f5a]/10"
             >
               {candidates.map((candidate) => (
@@ -213,6 +134,9 @@ export function RegressionComparisonSection({ runId }: RegressionComparisonSecti
                 </option>
               ))}
             </select>
+            {selectedAutomatically && (
+              <p className="mt-2 text-[11px] font-semibold text-[#1a7f5a]">가장 최근의 비교 가능한 Run을 자동으로 선택했습니다.</p>
+            )}
             {candidatePageMeta && candidatePageMeta.totalPages > 1 && (
               <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-[#697586]">
                 <span>{candidatePageMeta.number} / {candidatePageMeta.totalPages} 페이지 · 총 {candidatePageMeta.totalElements}개</span>

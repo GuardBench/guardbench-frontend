@@ -1,12 +1,14 @@
 import { ArrowLeft } from 'lucide-react';
+import type { RegressionComparisonState } from '../../hooks/useRegressionComparison';
 import { RegressionComparisonSection } from './RegressionComparisonSection';
 
 interface RegressionDetailViewProps {
   runId: string;
+  regression: RegressionComparisonState;
   onBack: () => void;
 }
 
-export function RegressionDetailView({ runId, onBack }: RegressionDetailViewProps) {
+export function RegressionDetailView({ runId, regression, onBack }: RegressionDetailViewProps) {
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-4">
@@ -25,7 +27,7 @@ export function RegressionDetailView({ runId, onBack }: RegressionDetailViewProp
         </div>
       </div>
 
-      <RegressionComparisonSection runId={runId} />
+      <RegressionComparisonSection runId={runId} regression={regression} />
     </div>
   );
 }

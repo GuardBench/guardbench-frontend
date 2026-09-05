@@ -249,6 +249,11 @@ Regression은 현재 Run 자체의 Quality Gate와 독립적인 조회 기능이
 6. `TEST_RUN_NOT_FINISHED`이면 관련 Run detail을 다시 확인한다.
 7. `TEST_RUNS_NOT_COMPARABLE`이면 comparison state를 비우고 comparable-runs를 재조회하거나 다른 후보를 선택하게 한다.
 
+`App`이 current Run별 `useRegressionComparison` 상태를 소유한다. Result Detail 상단 요약과 Regression
+Detail은 같은 후보, 선택 baseline, comparison, loading/error 상태를 전달받아 사용하며 각 컴포넌트가 동일
+comparison endpoint를 다시 호출하지 않는다. 화면 전환만으로 선택 baseline을 초기화하지 않고 current Run이
+바뀔 때 전체 comparison state를 무효화한다.
+
 comparability 규칙을 프론트에서 복제하거나 같은 Suite라는 이유로 후보를 추가하지 않는다. comparison
 응답의 summary count, 이전·현재 verdict, comparability status와 change type은 서버 값을 보존한다.
 `NOT_COMPARABLE` item의 nullable verdict/change type 표현은 backend #144에서 OpenAPI 3.0.3 도구

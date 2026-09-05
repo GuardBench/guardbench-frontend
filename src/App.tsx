@@ -13,6 +13,7 @@ import { ArchitectureView } from './components/views/ArchitectureView';
 import { runtimeConfig } from './config/runtimeConfig';
 import { LAYER_CLASS } from './config/layers';
 import { parseRoute, routeForView, routePath, type AppRoute } from './routing/routes';
+import { useRegressionComparison } from './hooks/useRegressionComparison';
 
 export function App() {
   const [route, setRoute] = useState<AppRoute>(() => parseRoute(window.location.pathname));
@@ -21,6 +22,7 @@ export function App() {
   const currentView = route.view;
   const layoutView = route.view === 'invalid-run' ? route.sourceView : route.view;
   const selectedRunId = 'runId' in route ? route.runId : '';
+  const regression = useRegressionComparison(selectedRunId);
 
   useEffect(() => {
     const syncRoute = () => setRoute(parseRoute(window.location.pathname));
@@ -118,21 +120,21 @@ export function App() {
             />
           )}
           {currentView === 'result' && (
-            <div className="space-y-6">
-              <ResultDetailView
-                key={selectedRunId}
-                selectedRunId={selectedRunId}
-                onGoNewRun={() => handleSelectView('new-run')}
-              />
-              <RegressionSummaryEntry
+            <ResultDetailView
+              key={selectedRunId}
+              selectedRunId={selectedRunId}
+              onGoNewRun={() => handleSelectView('new-run')}
+              regressionSummary={<RegressionSummaryEntry
                 runId={selectedRunId}
+                regression={regression}
                 onOpenDetail={handleOpenRegression}
-              />
-            </div>
+              />}
+            />
           )}
           {currentView === 'regression' && (
             <RegressionDetailView
               runId={selectedRunId}
+              regression={regression}
               onBack={() => navigate({ view: 'result', runId: selectedRunId })}
             />
           )}
