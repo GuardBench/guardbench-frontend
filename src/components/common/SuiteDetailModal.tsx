@@ -2,7 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Severity, TestCase, TestSuite } from '../../types';
 import { X, Plus, Trash2, Edit2, AlertCircle, Loader2 } from 'lucide-react';
-import { getTestCases, createTestCase, deleteTestCase, type TestCaseListApiResponse } from '../../services/testCaseService';
+import {
+  getTestCases,
+  createTestCase,
+  updateTestCase,
+  deleteTestCase,
+  type CreateTestCasePayload,
+  type TestCaseListApiResponse,
+} from '../../services/testCaseService';
 import { deleteTestSuite } from '../../services/testSuiteService';
 import { ApiError, presentApiError } from '../../services/apiClient';
 import { RequestErrorBanner } from './RequestErrorBanner';
@@ -37,12 +44,14 @@ interface SuiteDetailModalProps {
   onNotify: (msg: string) => void;
 }
 
-type AddCaseValidationField = 'name' | 'input' | 'category' | 'request';
+type CaseValidationField = 'name' | 'input' | 'category' | 'request';
 
-type AddCaseValidation = {
-  field: AddCaseValidationField;
+type CaseValidation = {
+  field: CaseValidationField;
   message: string;
 };
+
+type EditableTestCase = Pick<TestCase, 'name' | 'input' | 'expectedAction' | 'severity' | 'category'>;
 
 export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClose, onDeleted, onNotify }) => {
   const [cases, setCases] = useState<TestCase[]>([]);
@@ -56,7 +65,11 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<unknown>(null);
-  const [addValidation, setAddValidation] = useState<AddCaseValidation | null>(null);
+  const [addValidation, setAddValidation] = useState<CaseValidation | null>(null);
+  const [editingCaseId, setEditingCaseId] = useState<string | null>(null);
+  const [editCase, setEditCase] = useState<EditableTestCase | null>(null);
+  const [editValidation, setEditValidation] = useState<CaseValidation | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [newCase, setNewCase] = useState<Partial<TestCase>>({
     name: '',
     input: '',
@@ -67,9 +80,22 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   const caseNameRef = useRef<HTMLInputElement>(null);
   const caseInputRef = useRef<HTMLTextAreaElement>(null);
   const caseCategoryRef = useRef<HTMLInputElement>(null);
+  const editCaseNameRef = useRef<HTMLInputElement>(null);
+  const editCaseInputRef = useRef<HTMLTextAreaElement>(null);
+  const editCaseCategoryRef = useRef<HTMLInputElement>(null);
+  const editInFlightRef = useRef(false);
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const deleteInFlightRef = useRef(false);
-  const dialogRef = useDialogFocus({ isOpen: suite !== null, onClose });
+  const closeSuiteDetail = () => {
+    if (editInFlightRef.current) return;
+    setEditingCaseId(null);
+    setEditCase(null);
+    setEditValidation(null);
+    setIsAdding(false);
+    setAddValidation(null);
+    onClose();
+  };
+  const dialogRef = useDialogFocus({ isOpen: suite !== null, onClose: closeSuiteDetail });
   const deleteConfirmDialogRef = useDialogFocus({
     isOpen: isDeleteConfirmOpen,
     onClose: () => {
@@ -130,7 +156,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   const visiblePageMeta = isCurrentSuiteLoaded ? pageMeta : null;
   const totalCaseCount = visiblePageMeta?.totalElements;
 
-  const failAddValidation = (field: AddCaseValidationField, message: string) => {
+  const failAddValidation = (field: CaseValidationField, message: string) => {
     setAddValidation({ field, message });
     requestAnimationFrame(() => {
       const target = {
@@ -143,11 +169,11 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     });
   };
 
-  const clearAddValidation = (field: AddCaseValidationField) => {
+  const clearAddValidation = (field: CaseValidationField) => {
     setAddValidation((current) => current?.field === field ? null : current);
   };
 
-  const addCaseServerField = (field: string): AddCaseValidationField => {
+  const caseServerField = (field: string): CaseValidationField => {
     if (field.endsWith('name')) return 'name';
     if (field.endsWith('input')) return 'input';
     if (field.endsWith('category')) return 'category';
@@ -200,11 +226,102 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     } catch (error) {
       const presented = presentApiError(error, '테스트 케이스를 추가하지 못했습니다.');
       if (error instanceof ApiError && error.fieldErrors?.length) {
-        failAddValidation(addCaseServerField(error.fieldErrors[0].field), presented.message);
+        failAddValidation(caseServerField(error.fieldErrors[0].field), presented.message);
       } else {
         failAddValidation('request', presented.message);
       }
       onNotify(`[추가 실패 · ${presented.code}] ${presented.message}`);
+    }
+  };
+
+  const openEditCase = (testCase: TestCase) => {
+    setIsAdding(false);
+    setAddValidation(null);
+    setEditingCaseId(testCase.id);
+    setEditCase({
+      name: testCase.name,
+      input: testCase.input,
+      expectedAction: testCase.expectedAction,
+      severity: testCase.severity,
+      category: testCase.category,
+    });
+    setEditValidation(null);
+    requestAnimationFrame(() => editCaseNameRef.current?.focus());
+  };
+
+  const cancelEditCase = () => {
+    if (editInFlightRef.current) return;
+    setEditingCaseId(null);
+    setEditCase(null);
+    setEditValidation(null);
+  };
+
+  const failEditValidation = (field: CaseValidationField, message: string) => {
+    setEditValidation({ field, message });
+    requestAnimationFrame(() => {
+      const target = {
+        name: editCaseNameRef.current,
+        input: editCaseInputRef.current,
+        category: editCaseCategoryRef.current,
+        request: null,
+      }[field];
+      target?.focus();
+    });
+  };
+
+  const clearEditValidation = (field: CaseValidationField) => {
+    setEditValidation((current) => current?.field === field ? null : current);
+  };
+
+  const handleEditCase = async () => {
+    if (!editingCaseId || !editCase || editInFlightRef.current) return;
+
+    const name = editCase.name.trim();
+    const input = editCase.input.trim();
+    const category = editCase.category.trim();
+    if (!name) {
+      failEditValidation('name', '테스트 케이스 이름을 입력해 주세요.');
+      return;
+    }
+    if (!input) {
+      failEditValidation('input', '테스트 케이스 입력값을 입력해 주세요.');
+      return;
+    }
+    if (!category) {
+      failEditValidation('category', '테스트 케이스 카테고리를 입력해 주세요.');
+      return;
+    }
+
+    const payload: CreateTestCasePayload = {
+      name,
+      input,
+      category,
+      expectedAction: editCase.expectedAction,
+      severity: editCase.severity,
+    };
+    const cleanCaseId = editingCaseId.replace('tc-', '');
+
+    editInFlightRef.current = true;
+    setIsSavingEdit(true);
+    setEditValidation(null);
+    try {
+      await updateTestCase(cleanCaseId, payload);
+      editInFlightRef.current = false;
+      setIsSavingEdit(false);
+      setEditingCaseId(null);
+      setEditCase(null);
+      setReloadToken((token) => token + 1);
+      onNotify(`테스트 케이스 '${name}'가 수정되었습니다.`);
+    } catch (error) {
+      editInFlightRef.current = false;
+      setIsSavingEdit(false);
+      const presented = presentApiError(error, `'${name}' 수정에 실패했습니다.`);
+      if (error instanceof ApiError && error.fieldErrors?.length) {
+        failEditValidation(caseServerField(error.fieldErrors[0].field), presented.message);
+      } else {
+        failEditValidation('request', presented.message);
+      }
+      onNotify(`[수정 실패 · ${presented.code}] ${presented.message}`);
     }
   };
 
@@ -270,9 +387,10 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={closeSuiteDetail}
+            disabled={isSavingEdit}
             aria-label="테스트 스위트 상세 창 닫기"
-            className="p-2 rounded-xl text-[#697586] hover:bg-gray-200 transition-colors"
+            className="p-2 rounded-xl text-[#697586] hover:bg-gray-200 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
           >
             <X size={20} />
           </button>
@@ -307,11 +425,12 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
               )}
             </div>
             <button
+              type="button"
               onClick={() => {
                 setIsAdding(!isAdding);
                 setAddValidation(null);
               }}
-              disabled={!isCurrentSuiteLoaded || isLoading}
+              disabled={!isCurrentSuiteLoaded || isLoading || editingCaseId !== null || isSavingEdit}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus size={14} /> {isAdding ? '취소' : '케이스 추가'}
@@ -421,7 +540,8 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
               </thead>
               <tbody className="divide-y divide-[#e5e9ee]">
                 {visibleCases.map((c) => (
-                  <tr key={c.id} className="hover:bg-[#fafcfb]">
+                  <React.Fragment key={c.id}>
+                    <tr className="hover:bg-[#fafcfb]">
                     <td className="p-3">
                       <b className="block text-[#17202a]">{c.name}</b>
                       <small className="text-[#697586]">{c.category}</small>
@@ -439,21 +559,159 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                     </td>
                     <td className="p-3 text-right space-x-1">
                       <button
-                        onClick={() => onNotify(`'${c.name}' 편집 화면으로 이동합니다.`)}
-                        className="p-1.5 rounded text-[#697586] hover:bg-gray-100"
+                        type="button"
+                        onClick={() => openEditCase(c)}
+                        disabled={editingCaseId !== null || isSavingEdit}
+                        className="p-1.5 rounded text-[#697586] hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
                         title="수정"
+                        aria-label={`${c.name} 수정`}
                       >
                         <Edit2 size={14} />
                       </button>
                       <button
+                        type="button"
                         onClick={() => handleDeleteCase(c.id, c.name)}
-                        className="p-1.5 rounded text-[#bd3b35] hover:bg-[#fff0ef]"
+                        disabled={isSavingEdit}
+                        className="p-1.5 rounded text-[#bd3b35] hover:bg-[#fff0ef] disabled:cursor-not-allowed disabled:opacity-40"
                         title="삭제"
+                        aria-label={`${c.name} 삭제`}
                       >
                         <Trash2 size={14} />
                       </button>
                     </td>
-                  </tr>
+                    </tr>
+                    {editingCaseId === c.id && editCase && (
+                      <tr className="bg-[#f1faf6]">
+                      <td colSpan={5} className="p-4">
+                        <form
+                          aria-label={`${c.name} 수정`}
+                          className="space-y-4"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            void handleEditCase();
+                          }}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <h4 className="text-xs font-extrabold text-[#1a7f5a]">TestCase 수정</h4>
+                            {isSavingEdit && (
+                              <span role="status" className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#4e5a68]">
+                                <Loader2 size={13} className="animate-spin" /> 저장 중...
+                              </span>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
+                            <div>
+                              <label htmlFor={`edit-case-name-${c.id}`} className="mb-1 block text-[11px] font-bold text-[#4e5a68]">케이스 이름 *</label>
+                              <input
+                                ref={editCaseNameRef}
+                                id={`edit-case-name-${c.id}`}
+                                type="text"
+                                value={editCase.name}
+                                disabled={isSavingEdit}
+                                onChange={(event) => {
+                                  setEditCase({ ...editCase, name: event.target.value });
+                                  clearEditValidation('name');
+                                }}
+                                aria-invalid={editValidation?.field === 'name'}
+                                aria-describedby={editValidation?.field === 'name' ? `edit-case-validation-${c.id}` : undefined}
+                                className="w-full rounded-lg border border-[#dce1e6] bg-white p-2.5 outline-none focus:border-[#1a7f5a] disabled:opacity-60"
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor={`edit-case-category-${c.id}`} className="mb-1 block text-[11px] font-bold text-[#4e5a68]">카테고리 *</label>
+                              <input
+                                ref={editCaseCategoryRef}
+                                id={`edit-case-category-${c.id}`}
+                                type="text"
+                                value={editCase.category}
+                                disabled={isSavingEdit}
+                                onChange={(event) => {
+                                  setEditCase({ ...editCase, category: event.target.value });
+                                  clearEditValidation('category');
+                                }}
+                                aria-invalid={editValidation?.field === 'category'}
+                                aria-describedby={editValidation?.field === 'category' ? `edit-case-validation-${c.id}` : undefined}
+                                className="w-full rounded-lg border border-[#dce1e6] bg-white p-2.5 outline-none focus:border-[#1a7f5a] disabled:opacity-60"
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label htmlFor={`edit-case-input-${c.id}`} className="mb-1 block text-[11px] font-bold text-[#4e5a68]">입력 프롬프트 (Input) *</label>
+                              <textarea
+                                ref={editCaseInputRef}
+                                id={`edit-case-input-${c.id}`}
+                                rows={3}
+                                value={editCase.input}
+                                disabled={isSavingEdit}
+                                onChange={(event) => {
+                                  setEditCase({ ...editCase, input: event.target.value });
+                                  clearEditValidation('input');
+                                }}
+                                aria-invalid={editValidation?.field === 'input'}
+                                aria-describedby={editValidation?.field === 'input' ? `edit-case-validation-${c.id}` : undefined}
+                                className="w-full rounded-lg border border-[#dce1e6] bg-white p-2.5 outline-none focus:border-[#1a7f5a] disabled:opacity-60"
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor={`edit-case-action-${c.id}`} className="mb-1 block text-[11px] font-bold text-[#4e5a68]">기대 동작</label>
+                              <select
+                                id={`edit-case-action-${c.id}`}
+                                value={editCase.expectedAction}
+                                disabled={isSavingEdit}
+                                onChange={(event) => setEditCase({ ...editCase, expectedAction: event.target.value as 'ALLOW' | 'BLOCK' })}
+                                className="w-full rounded-lg border border-[#dce1e6] bg-white p-2.5 outline-none disabled:opacity-60"
+                              >
+                                <option value="BLOCK">BLOCK (차단)</option>
+                                <option value="ALLOW">ALLOW (허용)</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label htmlFor={`edit-case-severity-${c.id}`} className="mb-1 block text-[11px] font-bold text-[#4e5a68]">Severity (심각도)</label>
+                              <select
+                                id={`edit-case-severity-${c.id}`}
+                                value={editCase.severity}
+                                disabled={isSavingEdit}
+                                onChange={(event) => setEditCase({ ...editCase, severity: event.target.value as Severity })}
+                                className="w-full rounded-lg border border-[#dce1e6] bg-white p-2.5 outline-none disabled:opacity-60"
+                              >
+                                <option value="CRITICAL">CRITICAL</option>
+                                <option value="HIGH">HIGH</option>
+                                <option value="MEDIUM">MEDIUM</option>
+                                <option value="LOW">LOW</option>
+                              </select>
+                            </div>
+                          </div>
+                          {editValidation && (
+                            <div
+                              id={`edit-case-validation-${c.id}`}
+                              role="alert"
+                              className="rounded-lg border border-[#e7c47f] bg-[#fff7e8] px-3 py-2 text-xs font-semibold text-[#78501b]"
+                            >
+                              {editValidation.message}
+                            </div>
+                          )}
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={cancelEditCase}
+                              disabled={isSavingEdit}
+                              className="rounded-lg border border-[#dce1e6] px-4 py-2 text-xs font-bold text-[#4e5a68] hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              취소
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={isSavingEdit}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-[#1a7f5a] px-4 py-2 text-xs font-bold text-white hover:bg-[#146648] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {isSavingEdit && <Loader2 size={13} className="animate-spin" />}
+                              {isSavingEdit ? '저장 중...' : '변경사항 저장'}
+                            </button>
+                          </div>
+                        </form>
+                      </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
                 {!isCurrentSuiteLoaded && isLoading && (
                   <tr>
@@ -480,7 +738,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
           <button
             type="button"
             onClick={openDeleteConfirmation}
-            disabled={isDeleting}
+            disabled={isDeleting || isSavingEdit}
             className="justify-self-start inline-flex items-center gap-1.5 rounded-xl border border-[#e7aaa5] bg-[#fff0ef] px-4 py-2 text-xs font-bold text-[#a82f2a] hover:bg-[#ffe0de] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Trash2 size={14} /> 스위트 삭제
@@ -489,7 +747,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             <button
               type="button"
               onClick={() => setPage(Math.max(1, (visiblePageMeta?.number ?? page) - 1))}
-              disabled={!visiblePageMeta?.hasPrevious || isLoading}
+              disabled={!visiblePageMeta?.hasPrevious || isLoading || editingCaseId !== null}
               className="rounded-lg border border-[#dce1e6] px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
             >
               이전
@@ -501,7 +759,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                 key={item}
                 type="button"
                 onClick={() => setPage(item)}
-                disabled={isLoading}
+                disabled={isLoading || editingCaseId !== null}
                 aria-current={item === visiblePageMeta.number ? 'page' : undefined}
                 aria-label={`${item}페이지`}
                 className={`min-w-8 rounded-lg px-2 py-2 text-xs font-bold disabled:cursor-not-allowed ${item === visiblePageMeta.number ? 'bg-[#17202a] text-white' : 'text-[#4e5a68] hover:bg-[#eef1f4]'}`}
@@ -512,15 +770,17 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             <button
               type="button"
               onClick={() => setPage((visiblePageMeta?.number ?? page) + 1)}
-              disabled={!visiblePageMeta?.hasNext || isLoading}
+              disabled={!visiblePageMeta?.hasNext || isLoading || editingCaseId !== null}
               className="rounded-lg border border-[#dce1e6] px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
             >
               다음
             </button>
           </nav>
           <button
-            onClick={onClose}
-            className="justify-self-end px-4 py-2 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545]"
+            type="button"
+            onClick={closeSuiteDetail}
+            disabled={isSavingEdit}
+            className="justify-self-end px-4 py-2 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545] disabled:cursor-not-allowed disabled:opacity-50"
           >
             닫기
           </button>
