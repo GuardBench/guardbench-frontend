@@ -86,7 +86,7 @@ Suite 생성은 다음 두 정상 흐름을 지원한다.
 1. `testCases`를 생략하거나 `null`, 빈 배열로 보내 빈 Suite를 먼저 생성한다.
 2. 초기 TestCase를 함께 보내 Suite와 원자적으로 생성한다. 초기 TestCase 하나라도 validation에 실패하면 부분 생성 없이 전체 요청이 실패한다.
 
-현재 MVP 화면에서는 Suite 이름만으로 생성할 수 있고, 선택한 초기 TestCase는 단건 입력 또는 JSON 배열 붙여넣기·UTF-8 CSV 업로드로 최대 1,000건까지 같은 요청에 포함한다. 생성 후 TestCase 추가·수정은 공통 TestCase 관리 흐름을 사용한다.
+현재 MVP 화면에서는 Suite 이름만으로 생성할 수 있고, 선택한 초기 TestCase는 단건 입력 또는 JSON 배열 직접 입력·UTF-8 JSON 파일·UTF-8 CSV 파일 업로드로 최대 1,000건까지 같은 요청에 포함한다. JSON 파일은 선택 즉시 기존 JSON parser로 검증하고 편집 가능한 입력과 미리보기에 반영한다. 생성 후 TestCase 추가·수정은 공통 TestCase 관리 흐름을 사용한다.
 
 ### 3.3 TestCase 조회·변경
 

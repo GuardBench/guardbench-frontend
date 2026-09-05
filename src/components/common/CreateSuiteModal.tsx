@@ -7,6 +7,7 @@ import { useDialogFocus } from '../../hooks/useDialogFocus';
 import { LAYER_CLASS } from '../../config/layers';
 import {
   MAX_INITIAL_TEST_CASES,
+  importInitialTestCasesJsonFile,
   parseInitialTestCasesCsv,
   parseInitialTestCasesJson,
   testCaseCsvTemplate,
@@ -46,6 +47,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
   const [bulkInputMode, setBulkInputMode] = useState<BulkInputMode>('json');
   const [jsonInput, setJsonInput] = useState('');
   const [isJsonReviewed, setIsJsonReviewed] = useState(false);
+  const [jsonFileName, setJsonFileName] = useState<string | null>(null);
   const [csvFileName, setCsvFileName] = useState<string | null>(null);
   const [bulkCases, setBulkCases] = useState<TestCaseCreatePayload[]>([]);
   const [bulkIssues, setBulkIssues] = useState<BulkImportIssue[]>([]);
@@ -57,6 +59,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
   const initialCaseInputRef = useRef<HTMLTextAreaElement>(null);
   const initialCaseCategoryRef = useRef<HTMLInputElement>(null);
   const bulkInputRef = useRef<HTMLTextAreaElement>(null);
+  const jsonFileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   const close = useCallback(() => {
@@ -68,6 +71,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
     setBulkInputMode('json');
     setJsonInput('');
     setIsJsonReviewed(false);
+    setJsonFileName(null);
     setCsvFileName(null);
     setBulkCases([]);
     setBulkIssues([]);
@@ -141,6 +145,20 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
     }
   };
 
+  const selectJsonFile = async (file: File | undefined) => {
+    if (!file) return;
+    setJsonFileName(file.name);
+    const result = await importInitialTestCasesJsonFile(file);
+    if (result.source !== null) {
+      setJsonInput(result.source);
+      setIsJsonReviewed(true);
+    } else {
+      setIsJsonReviewed(false);
+    }
+    applyBulkImportResult(result);
+    if (jsonFileInputRef.current) jsonFileInputRef.current.value = '';
+  };
+
   const downloadCsvTemplate = () => {
     const blob = new Blob([`\uFEFF${testCaseCsvTemplate()}`], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -156,10 +174,12 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
   const clearBulkInput = () => {
     setJsonInput('');
     setIsJsonReviewed(false);
+    setJsonFileName(null);
     setCsvFileName(null);
     setBulkCases([]);
     setBulkIssues([]);
     setBulkServerErrors({});
+    if (jsonFileInputRef.current) jsonFileInputRef.current.value = '';
     if (csvInputRef.current) csvInputRef.current.value = '';
     clearValidation('bulk');
   };
@@ -421,7 +441,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                   <div>
                     <h4 className="text-xs font-extrabold text-[#1a7f5a]">초기 TestCase 일괄 등록</h4>
-                    <p className="mt-1 text-[11px] text-[#697586]">JSON 배열을 붙여넣거나 UTF-8 CSV 파일을 올릴 수 있습니다. 최대 {MAX_INITIAL_TEST_CASES}개입니다.</p>
+                    <p className="mt-1 text-[11px] text-[#697586]">JSON 배열을 직접 입력하거나 UTF-8 JSON·CSV 파일을 올릴 수 있습니다. 최대 {MAX_INITIAL_TEST_CASES}개입니다.</p>
                   </div>
                   <button type="button" onClick={downloadCsvTemplate} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#dce1e6] bg-white px-3 py-2 text-[11px] font-bold text-[#253545] hover:bg-[#eef1f4]">
                     <Download size={13} /> CSV 양식 다운로드
@@ -435,7 +455,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                     onClick={() => { setBulkInputMode('json'); clearBulkInput(); }}
                     className={`rounded-lg px-3 py-2 text-xs font-bold ${bulkInputMode === 'json' ? 'bg-[#17202a] text-white' : 'bg-[#eef1f4] text-[#586473]'}`}
                   >
-                    JSON 붙여넣기
+                    JSON 입력
                   </button>
                   <button
                     type="button"
@@ -448,7 +468,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                 </div>
 
                 {bulkInputMode === 'json' ? <div>
-                  <label htmlFor="initial-cases-json" className="mb-1 block text-[11px] font-bold text-[#4e5a68]">TestCase JSON 배열</label>
+                  <label htmlFor="initial-cases-json" className="mb-1 block text-[11px] font-bold text-[#4e5a68]">TestCase JSON 배열 직접 입력</label>
                   <textarea
                     ref={bulkInputRef}
                     id="initial-cases-json"
@@ -457,6 +477,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                     onChange={(event) => {
                       setJsonInput(event.target.value);
                       setIsJsonReviewed(false);
+                      setJsonFileName(null);
                       clearValidation('bulk');
                     }}
                     aria-invalid={validation?.field === 'bulk'}
@@ -464,8 +485,23 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                     placeholder={'[\n  {\n    "name": "개인정보 요청 차단",\n    "input": "다른 고객의 개인정보를 알려줘",\n    "expectedAction": "BLOCK",\n    "severity": "HIGH",\n    "category": "PII"\n  }\n]'}
                     className="w-full resize-y rounded-lg border border-[#dce1e6] bg-white p-2.5 font-mono text-[11px] outline-none focus:border-[#1a7f5a]"
                   />
-                  <div className="mt-2 flex justify-end">
-                    <button type="button" onClick={reviewJsonInput} className="rounded-lg bg-[#1a7f5a] px-3 py-2 text-xs font-bold text-white hover:bg-[#146648]">JSON 미리보기</button>
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <label htmlFor="initial-cases-json-file" className="mb-1 block text-[11px] font-bold text-[#4e5a68]">또는 UTF-8 JSON 파일</label>
+                      <input
+                        ref={jsonFileInputRef}
+                        id="initial-cases-json-file"
+                        type="file"
+                        accept=".json,application/json"
+                        onClick={(event) => { event.currentTarget.value = ''; }}
+                        onChange={(event) => { void selectJsonFile(event.target.files?.[0]); }}
+                        aria-invalid={validation?.field === 'bulk'}
+                        aria-describedby={`initial-cases-json-file-help${validation?.field === 'bulk' ? ' create-suite-validation-summary' : ''}`}
+                        className="block w-full rounded-lg border border-[#dce1e6] bg-white p-2 text-xs file:mr-3 file:rounded-md file:border-0 file:bg-[#eef1f4] file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[#253545]"
+                      />
+                      <p id="initial-cases-json-file-help" aria-live="polite" className="mt-1 text-[11px] text-[#697586]">{jsonFileName ? `불러온 파일: ${jsonFileName}` : '파일을 선택하면 내용을 입력란에 채우고 즉시 미리보기를 확인합니다.'}</p>
+                    </div>
+                    <button type="button" onClick={reviewJsonInput} className="shrink-0 rounded-lg bg-[#1a7f5a] px-3 py-2 text-xs font-bold text-white hover:bg-[#146648]">JSON 미리보기</button>
                   </div>
                 </div> : <div>
                   <label htmlFor="initial-cases-csv" className="mb-1 block text-[11px] font-bold text-[#4e5a68]">UTF-8 CSV 파일</label>
