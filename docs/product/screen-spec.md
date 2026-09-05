@@ -34,11 +34,10 @@
 | 실행 이력 | `RunsView` | Sidebar | Run lifecycle/outcome/Gate 조회와 상세 진입 |
 | 결과 상세 | `ResultDetailView` + `RegressionSummaryEntry` | Run 행 / 생성 완료 | 현재 Run 결과를 이해하고 Regression 상세로 진입 |
 | Regression 상세 | `RegressionDetailView` | Result Detail의 `회귀 상세 보기` | comparable Run 선택과 Regression 변화 상세 분석 |
-| 아키텍처 | `ArchitectureView` | Sidebar | 정적 설명 자료 |
 
-현재는 `App`의 local state로 화면과 선택 Run을 관리하며 URL route가 없다. 새로고침, browser back/forward와 직접 URL 진입은 화면 상태를 복원하지 않는다. (`AS-IS`)
+현재 `App`은 browser History API와 pathname 기반 route로 화면 및 선택 Run을 관리한다. 알려지지 않은 정적 경로와 제거된 `/architecture`는 Dashboard로 해석한다. (`AS-IS`)
 
-Regression Detail도 기존 navigation 구조에 맞춰 `regression` local view로 분리한다. 이 화면 분리를 위해 새 routing library를 도입하지 않는다. 라우팅 방식, URL 구조와 filter/page 보존은 `미결정`이다. 다만 어떤 방식을 선택해도 실제 Run ID와 화면 장식 ID를 분리하고, 화면 이동 시 이전 요청과 Polling을 정리해야 한다. (`TO-BE`)
+Regression Detail은 `/runs/{runId}/regression` 경로를 사용하며 별도 routing library는 도입하지 않는다. filter/page의 URL 보존은 `미결정`이다. 실제 Run ID와 화면 장식 ID를 분리하고 화면 이동 시 이전 요청과 Polling을 정리한다. (`AS-IS`)
 
 ## 3. 공통 화면 상태
 
@@ -347,13 +346,7 @@ Regression Detail은 기존 `RegressionComparisonSection`과 `regressionService`
 - Quality Gate와 Regression을 하나의 PASS/FAIL로 합치지 않는다.
 - Regression Detail은 Result Detail의 drill-down이므로 Sidebar에 별도 1차 메뉴를 추가하지 않아도 된다.
 
-## 10. 아키텍처 화면
-
-현재 정적 구조와 규칙을 보여주는 데모 화면이며 API 호출이나 사용자 입력이 없다. (`AS-IS`)
-
-최종 사용자 기능으로 유지할지, 개발자 문서로 이동할지와 최신 domain 구조를 어떤 수준으로 표시할지는 `미결정`이다. 정적 자료를 backend의 실시간 상태처럼 표현하지 않는다.
-
-## 11. Polling
+## 10. Polling
 
 현재 `useLiveRunProgress`는 Run 상세를 즉시 조회하고 고정 간격으로 반복하며 `FINISHED`에서 중단한다. 화면 연결 범위와 abort/error 복구는 불완전하다. (`AS-IS`)
 
@@ -368,7 +361,7 @@ Regression Detail은 기존 `RegressionComparisonSection`과 `regressionService`
 
 interval, backoff, background tab과 최대 지속 시간은 `미결정`이다.
 
-## 12. 화면별 구현 이슈 추적
+## 11. 화면별 구현 이슈 추적
 
 | 범위 | 이슈 | 문서 기준 |
 | --- | --- | --- |
@@ -379,7 +372,7 @@ interval, backoff, background tab과 최대 지속 시간은 `미결정`이다.
 | Evaluator 분석 | #29 완료 | §8.3 |
 | API 빈 결과·오류·mock | #19 | §3 및 API 연동 계약 |
 
-## 13. 검증 근거
+## 12. 검증 근거
 
 - [`../api/openapi.yaml`](../api/openapi.yaml)
 - [`../contracts/api-integration.md`](../contracts/api-integration.md)
@@ -393,7 +386,6 @@ interval, backoff, background tab과 최대 지속 시간은 `미결정`이다.
 - `src/services/`
 - `src/hooks/useLiveRunProgress.ts`
 - `src/types/index.ts`
-- `src/mocks/mockData.ts`
 - GitHub Issues #19, #27, #28, #29, #30, #33, #72
 - GitHub PR #71, #88
 

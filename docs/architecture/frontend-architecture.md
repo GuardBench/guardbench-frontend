@@ -53,7 +53,7 @@ View / Form
 - `services`가 endpoint 함수와 수동 DTO를 소유하고 `apiClient`가 base URL, fetch와 envelope unwrap을 담당한다.
 - `useLiveRunProgress`가 Run 상세 Polling, abort, transient/terminal 오류와 자동 재시도 상한을 처리한다.
 - Suite/TestCase, Run 생성·목록·상세·결과·metrics 화면은 API의 data/empty/error/stale 상태를 구분한다.
-- `mockData`는 Architecture의 정적 설명 자료에만 남아 있다. API 화면은 실패를 mock 성공으로 대체하지 않는다.
+- 최종 사용자 화면 전용 mock data는 두지 않으며 API 화면은 실패를 mock 성공으로 대체하지 않는다.
 
 현재 코드는 최신 OpenAPI의 필수 model을 포함한 단일 Application Target,
 Evaluator 결과와 확정 Quality Gate metrics를 사용한다. comparison DTO도 확정됐지만 선택 UI는 #30의
@@ -299,7 +299,7 @@ comparability 규칙을 프론트에서 복제하거나 같은 Suite라는 이�
 - 실제 API mode와 demo mode를 runtime config에서 명시적으로 구분한다.
 - API data와 mock item을 같은 collection에 섞지 않는다.
 - API 실패·empty를 mock 성공으로 대체하지 않는다.
-- 정적 대시보드·아키텍처 자료에는 demo 출처를 표시한다.
+- 정적 대시보드 자료에는 demo 출처를 표시한다. 아키텍처 설명은 저장소 문서에서 관리한다.
 - test fixture는 OpenAPI의 required/nullable/error 조합을 따라야 하지만 contract test를 대신하지 않는다.
 - legacy Baseline/Candidate fixture는 새 TestRun 목표 model의 fixture로 재사용하지 않는다.
 

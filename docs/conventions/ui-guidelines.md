@@ -33,7 +33,7 @@
 | status | lifecycle, outcome, Gate, assertion 축별 pill과 text | 공통 label 확장 시 중복 방지 필요 |
 | form | Target/Profile field, label, required marker, client/server validation | 접근 가능한 error summary 보완 가능 |
 | modal | 공통 focus trap, Escape, trigger 복귀와 layer 정책 | native widget과 입력 손실 정책 지속 검증 |
-| demo | 상단 data mode 표식 | 정적 Architecture 자료 범위를 더 명확히 할 수 있음 |
+| demo | 상단 data mode 표식 | 실제 API 결과와 정적 Dashboard 자료의 출처 구분 |
 
 현재 UI는 필수 Application model, 최신 TestRun 생성·결과 DTO와 확정 Quality Gate metrics를 사용한다.
 comparison DTO도 확정됐지만 전용 UI는 #30의 선택 구현 범위다.

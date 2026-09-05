@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import type { ViewType } from '../../types';
-import { LayoutDashboard, Layers, PlayCircle, History, CheckCircle2, Network, Shield, X } from 'lucide-react';
+import { LayoutDashboard, Layers, PlayCircle, History, CheckCircle2, Shield, X } from 'lucide-react';
 import { LAYER_CLASS } from '../../config/layers';
 
 interface SidebarProps {
@@ -84,23 +84,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onSelectView, isO
               </button>
             );
           })}
-        </nav>
-
-        <div className="text-[#647686] text-[10px] font-extrabold tracking-wider px-3 mt-6 mb-2">SYSTEM</div>
-        <nav className="space-y-1">
-          <button
-            onClick={() => onSelectView('architecture')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left text-sm font-semibold transition-colors ${
-              currentView === 'architecture'
-                ? 'bg-[#20303c] text-white shadow-[inset_3px_0_#2cba83]'
-                : 'text-[#9caebb] hover:bg-[#192532] hover:text-white'
-            }`}
-          >
-            <span className={currentView === 'architecture' ? 'text-[#2cba83]' : 'text-[#697586]'}>
-              <Network size={18} />
-            </span>
-            아키텍처
-          </button>
         </nav>
 
         <div className="mt-auto border border-[#253540] rounded-xl p-3.5 text-[#8fa0ad] text-[11px] leading-relaxed">

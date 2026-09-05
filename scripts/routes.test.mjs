@@ -15,10 +15,15 @@ const {
 } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 
 test('valid routes retain their paths and exact Run IDs', () => {
-  for (const path of ['/', '/suites', '/runs/new', '/runs', '/architecture', '/runs/901', '/runs/901/regression', '/runs/9223372036854775807']) {
+  for (const path of ['/', '/suites', '/runs/new', '/runs', '/runs/901', '/runs/901/regression', '/runs/9223372036854775807']) {
     assert.equal(routePath(parseRoute(path)), path);
   }
   assert.deepEqual(parseRoute('/runs/%39%30%31'), { view: 'result', runId: '901' });
+});
+
+test('the removed architecture route falls back to the dashboard', () => {
+  assert.deepEqual(parseRoute('/architecture'), { view: 'dashboard' });
+  assert.equal(routePath(parseRoute('/architecture')), '/');
 });
 
 test('invalid IDs cannot reach result or regression views', () => {

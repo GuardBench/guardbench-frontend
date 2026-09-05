@@ -81,7 +81,7 @@ Quality Gate에는 서로 다른 두 종류의 `null`이 있다.
 | 비교 후보 | Regression Detail | `GET /api/v1/test-runs/{testRunId}/comparable-runs` | Backend가 반환한 candidate만 표시하고 프론트에서 비교 가능 조건을 재구현하지 않는다. |
 | 저장 결과 비교 | Regression Detail | `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}` | 서버 summary count와 case별 comparability/change type을 그대로 사용하고 변화 case를 우선 탐색한다. |
 
-대시보드와 아키텍처 화면에는 전용 API가 없다. 정적 또는 mock 자료를 실제 서버 집계나 최신 도메인 상태로 표현하지 않는다.
+대시보드에는 전용 API가 없다. 정적 또는 mock 자료를 실제 서버 집계나 최신 도메인 상태로 표현하지 않는다. 내부 아키텍처 설명은 최종 사용자 화면이 아닌 저장소 문서에서 관리한다.
 
 ## 4. 공통 API 경계
 
