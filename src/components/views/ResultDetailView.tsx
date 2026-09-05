@@ -26,6 +26,12 @@ import {
   qualityGatePercentageLabels,
   qualityGateTitle,
 } from './qualityGatePresentation';
+import {
+  deriveResultListPresentation,
+  EMPTY_RESULT_FILTERS,
+  type OutcomeFilter,
+  type ResultFilters,
+} from './resultFilterPresentation';
 
 interface ResultDetailViewProps {
   selectedRunId?: string;
@@ -50,25 +56,6 @@ const severityPresentation: Record<TestRunResultListItemRes['severity'], { label
 const errorStageLabel = (stage: NonNullable<TestRunResultListItemRes['error']>['stage']) => (
   stage === 'APPLICATION_TARGET' ? '대상 애플리케이션 실행' : '판정 처리'
 );
-
-type OutcomeFilter = 'ALL' | EvaluationOutcome;
-
-type ResultFilters = {
-  name: string;
-  input: string;
-  category: string;
-  expectedAction: '' | 'ALLOW' | 'BLOCK';
-  severity: '' | TestRunResultListItemRes['severity'];
-  executionStatus: '' | TestRunResultListItemRes['executionStatus'];
-  assertionStatus: '' | 'PASS' | 'FAIL';
-  evaluationOutcome: OutcomeFilter;
-  sort: '' | 'severity,desc' | 'severity,asc' | 'name,asc' | 'name,desc';
-};
-
-const EMPTY_RESULT_FILTERS: ResultFilters = {
-  name: '', input: '', category: '', expectedAction: '', severity: '', executionStatus: '',
-  assertionStatus: '', evaluationOutcome: 'ALL', sort: '',
-};
 
 const ATTENTION_TYPES: Array<{ type: TestRunResultAttentionType; label: string; tone: string }> = [
   { type: 'FALSE_NEGATIVE', label: EVALUATION_OUTCOME_PRESENTATION.FALSE_NEGATIVE.label, tone: 'border-[#f4c7c3] bg-[#fff0ef] text-[#a8322d]' },
@@ -221,6 +208,13 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
   const hasLoadedResults = loadedResultsQueryKey === resultQueryKey;
   const visibleResults = hasLoadedResults ? results : [];
   const visiblePageMeta = hasLoadedResults ? pageMeta : null;
+  const resultListPresentation = deriveResultListPresentation({
+    filters,
+    attentionTypeCount: attentionTypes.length,
+    pageTotalElements: visiblePageMeta?.totalElements ?? null,
+    facetAllResults: visiblePageMeta ? attentionFacets?.allResults ?? null : null,
+    testCaseCount: detail?.testCaseCount ?? null,
+  });
 
   const selectAttentionTypes = useCallback((nextTypes: TestRunResultAttentionType[]) => {
     setAttentionTypes(nextTypes);
@@ -500,13 +494,13 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
           <button type="button" onClick={() => { setFilters(EMPTY_RESULT_FILTERS); setResultPage(1); }} className="mt-3 font-bold text-[#43515d] underline">고급 필터 초기화</button>
         </details>
       </div>
-      {attentionTypes.length === 0 && visiblePageMeta && detail && visiblePageMeta.totalElements !== detail.testCaseCount && <div className="border-b border-[#f0ddb0] bg-[#fff7e8] px-5 py-3 text-xs text-[#78501b]">고정 Snapshot 수({detail.testCaseCount})와 결과 수({visiblePageMeta.totalElements})가 일치하지 않습니다. 정상 빈 결과로 처리하지 않습니다.</div>}
+      {resultListPresentation.countMismatch && <div className="border-b border-[#f0ddb0] bg-[#fff7e8] px-5 py-3 text-xs text-[#78501b]">고정 Snapshot {resultListPresentation.countMismatch.testCaseCount}건과 조회된 전체 결과 {resultListPresentation.countMismatch.resultCount}건의 수가 일치하지 않습니다. 결과 데이터를 다시 확인해 주세요.</div>}
       {notFinished
         ? <div className="p-8 text-center text-sm text-[#697586]">실행 완료 후 결과가 표시됩니다.</div>
         : !hasLoadedResults
           ? (resultsLoading ? <div className="p-8 text-center text-sm text-[#697586]">결과를 불러오는 중입니다.</div> : null)
           : visibleResults.length === 0
-            ? <div className="p-8 text-center text-sm text-[#697586]">{attentionTypes.length > 0 ? '선택한 확인 필요 유형에 해당하는 결과가 없습니다.' : filters.evaluationOutcome !== 'ALL' ? '이 판정 유형에 해당하는 결과가 없습니다.' : visiblePageMeta && detail && visiblePageMeta.totalElements !== detail.testCaseCount ? '결과 수 불일치를 확인해 주세요.' : '표시할 결과가 없습니다.'}</div>
+            ? <div className="p-8 text-center text-sm text-[#697586]">{resultListPresentation.emptyMessage}</div>
             : <>
               <div className="divide-y divide-[#e5e9ee] sm:hidden">{visibleResults.map((item) => <div key={item.testCaseSnapshotId} className="space-y-4 p-5">
                 <div className="flex items-start justify-between gap-3"><div><h3 className="text-sm font-black text-[#17202a]">{item.name}</h3><p className="mt-1 text-[11px] text-[#697586]">{item.category} · Snapshot #{item.testCaseSnapshotId}</p></div><span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${severityPresentation[item.severity].className}`}>{severityPresentation[item.severity].label}</span></div>

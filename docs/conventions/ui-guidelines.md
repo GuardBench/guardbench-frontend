@@ -71,7 +71,7 @@ Polling interval, 장시간 실행 안내와 background tab 표현은 `미결정
 
 - `404 TEST_SUITE_NOT_FOUND`를 “TestCase 없음”으로 표시하지 않는다.
 - `TEST_RUN_NOT_FINISHED`를 “결과 없음”으로 표시하지 않는다.
-- FINISHED Run의 filter 없는 result total이 고정 testCaseCount와 다르면 정상 empty로 단정하지 않는다.
+- FINISHED Run의 일반 filter 없는 전체 result total이 고정 testCaseCount와 다르면 정상 empty로 단정하지 않는다. 확인 필요 유형이 선택된 경우에는 해당 선택을 제외한 `facets.allResults`를 사용한다.
 - empty를 mock item으로 채우지 않는다.
 
 ## 5. 오류, stale과 복구
