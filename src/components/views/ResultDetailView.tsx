@@ -22,6 +22,9 @@ import { StatusPill } from '../common/StatusPill';
 interface ResultDetailViewProps {
   selectedRunId?: string;
   onGoNewRun: () => void;
+  onRunFinished?: (runId: string) => boolean;
+  onRefreshRegression?: () => void;
+  regressionRefreshing?: boolean;
   regressionSummary?: React.ReactNode;
 }
 
@@ -142,13 +145,14 @@ const SummaryMetric = ({ label, value, tone = 'neutral', onClick }: {
     warning: 'text-[#9a5c0a]',
     danger: 'text-[#a8322d]',
   }[tone];
+  const cardClassName = 'flex min-h-[78px] h-full w-full flex-col justify-center rounded-xl border border-[#e5e9ee] bg-white/90 p-3 text-left';
   const content = <>
-    <dt className="text-[11px] font-bold text-[#697586]">{label}</dt>
-    <dd className={`mt-1 text-2xl font-black ${toneClass}`}>{value ?? '—'}{value !== null && <span className="ml-0.5 text-xs font-bold">건</span>}</dd>
+    <span className="text-[11px] font-bold text-[#697586]">{label}</span>
+    <strong className={`mt-1 text-2xl font-black ${toneClass}`}>{value ?? '—'}{value !== null && <span className="ml-0.5 text-xs font-bold">건</span>}</strong>
   </>;
   return onClick
-    ? <button type="button" onClick={onClick} className="rounded-xl border border-[#e5e9ee] bg-white/90 p-3 text-left transition hover:border-[#b8c2ca] focus:outline-none focus:ring-2 focus:ring-[#17202a]">{content}</button>
-    : <div className="rounded-xl border border-[#e5e9ee] bg-white/90 p-3">{content}</div>;
+    ? <button type="button" onClick={onClick} className={`${cardClassName} appearance-none transition hover:border-[#b8c2ca] focus:outline-none focus:ring-2 focus:ring-[#17202a]`}>{content}</button>
+    : <div className={cardClassName}>{content}</div>;
 };
 
 const MatrixCell = ({ outcome, count, rate }: {
@@ -176,7 +180,14 @@ const ResultMeaning = ({ item }: { item: TestRunResultListItemRes }) => {
     ? <><b className={`block text-sm ${presentation.labelClassName}`}>{presentation.label} <span className="text-[10px] text-[#697586]">{presentation.shortCode}</span></b><span className="mt-1 block text-[#586473]">{presentation.transition}</span></>
     : <><b className="block text-sm text-[#586473]">{attention?.label ?? '판정 미완료'}</b><span className="mt-1 block text-[#697586]">{executionLabel(item.executionStatus)}로 판정을 확인할 수 없습니다.</span></>;
 };
-export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunId, onGoNewRun, regressionSummary }) => {
+export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
+  selectedRunId,
+  onGoNewRun,
+  onRunFinished,
+  onRefreshRegression,
+  regressionRefreshing = false,
+  regressionSummary,
+}) => {
   const [results, setResults] = useState<TestRunResultListItemRes[]>([]);
   const [resultPage, setResultPage] = useState(1);
   const [filters, setFilters] = useState<ResultFilters>(EMPTY_RESULT_FILTERS);
@@ -198,14 +209,24 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
   const [reloadToken, setReloadToken] = useState(0);
   const raceRetryCountRef = useRef(0);
   const raceRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notifiedFinishedRunIdRef = useRef<string | null>(null);
   const {
     detail,
     error: detailError,
     stale: detailStale,
     autoRefreshStopped,
     isLoading: detailLoading,
+    isRefreshing: detailRefreshing,
     refresh: refreshDetail,
   } = useLiveRunProgress({ runId: selectedRunId ?? null });
+
+  useEffect(() => {
+    if (!selectedRunId || detail?.status !== 'FINISHED' || String(detail.id) !== selectedRunId) return;
+    if (notifiedFinishedRunIdRef.current === selectedRunId) return;
+    const regressionRefreshed = onRunFinished?.(selectedRunId) ?? false;
+    if (regressionRefreshed) notifiedFinishedRunIdRef.current = selectedRunId;
+  }, [detail?.id, detail?.status, onRunFinished, selectedRunId]);
+
   const closeResultDialog = useCallback(() => setSelected(null), []);
   const resultDialogRef = useDialogFocus({ isOpen: selected !== null, onClose: closeResultDialog });
   const notFinishedRace = notFinishedRaceRunId === selectedRunId;
@@ -265,6 +286,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
     setRaceRecoveryExhaustedRunId(null);
     refreshDetail();
     setReloadToken((value) => value + 1);
+    onRefreshRegression?.();
   };
 
   useEffect(() => {
@@ -356,6 +378,11 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
   }, [selectedRunId, reloadToken, detail?.status, recoverNotFinishedRace]);
 
   const notFinished = detail?.status !== 'FINISHED' || notFinishedRace;
+  const refreshInProgress = detailLoading
+    || detailRefreshing
+    || resultsLoading
+    || metricsLoading
+    || regressionRefreshing;
 
   if (!detailLoading && detailError && !detail) {
     return <section className="space-y-6 animate-rise">
@@ -410,7 +437,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
         <p className="mt-1.5 text-sm text-[#697586]">Suite #{detail?.testSuiteId ?? '—'} · {detail?.testCaseCount ?? 0} snapshots</p>
       </div>
       <div className="flex gap-2">
-        <button type="button" onClick={refreshAll} disabled={detailLoading} className="inline-flex items-center gap-2 rounded-xl border border-[#e5e9ee] bg-white px-4 py-2 text-xs font-bold disabled:opacity-50"><RefreshCw size={14} />새로고침</button>
+        <button type="button" onClick={refreshAll} disabled={refreshInProgress} aria-busy={refreshInProgress} className="inline-flex items-center gap-2 rounded-xl border border-[#e5e9ee] bg-white px-4 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"><RefreshCw size={14} className={refreshInProgress ? 'animate-spin' : undefined} />{refreshInProgress ? '새로고침 중' : '새로고침'}</button>
         <button type="button" onClick={onGoNewRun} className="rounded-xl bg-[#17202a] px-4 py-2 text-xs font-bold text-white">다시 실행</button>
       </div>
     </header>
@@ -441,12 +468,12 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({ selectedRunI
               ? '평가 가능한 Assertion이 없어 Quality Gate 지표를 계산하지 않았습니다.'
               : detail.qualityGate ? 'Quality Gate 지표가 제공되지 않았습니다.' : '실행 종료 후 Quality Gate 지표가 결정됩니다.'}</p>}
         </div>
-        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
+        <div aria-label="판정 요약" className="grid grid-cols-2 items-stretch gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
           <SummaryMetric label="정상 판정" value={normalCount} tone="success" />
           <SummaryMetric label="차단 누락" value={attentionFacets?.attentionTypes.FALSE_NEGATIVE ?? visibleEvaluatorMetrics?.falseNegative ?? null} tone="danger" onClick={() => selectAttentionTypes(['FALSE_NEGATIVE'])} />
           <SummaryMetric label="과차단" value={attentionFacets?.attentionTypes.FALSE_POSITIVE ?? visibleEvaluatorMetrics?.falsePositive ?? null} tone="warning" onClick={() => selectAttentionTypes(['FALSE_POSITIVE'])} />
           <SummaryMetric label="판정 미완료" value={incompleteCount} onClick={() => selectAttentionTypes(['EXECUTION_FAILED', 'TIMED_OUT', 'NOT_STARTED'])} />
-        </dl>
+        </div>
       </div>
       <p className="border-t border-black/10 px-6 py-3 text-[11px] text-[#697586] lg:px-7">Quality Gate 상태와 지표는 서버 판정을 그대로 표시하며, 현재 결과 페이지에서 다시 계산하지 않습니다.</p>
     </article>

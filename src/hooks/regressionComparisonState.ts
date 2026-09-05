@@ -21,3 +21,19 @@ export function shouldLoadSummary(
 export function preserveSelectedCandidate(selectedId: string, candidateIds: string[]) {
   return candidateIds.includes(selectedId) ? selectedId : (candidateIds[0] ?? '');
 }
+
+export function shouldRefreshRegressionCandidates(
+  candidateCount: number,
+  candidatesFailed: boolean,
+  notFinished: boolean,
+) {
+  return candidateCount === 0 || candidatesFailed || notFinished;
+}
+
+export function shouldRefreshRegressionAfterRunFinished(
+  currentRunId: string,
+  finishedRunId: string,
+  notFinished: boolean,
+) {
+  return Boolean(currentRunId) && currentRunId === finishedRunId && notFinished;
+}

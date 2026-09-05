@@ -71,3 +71,7 @@ export const routeForView = (view: ViewType, selectedRunId: string): AppRoute =>
   if (view === 'regression') return selectedRunId ? { view, runId: selectedRunId } : { view: 'runs' };
   return { view };
 };
+
+export const selectedRunIdForRoute = (route: AppRoute, rememberedRunId: string) => (
+  'runId' in route ? route.runId : rememberedRunId
+);

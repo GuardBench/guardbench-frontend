@@ -7,7 +7,12 @@ const source = readFileSync(new URL('../src/routing/routes.ts', import.meta.url)
 const { outputText } = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2023 },
 });
-const { parseRoute, routePath } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+const {
+  parseRoute,
+  routeForView,
+  routePath,
+  selectedRunIdForRoute,
+} = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 
 test('valid routes retain their paths and exact Run IDs', () => {
   for (const path of ['/', '/suites', '/runs/new', '/runs', '/architecture', '/runs/901', '/runs/901/regression', '/runs/9223372036854775807']) {
@@ -28,4 +33,20 @@ test('invalid IDs cannot reach result or regression views', () => {
       assert.equal('runId' in route, false);
     }
   }
+});
+
+test('the last selected Run remains available after visiting another view', () => {
+  const resultRoute = parseRoute('/runs/901');
+  const rememberedRunId = selectedRunIdForRoute(resultRoute, '');
+  assert.equal(rememberedRunId, '901');
+
+  const dashboardRoute = parseRoute('/');
+  const selectedRunId = selectedRunIdForRoute(dashboardRoute, rememberedRunId);
+  assert.equal(selectedRunId, '901');
+  assert.deepEqual(routeForView('result', selectedRunId), { view: 'result', runId: '901' });
+});
+
+test('a newly selected Run replaces the remembered Run', () => {
+  assert.equal(selectedRunIdForRoute(parseRoute('/runs/902/regression'), '901'), '902');
+  assert.deepEqual(routeForView('result', ''), { view: 'runs' });
 });

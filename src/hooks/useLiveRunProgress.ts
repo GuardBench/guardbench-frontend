@@ -114,6 +114,7 @@ export function useLiveRunProgress({
     stale,
     autoRefreshStopped: pollingState === 'TERMINAL_ERROR',
     isLoading: Boolean(runId) && detail === null && pollingState !== 'TERMINAL_ERROR',
+    isRefreshing: Boolean(runId) && detail !== null && pollingState === 'IN_FLIGHT',
     refresh,
   };
 }

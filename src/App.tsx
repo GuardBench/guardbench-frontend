@@ -12,20 +12,37 @@ import { RegressionDetailView } from './components/views/RegressionDetailView';
 import { ArchitectureView } from './components/views/ArchitectureView';
 import { runtimeConfig } from './config/runtimeConfig';
 import { LAYER_CLASS } from './config/layers';
-import { parseRoute, routeForView, routePath, type AppRoute } from './routing/routes';
+import {
+  parseRoute,
+  routeForView,
+  routePath,
+  selectedRunIdForRoute,
+  type AppRoute,
+} from './routing/routes';
 import { useRegressionComparison } from './hooks/useRegressionComparison';
+import { shouldRefreshRegressionAfterRunFinished } from './hooks/regressionComparisonState';
 
 export function App() {
   const [route, setRoute] = useState<AppRoute>(() => parseRoute(window.location.pathname));
+  const [rememberedRunId, setRememberedRunId] = useState(() => selectedRunIdForRoute(route, ''));
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const currentView = route.view;
   const layoutView = route.view === 'invalid-run' ? route.sourceView : route.view;
-  const selectedRunId = 'runId' in route ? route.runId : '';
+  const selectedRunId = selectedRunIdForRoute(route, rememberedRunId);
   const regression = useRegressionComparison(selectedRunId, currentView === 'regression');
+  const {
+    runId: regressionRunId,
+    notFinished: regressionNotFinished,
+    retry: retryRegression,
+  } = regression.summary;
 
   useEffect(() => {
-    const syncRoute = () => setRoute(parseRoute(window.location.pathname));
+    const syncRoute = () => {
+      const nextRoute = parseRoute(window.location.pathname);
+      setRememberedRunId((current) => selectedRunIdForRoute(nextRoute, current));
+      setRoute(nextRoute);
+    };
     window.addEventListener('popstate', syncRoute);
     return () => window.removeEventListener('popstate', syncRoute);
   }, []);
@@ -42,6 +59,7 @@ export function App() {
     if (window.location.pathname !== nextPath) {
       window.history.pushState(null, '', nextPath);
     }
+    setRememberedRunId((current) => selectedRunIdForRoute(nextRoute, current));
     setRoute(nextRoute);
     setIsMobileMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -59,6 +77,17 @@ export function App() {
     if (!selectedRunId) return;
     navigate({ view: 'regression', runId: selectedRunId });
   };
+
+  const handleRunFinished = useCallback((finishedRunId: string) => {
+    const shouldRefresh = shouldRefreshRegressionAfterRunFinished(
+      regressionRunId,
+      finishedRunId,
+      regressionNotFinished,
+    );
+    if (!shouldRefresh) return false;
+    retryRegression();
+    return true;
+  }, [regressionNotFinished, regressionRunId, retryRegression]);
 
   const regressionSummary = (
     <RegressionSummaryEntry
@@ -132,6 +161,9 @@ export function App() {
               key={selectedRunId}
               selectedRunId={selectedRunId}
               onGoNewRun={() => handleSelectView('new-run')}
+              onRunFinished={handleRunFinished}
+              onRefreshRegression={retryRegression}
+              regressionRefreshing={regression.summary.loading}
               regressionSummary={regressionSummary}
             />
           )}

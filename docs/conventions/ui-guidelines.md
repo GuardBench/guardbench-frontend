@@ -275,6 +275,7 @@ chart 유형, 숫자 rounding과 mobile 배치는 `미결정`이다.
 - `TEST_RUNS_NOT_COMPARABLE`이면 기존 비교 결과를 유지하지 않고 후보 재선택을 제공한다.
 - case-level badge와 table은 서버의 comparability status와 change type을 그대로 사용한다.
 - summary count와 item을 현재 result page에서 다시 계산하지 않는다.
+- 요약 집계의 사용자 표기는 `악화 / 개선 / 변화 없음 / 비교 불가`를 사용하고, API 필드명과 enum은 내부 계약으로만 유지한다.
 
 Regression 전용 UI는 #30의 선택 구현 범위다.
 
