@@ -14,6 +14,7 @@ import {
   preserveSelectedCandidate,
   shouldLoadComparison,
   shouldLoadSummary,
+  shouldRefreshRegressionCandidates,
 } from './regressionComparisonState';
 
 const AUTO_RETRY_LIMIT = 5;
@@ -304,7 +305,11 @@ export function useRegressionComparison(runId: string, loadDetails: boolean): Re
       autoRetryExhausted: current.notFinished && current.autoRetryCount >= AUTO_RETRY_LIMIT,
       hasLoadedCandidates: current.hasLoadedCandidates,
       hasComparableRun: current.candidates.length > 0,
-      retry: current.candidatesError !== null || current.notFinished ? refreshCandidates : refreshSummary,
+      retry: shouldRefreshRegressionCandidates(
+        current.candidates.length,
+        current.candidatesError !== null,
+        current.notFinished,
+      ) ? refreshCandidates : refreshSummary,
     },
     detail: {
       runId: current.runId,

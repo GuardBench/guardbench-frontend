@@ -23,6 +23,8 @@ interface ResultDetailViewProps {
   selectedRunId?: string;
   onGoNewRun: () => void;
   onRunFinished?: (runId: string) => boolean;
+  onRefreshRegression?: () => void;
+  regressionRefreshing?: boolean;
   regressionSummary?: React.ReactNode;
 }
 
@@ -182,6 +184,8 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
   selectedRunId,
   onGoNewRun,
   onRunFinished,
+  onRefreshRegression,
+  regressionRefreshing = false,
   regressionSummary,
 }) => {
   const [results, setResults] = useState<TestRunResultListItemRes[]>([]);
@@ -212,6 +216,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
     stale: detailStale,
     autoRefreshStopped,
     isLoading: detailLoading,
+    isRefreshing: detailRefreshing,
     refresh: refreshDetail,
   } = useLiveRunProgress({ runId: selectedRunId ?? null });
 
@@ -281,6 +286,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
     setRaceRecoveryExhaustedRunId(null);
     refreshDetail();
     setReloadToken((value) => value + 1);
+    onRefreshRegression?.();
   };
 
   useEffect(() => {
@@ -372,6 +378,11 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
   }, [selectedRunId, reloadToken, detail?.status, recoverNotFinishedRace]);
 
   const notFinished = detail?.status !== 'FINISHED' || notFinishedRace;
+  const refreshInProgress = detailLoading
+    || detailRefreshing
+    || resultsLoading
+    || metricsLoading
+    || regressionRefreshing;
 
   if (!detailLoading && detailError && !detail) {
     return <section className="space-y-6 animate-rise">
@@ -426,7 +437,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
         <p className="mt-1.5 text-sm text-[#697586]">Suite #{detail?.testSuiteId ?? '—'} · {detail?.testCaseCount ?? 0} snapshots</p>
       </div>
       <div className="flex gap-2">
-        <button type="button" onClick={refreshAll} disabled={detailLoading} className="inline-flex items-center gap-2 rounded-xl border border-[#e5e9ee] bg-white px-4 py-2 text-xs font-bold disabled:opacity-50"><RefreshCw size={14} />새로고침</button>
+        <button type="button" onClick={refreshAll} disabled={refreshInProgress} aria-busy={refreshInProgress} className="inline-flex items-center gap-2 rounded-xl border border-[#e5e9ee] bg-white px-4 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"><RefreshCw size={14} className={refreshInProgress ? 'animate-spin' : undefined} />{refreshInProgress ? '새로고침 중' : '새로고침'}</button>
         <button type="button" onClick={onGoNewRun} className="rounded-xl bg-[#17202a] px-4 py-2 text-xs font-bold text-white">다시 실행</button>
       </div>
     </header>

@@ -150,6 +150,8 @@ export function App() {
               selectedRunId={selectedRunId}
               onGoNewRun={() => handleSelectView('new-run')}
               onRunFinished={handleRunFinished}
+              onRefreshRegression={retryRegression}
+              regressionRefreshing={regression.summary.loading}
               regressionSummary={regressionSummary}
             />
           )}

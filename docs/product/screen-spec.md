@@ -297,6 +297,7 @@ Evaluator metrics는 현재 Result Detail에서 Quality Gate와 구분된 판정
 - 첫 후보 자동 선택은 UI에 명시하며 Regression Detail에서 baseline을 바꿀 수 있다.
 - 현재 Run이 아직 종료되지 않았으면 제한된 간격 재시도 후 대기하며, Result Detail이 `FINISHED` 전환을 확인하는 즉시 다시 조회한다.
 - 자동 재확인 5회 후에는 사용자가 직접 다시 시도할 수 있다.
+- Result Detail의 새로고침은 Run 상세, 결과 목록과 집계, Evaluator 지표, Regression 요약을 함께 갱신하며 진행 중임을 버튼에 표시한다.
 - 비교 가능한 Run이 없으면 상세 진입 action을 비활성화한다.
 - 비교 가능한 Run이 있으면 `회귀 상세 보기`로 `RegressionDetailView`에 진입한다.
 - 후보 없음, loading과 오류를 Regression 0건과 구분한다.

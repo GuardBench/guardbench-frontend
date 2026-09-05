@@ -78,6 +78,13 @@ test('candidate refresh preserves a selected baseline while it is still availabl
   assert.equal(stateHelpers.preserveSelectedCandidate('700', ['850', '800']), '850');
 });
 
+test('page refresh reloads candidates when no comparable Run has been found', () => {
+  assert.equal(stateHelpers.shouldRefreshRegressionCandidates(0, false, false), true);
+  assert.equal(stateHelpers.shouldRefreshRegressionCandidates(1, true, false), true);
+  assert.equal(stateHelpers.shouldRefreshRegressionCandidates(1, false, true), true);
+  assert.equal(stateHelpers.shouldRefreshRegressionCandidates(1, false, false), false);
+});
+
 test('a finished Run refreshes only its waiting Regression candidate lookup', () => {
   assert.equal(stateHelpers.shouldRefreshRegressionAfterRunFinished('901', '901', true), true);
   assert.equal(stateHelpers.shouldRefreshRegressionAfterRunFinished('901', '901', false), false);

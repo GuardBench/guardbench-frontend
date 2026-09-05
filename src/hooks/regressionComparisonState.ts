@@ -22,6 +22,14 @@ export function preserveSelectedCandidate(selectedId: string, candidateIds: stri
   return candidateIds.includes(selectedId) ? selectedId : (candidateIds[0] ?? '');
 }
 
+export function shouldRefreshRegressionCandidates(
+  candidateCount: number,
+  candidatesFailed: boolean,
+  notFinished: boolean,
+) {
+  return candidateCount === 0 || candidatesFailed || notFinished;
+}
+
 export function shouldRefreshRegressionAfterRunFinished(
   currentRunId: string,
   finishedRunId: string,
