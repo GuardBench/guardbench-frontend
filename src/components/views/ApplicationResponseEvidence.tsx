@@ -42,6 +42,7 @@ export const ApplicationResponseEvidence: React.FC<ApplicationResponseEvidencePr
   }, [reloadToken, testCaseSnapshotId, testRunId]);
 
   const presentation = presentApplicationResponse(detail?.applicationResponse ?? null);
+  const hasError = error !== null;
 
   return <section className="mt-5 rounded-xl border border-[#dfe5e9] bg-white p-4" aria-labelledby={`${contentId}-title`}>
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -49,7 +50,7 @@ export const ApplicationResponseEvidence: React.FC<ApplicationResponseEvidencePr
         <h3 id={`${contentId}-title`} className="text-sm font-bold text-[#17202a]">대상 애플리케이션 응답</h3>
         <p className="mt-1 text-[11px] text-[#697586]">실행 당시 저장된 응답 원문입니다.</p>
       </div>
-      {!loading && !error && presentation.available && <button
+      {!loading && !hasError && presentation.available && <button
         type="button"
         aria-expanded={expanded}
         aria-controls={contentId}
@@ -62,7 +63,7 @@ export const ApplicationResponseEvidence: React.FC<ApplicationResponseEvidencePr
 
     {loading && <p className="mt-3 text-xs text-[#697586]">응답 정보를 불러오는 중입니다.</p>}
 
-    {!loading && error && <div className="mt-3 rounded-lg border border-[#f0ddb0] bg-[#fff7e8] p-3 text-xs text-[#78501b]">
+    {!loading && hasError && <div className="mt-3 rounded-lg border border-[#f0ddb0] bg-[#fff7e8] p-3 text-xs text-[#78501b]">
       <p>대상 애플리케이션 응답을 불러오지 못했습니다.</p>
       <button
         type="button"
@@ -71,9 +72,9 @@ export const ApplicationResponseEvidence: React.FC<ApplicationResponseEvidencePr
       >다시 시도</button>
     </div>}
 
-    {!loading && !error && !presentation.available && <p className="mt-3 text-xs text-[#697586]">이 실행에는 저장된 대상 애플리케이션 응답이 없습니다.</p>}
+    {!loading && !hasError && !presentation.available && <p className="mt-3 text-xs text-[#697586]">이 실행에는 저장된 대상 애플리케이션 응답이 없습니다.</p>}
 
-    {!loading && !error && presentation.available && <>
+    {!loading && !hasError && presentation.available && <>
       <p className="mt-3 text-[11px] text-[#8a570f]">민감정보 또는 유해한 내용이 포함될 수 있습니다.</p>
       {expanded && <pre
         id={contentId}
