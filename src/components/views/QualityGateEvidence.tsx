@@ -2,6 +2,7 @@ import { useId, type ReactNode } from 'react';
 import type { QualityGateMetricRes, QualityGateMetricsRes, QualityGateStatus } from '../../services/testRunService';
 import {
   failedQualityGateReasons,
+  QUALITY_GATE_DECISION_PRESENTATION,
   QUALITY_GATE_METRIC_PRESENTATION,
   qualityGatePercentageLabels,
   qualityGatePresentation,
@@ -12,13 +13,14 @@ const QualityGateMetricEvidence = ({ metricKey, metric }: {
   metric: QualityGateMetricRes;
 }) => {
   const presentation = QUALITY_GATE_METRIC_PRESENTATION[metricKey];
+  const decisionPresentation = QUALITY_GATE_DECISION_PRESENTATION[metric.passed ? 'PASS' : 'FAIL'];
   const { valueLabel, thresholdLabel } = qualityGatePercentageLabels(metric.value, metric.threshold);
   return <div className="rounded-xl border border-black/10 bg-white/60 p-3">
     <dt className="text-[#697586]">{presentation.label}</dt>
     <dd className="mt-1">
       <span className="block font-black text-[#17202a]">현재 {valueLabel}</span>
       <span className="mt-0.5 block text-[11px] font-medium text-[#697586]">최소 기준 {thresholdLabel}</span>
-      <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-black ${metric.passed ? 'bg-[#d9f2e5] text-[#146c4c]' : 'bg-[#f9d9d6] text-[#a8322d]'}`}>
+      <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-black ${decisionPresentation.badgeClassName}`}>
         {metric.passed ? '기준 충족' : '기준 미달'}
       </span>
     </dd>
@@ -30,7 +32,7 @@ export interface QualityGateEvidenceProps {
   metrics: QualityGateMetricsRes | null;
   summaryDescription: string;
   attentionDescription?: string | null;
-  missingMetricsDescription: string;
+  missingMetricsDescription?: string;
   children: ReactNode;
 }
 
@@ -63,7 +65,7 @@ export const QualityGateEvidence = ({
             <h3 id={failureTitleId} className="font-bold">실패 이유</h3>
             <ul className="mt-1 list-disc space-y-1 pl-4">{failureReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
           </section>}
-        </> : <p className="mt-5 border-t border-black/10 pt-4 text-xs text-[#697586]">{missingMetricsDescription}</p>}
+        </> : <p className="mt-5 border-t border-black/10 pt-4 text-xs text-[#697586]">{missingMetricsDescription ?? presentation.missingMetricsDescription}</p>}
       </div>
       {children}
     </div>

@@ -385,11 +385,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
   const attentionDescription = !notFinished && attentionCount !== null && attentionCount > 0
     ? `판정 불일치 ${mismatchCount}건 · 판정 미완료 ${incompleteCount}건`
     : null;
-  const missingGateMetricsDescription = !detail
-    ? 'Quality Gate 정보를 불러오는 중입니다.'
-    : detail.qualityGate?.status === 'NOT_EVALUATED'
-      ? '기대 일치 여부를 판정할 수 있는 결과가 없어 Quality Gate 지표를 계산하지 않았습니다.'
-      : detail.qualityGate ? 'Quality Gate 지표가 제공되지 않았습니다.' : '실행 종료 후 Quality Gate 지표가 결정됩니다.';
+  const missingGateMetricsDescription = !detail ? 'Quality Gate 정보를 불러오는 중입니다.' : undefined;
   const selectedInspectionGuide = selected ? resultInspectionGuide(selected) : null;
 
   return <section className="space-y-6 animate-rise">

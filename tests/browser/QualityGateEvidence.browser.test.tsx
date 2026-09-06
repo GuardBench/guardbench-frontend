@@ -16,7 +16,7 @@ const metrics = (
 const renderEvidence = (
   status: QualityGateStatus | null,
   gateMetrics: QualityGateMetricsRes | null,
-  missingMetricsDescription = 'Quality Gate 지표가 제공되지 않았습니다.',
+  missingMetricsDescription?: string,
 ) => render(
   <QualityGateEvidence
     status={status}
@@ -70,7 +70,7 @@ test.each([
   {
     status: 'NOT_EVALUATED' as const,
     title: 'Quality Gate 평가 불가',
-    message: '기대 일치 여부를 판정할 수 있는 결과가 없습니다.',
+    message: '기대 일치 여부를 판정할 수 있는 결과가 없어 Quality Gate 지표를 계산하지 않았습니다.',
   },
   {
     status: null,
@@ -78,9 +78,16 @@ test.each([
     message: '실행 종료 후 Quality Gate 지표가 결정됩니다.',
   },
 ])('$title 상태는 지표를 발명하지 않고 안내 문구를 표시한다', async ({ status, title, message }) => {
-  const screen = await renderEvidence(status, null, message);
+  const screen = await renderEvidence(status, null);
 
   await expect.element(screen.getByRole('article', { name: title })).toBeVisible();
   await expect.element(screen.getByText(message)).toBeVisible();
   await expect.element(screen.getByLabelText('Quality Gate 판정 근거')).not.toBeInTheDocument();
+});
+
+test('loading can override the status-based missing metrics description', async () => {
+  const screen = await renderEvidence(null, null, 'Quality Gate 정보를 불러오는 중입니다.');
+
+  await expect.element(screen.getByText('Quality Gate 정보를 불러오는 중입니다.')).toBeVisible();
+  await expect.element(screen.getByText('실행 종료 후 Quality Gate 지표가 결정됩니다.')).not.toBeInTheDocument();
 });

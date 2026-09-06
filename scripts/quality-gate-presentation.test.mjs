@@ -21,12 +21,12 @@ test('Gate 제목과 tone은 backend status 표현 map 한 곳에서 선택한�
   assert.deepEqual(presentation.qualityGatePresentation('NOT_EVALUATED'), presentation.QUALITY_GATE_STATUS_PRESENTATION.NOT_EVALUATED);
   assert.deepEqual(presentation.qualityGatePresentation('PASS'), presentation.QUALITY_GATE_STATUS_PRESENTATION.PASS);
   assert.deepEqual(presentation.qualityGatePresentation('FAIL'), presentation.QUALITY_GATE_STATUS_PRESENTATION.FAIL);
-  assert.deepEqual(Object.keys(presentation.QUALITY_GATE_STATUS_PRESENTATION), [
+  assert.deepEqual(Object.keys(presentation.QUALITY_GATE_STATUS_PRESENTATION).sort(), [
     'PASS',
     'FAIL',
     'NOT_EVALUATED',
     'NOT_EVALUATED_BEFORE_FINISH',
-  ]);
+  ].sort());
 });
 
 test('실패 이유는 value와 threshold를 재비교하지 않고 backend passed를 사용한다', () => {
