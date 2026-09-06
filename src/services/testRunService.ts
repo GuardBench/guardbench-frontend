@@ -88,6 +88,7 @@ export interface TestRunListItemRes {
   progress: TestRunProgressRes;
   executionOutcome: ExecutionOutcome | null;
   qualityGateStatus: QualityGateStatus | null;
+  qualityGateMetrics: QualityGateMetricsRes | null;
   createdAt: string;
   startedAt: string | null;
   completedAt: string | null;

@@ -45,6 +45,7 @@ export type TestRunDetailNullabilityContract = [
 export type TestRunListNullabilityContract = [
   Assert<Equal<TestRunListItemRes['executionOutcome'], ExecutionOutcome | null>>,
   Assert<Equal<TestRunListItemRes['qualityGateStatus'], QualityGateRes['status'] | null>>,
+  Assert<Equal<TestRunListItemRes['qualityGateMetrics'], QualityGateMetricsRes | null>>,
   Assert<Equal<TestRunListItemRes['startedAt'], string | null>>,
   Assert<Equal<TestRunListItemRes['completedAt'], string | null>>,
 ];
