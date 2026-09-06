@@ -29,7 +29,7 @@ export const RequestErrorBanner: React.FC<RequestErrorBannerProps> = ({
         <div>
           <p className="font-bold">{stale ? '최신 데이터를 불러오지 못해 이전 데이터를 표시합니다.' : message}</p>
           {stale && <p className="mt-1 text-[#a14843]">{message}</p>}
-          <p className="mt-1 font-mono text-[10px] text-[#a85a55]">오류 코드: {presented.code}</p>
+          <p className="mt-1 text-[10px] text-[#a85a55]">오류 코드: <span className="font-mono">{presented.code}</span></p>
           {helpMessage && <p className="mt-2 leading-relaxed text-[#8f2925]">{helpMessage}</p>}
           {presented.fieldErrors.length > 0 && (
             <ul className="mt-2 list-disc space-y-1 pl-4">
