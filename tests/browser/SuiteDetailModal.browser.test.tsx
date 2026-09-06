@@ -110,7 +110,7 @@ test('TestCase edit validates, preserves a failed draft, prevents duplicate save
   await name.clear();
   await screen.getByRole('button', { name: '변경사항 저장' }).click();
   await expect.element(screen.getByRole('alert')).toHaveTextContent('테스트 케이스 이름을 입력해 주세요.');
-  expect(document.activeElement).toBe(name.element());
+  await expect.poll(() => document.activeElement).toBe(name.element());
   expect(requests.filter(({ method }) => method === 'PATCH')).toHaveLength(0);
 
   await name.fill('수정된 케이스');
@@ -181,9 +181,12 @@ test('mobile pagination stays horizontal and follows the visual focus order', as
   const next = screen.getByRole('button', { name: '다음' });
   const deleteButton = screen.getByRole('button', { name: '스위트 삭제' });
   const closeButton = screen.getByRole('button', { name: '닫기', exact: true });
+  const headerCloseButton = screen.getByRole('button', { name: '테스트 스위트 상세 창 닫기' });
   await expect.element(next).toBeVisible();
   await expect.element(next).toBeEnabled();
   await expect.element(deleteButton).toBeEnabled();
+  // Wait for the dialog's requestAnimationFrame-based initial focus before testing manual Tab order.
+  await expect.poll(() => document.activeElement).toBe(headerCloseButton.element());
 
   for (const direction of [previous, next]) {
     const element = direction.element();
@@ -193,11 +196,11 @@ test('mobile pagination stays horizontal and follows the visual focus order', as
   }
 
   next.element().focus();
-  expect(document.activeElement).toBe(next.element());
+  await expect.poll(() => document.activeElement).toBe(next.element());
   await userEvent.tab();
-  expect(document.activeElement).toBe(deleteButton.element());
+  await expect.poll(() => document.activeElement).toBe(deleteButton.element());
   await userEvent.tab();
-  expect(document.activeElement).toBe(closeButton.element());
+  await expect.poll(() => document.activeElement).toBe(closeButton.element());
 });
 
 test('bulk creation previews editable rows, deduplicates retries and reloads the list after success', async () => {
