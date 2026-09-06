@@ -183,6 +183,8 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
   const [reloadToken, setReloadToken] = useState(0);
   const raceRetryCountRef = useRef(0);
   const raceRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 같은 Run의 FINISHED 관측으로 Regression 조회를 한 번만 재개한다. 이후 callback identity가
+  // 바뀌어 effect가 다시 실행돼도 재시도 예산을 반복해서 초기화하지 않는다.
   const notifiedFinishedRunIdRef = useRef<string | null>(null);
   const {
     detail,
