@@ -731,14 +731,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
 
         {/* Footer */}
         <div className="grid grid-cols-2 items-center gap-3 border-t border-[#e5e9ee] bg-[#fafbfb] p-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-          <button
-            type="button"
-            onClick={openDeleteConfirmation}
-            disabled={isDeleting || editState.caseId !== null || editState.isSaving}
-            className="col-start-1 row-start-2 inline-flex items-center gap-1.5 justify-self-start rounded-xl border border-[#e7aaa5] bg-[#fff0ef] px-4 py-2 text-xs font-bold text-[#a82f2a] hover:bg-[#ffe0de] disabled:cursor-not-allowed disabled:opacity-50 sm:row-start-1"
-          >
-            <Trash2 size={14} /> 스위트 삭제
-          </button>
+          {/* DOM order follows the mobile visual order; symmetric desktop tracks keep pagination centered. */}
           <nav aria-label="테스트 케이스 페이지네이션" className="col-span-2 col-start-1 row-start-1 flex min-w-0 max-w-full items-center justify-start gap-1 justify-self-stretch overflow-x-auto pb-1 sm:col-span-1 sm:col-start-2 sm:justify-center sm:justify-self-center sm:pb-0">
             <button
               type="button"
@@ -772,6 +765,14 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
               다음
             </button>
           </nav>
+          <button
+            type="button"
+            onClick={openDeleteConfirmation}
+            disabled={isDeleting || editState.caseId !== null || editState.isSaving}
+            className="col-start-1 row-start-2 inline-flex items-center gap-1.5 justify-self-start rounded-xl border border-[#e7aaa5] bg-[#fff0ef] px-4 py-2 text-xs font-bold text-[#a82f2a] hover:bg-[#ffe0de] disabled:cursor-not-allowed disabled:opacity-50 sm:row-start-1"
+          >
+            <Trash2 size={14} /> 스위트 삭제
+          </button>
           <button
             type="button"
             onClick={closeSuiteDetail}
