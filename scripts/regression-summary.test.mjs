@@ -13,15 +13,74 @@ const compile = (path) => {
 
 const {
   regressionChangeTypeLabel,
+  regressionDetailSummaryGroups,
+  regressionDistribution,
   regressionSummaryItems,
 } = await import(compile('../src/components/views/regressionSummary.ts'));
 
 const comparison = {
+  totalCases: 78,
+  changedCount: 3,
   regressedCount: 2,
   improvedCount: 1,
   unchangedCount: 74,
   notComparableCount: 1,
 };
+
+test('Regression Detail separates overview counts from change details', () => {
+  assert.deepEqual(regressionDetailSummaryGroups(comparison), [
+    {
+      id: 'overview',
+      title: '비교 결과 요약',
+      items: [
+        { label: '전체', value: 78, tone: 'neutral' },
+        { label: '변경', value: 3, tone: 'changed' },
+        { label: '변화 없음', value: 74, tone: 'unchanged' },
+      ],
+    },
+    {
+      id: 'changes',
+      title: '변경 상세',
+      description: '악화와 개선은 변경 건수의 구성이며, 비교 불가는 판정 결과가 없어 변화를 판단할 수 없는 별도 항목입니다.',
+      items: [
+        { label: '악화', value: 2, tone: 'regressed' },
+        { label: '개선', value: 1, tone: 'improved' },
+        { label: '비교 불가', value: 1, tone: 'notComparable' },
+      ],
+    },
+  ]);
+});
+
+test('distribution segments preserve the four mutually exclusive backend counts', () => {
+  const distribution = regressionDistribution(comparison);
+  assert.deepEqual(
+    distribution.segments.map(({ label, value, widthPercent }) => ({ label, value, widthPercent })),
+    [
+      { label: '악화', value: 2, widthPercent: 2 / 78 * 100 },
+      { label: '개선', value: 1, widthPercent: 1 / 78 * 100 },
+      { label: '변화 없음', value: 74, widthPercent: 74 / 78 * 100 },
+      { label: '비교 불가', value: 1, widthPercent: 1 / 78 * 100 },
+      { label: '기타', value: 0, widthPercent: 0 },
+    ],
+  );
+  assert.equal(distribution.categorizedCases, comparison.totalCases);
+  assert.equal(distribution.unaccountedCases, 0);
+  assert.equal(distribution.matchesTotal, true);
+});
+
+test('distribution exposes an uncategorized remainder instead of silently renormalizing it', () => {
+  const distribution = regressionDistribution({ ...comparison, totalCases: 80 });
+
+  assert.deepEqual(distribution.segments.at(-1), {
+    label: '기타',
+    value: 2,
+    tone: 'other',
+    widthPercent: 2.5,
+  });
+  assert.equal(distribution.categorizedCases, 78);
+  assert.equal(distribution.unaccountedCases, 2);
+  assert.equal(distribution.matchesTotal, false);
+});
 
 test('regression summary preserves backend counts including non-comparable cases', () => {
   assert.deepEqual(regressionSummaryItems(comparison), [
