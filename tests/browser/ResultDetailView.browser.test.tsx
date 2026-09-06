@@ -2,7 +2,7 @@ import { afterEach, expect, test, vi } from 'vitest';
 import { render } from 'vitest-browser-react';
 import { ResultDetailView } from '../../src/components/views/ResultDetailView';
 import type { TestRunResultListItemRes } from '../../src/services/testRunService';
-import { apiSuccess, installApiStub } from './support/apiStub';
+import { apiSuccess, deferred, installApiStub } from './support/apiStub';
 
 const resultItem = (id: number): TestRunResultListItemRes => ({
   testCaseSnapshotId: id,
@@ -37,6 +37,7 @@ afterEach(() => {
 });
 
 test('result pagination uses 20-item pages, supports page buttons and recovers an out-of-range page', async () => {
+  const fourthPage = deferred<Response>();
   const { requests } = installApiStub((request) => {
     if (request.url.pathname.endsWith('/test-runs/901')) {
       return apiSuccess({
@@ -79,7 +80,7 @@ test('result pagination uses 20-item pages, supports page buttons and recovers a
     }
     if (request.url.pathname.endsWith('/test-runs/901/results')) {
       const requestedPage = Number(request.url.searchParams.get('page'));
-      if (requestedPage === 4) return apiSuccess(pageResponse(4, 3, []));
+      if (requestedPage === 4) return fourthPage.promise;
       const response = pageResponse(requestedPage, requestedPage === 3 ? 3 : 10);
       return apiSuccess(requestedPage === 1 ? {
         ...response,
@@ -121,10 +122,23 @@ test('result pagination uses 20-item pages, supports page buttons and recovers a
   await pageFour.click();
 
   await expect.poll(() => requests.filter(({ url }) => (
+    url.pathname.endsWith('/test-runs/901/results') && url.searchParams.get('page') === '4'
+  )).length).toBe(1);
+  await expect.element(pagination).toBeVisible();
+  await expect.element(screen.getByRole('button', { name: '1페이지' })).toHaveAttribute('aria-current', 'page');
+  await expect.element(pageFour).toBeDisabled();
+  await expect.element(screen.getByRole('status')).toHaveTextContent('· 불러오는 중');
+  await expect.element(screen.getByText('테스트 케이스 1', { exact: true }).first()).toBeInTheDocument();
+  fourthPage.resolve(apiSuccess(pageResponse(4, 3, [])));
+
+  await expect.poll(() => requests.filter(({ url }) => (
     url.pathname.endsWith('/test-runs/901/results') && url.searchParams.get('page') === '3'
   )).length).toBe(1);
   await expect.element(screen.getByRole('button', { name: '3페이지' })).toHaveAttribute('aria-current', 'page');
   await expect.element(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+  await expect.element(screen.getByText('테스트 케이스 3', { exact: true }).first()).toBeInTheDocument();
+  await expect.element(screen.getByText('테스트 케이스 1', { exact: true }).first()).not.toBeInTheDocument();
+  await expect.element(screen.getByRole('status')).not.toBeInTheDocument();
 
   const resultRequests = requests.filter(({ url }) => url.pathname.endsWith('/test-runs/901/results'));
   expect(resultRequests.map(({ url }) => [url.searchParams.get('page'), url.searchParams.get('size')])).toEqual([
