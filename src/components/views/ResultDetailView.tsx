@@ -460,6 +460,26 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
 
     {detail?.status === 'FINISHED' && !notFinishedRace && !detailLoading && <RunProgressStepper status={detail.status} processedCount={detail.progress.processedTestCaseCount} totalCount={detail.testCaseCount} percent={detail.progress.percent} updatedAt={detail.updatedAt} compact />}
 
+    <article className="rounded-2xl border border-[#e5e9ee] bg-white p-5">
+      <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+        <div><h2 className="text-sm font-bold">기대·관측 동작 매트릭스</h2><p className="mt-1 text-xs text-[#697586]">기대 동작과 관측된 동작의 관계를 의미 중심으로 보여줍니다.</p></div>
+        <span className="text-xs font-bold text-[#43515d]">평가 완료 {evaluatedCount ?? '—'}건</span>
+      </div>
+      {notFinished
+        ? <p className="rounded-xl bg-[#f6f8f9] p-4 text-xs text-[#697586]">실행 완료 후 판정 매트릭스가 표시됩니다.</p>
+        : <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px] border-separate border-spacing-2 text-left">
+            <caption className="sr-only">행은 기대 동작, 열은 관측된 동작인 2×2 평가 매트릭스</caption>
+            <thead><tr><th scope="col" className="w-[150px] px-3 py-2 text-[11px] font-bold text-[#697586]">기대 동작 ↓</th><th scope="col" className="px-3 py-2 text-xs font-black text-[#43515d]">관측된 동작: 허용</th><th scope="col" className="px-3 py-2 text-xs font-black text-[#43515d]">관측된 동작: 차단</th></tr></thead>
+            <tbody>
+              <tr><th scope="row" className="rounded-xl bg-[#f8f9fa] px-3 py-4 text-xs font-black text-[#43515d]">허용해야 함<br /><span className="text-[10px] font-medium text-[#697586]">ALLOW</span></th><td><MatrixCell outcome="TRUE_NEGATIVE" count={metricCount(visibleEvaluatorMetrics, 'TRUE_NEGATIVE')} /></td><td><MatrixCell outcome="FALSE_POSITIVE" count={metricCount(visibleEvaluatorMetrics, 'FALSE_POSITIVE')} rate={visibleEvaluatorMetrics?.falsePositiveRate} /></td></tr>
+              <tr><th scope="row" className="rounded-xl bg-[#f8f9fa] px-3 py-4 text-xs font-black text-[#43515d]">차단해야 함<br /><span className="text-[10px] font-medium text-[#697586]">BLOCK</span></th><td><MatrixCell outcome="FALSE_NEGATIVE" count={metricCount(visibleEvaluatorMetrics, 'FALSE_NEGATIVE')} rate={visibleEvaluatorMetrics?.falseNegativeRate} /></td><td><MatrixCell outcome="TRUE_POSITIVE" count={metricCount(visibleEvaluatorMetrics, 'TRUE_POSITIVE')} /></td></tr>
+            </tbody>
+          </table>
+        </div>}
+      <p className="mt-3 text-[11px] text-[#697586]">실행 실패나 관측된 동작이 없는 결과는 매트릭스에 포함되지 않습니다. 현재 테스트 케이스의 기대 동작을 기준으로 한 분류입니다.</p>
+    </article>
+
     <article className="overflow-hidden rounded-2xl border border-[#e5e9ee] bg-white">
       <div className="border-b border-[#e5e9ee] p-5">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-sm font-bold">결과 목록</h2><p className="mt-1 text-xs text-[#697586]">판정의 의미를 먼저 보여주며 원본 기술 값은 상세에서 확인할 수 있습니다.</p></div><span className="text-xs font-bold">현재 {visibleResults.length} / 필터 결과 {visiblePageMeta?.totalElements ?? 0}건 {resultsLoading && '· 불러오는 중'}</span></div>
@@ -552,26 +572,6 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
           </button>
         </nav>
       )}
-    </article>
-
-    <article className="rounded-2xl border border-[#e5e9ee] bg-white p-5">
-      <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
-        <div><h2 className="text-sm font-bold">기대·관측 동작 매트릭스</h2><p className="mt-1 text-xs text-[#697586]">기대 동작과 관측된 동작의 관계를 의미 중심으로 보여줍니다.</p></div>
-        <span className="text-xs font-bold text-[#43515d]">평가 완료 {evaluatedCount ?? '—'}건</span>
-      </div>
-      {notFinished
-        ? <p className="rounded-xl bg-[#f6f8f9] p-4 text-xs text-[#697586]">실행 완료 후 판정 매트릭스가 표시됩니다.</p>
-        : <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] border-separate border-spacing-2 text-left">
-            <caption className="sr-only">행은 기대 동작, 열은 관측된 동작인 2×2 평가 매트릭스</caption>
-            <thead><tr><th scope="col" className="w-[150px] px-3 py-2 text-[11px] font-bold text-[#697586]">기대 동작 ↓</th><th scope="col" className="px-3 py-2 text-xs font-black text-[#43515d]">관측된 동작: 허용</th><th scope="col" className="px-3 py-2 text-xs font-black text-[#43515d]">관측된 동작: 차단</th></tr></thead>
-            <tbody>
-              <tr><th scope="row" className="rounded-xl bg-[#f8f9fa] px-3 py-4 text-xs font-black text-[#43515d]">허용해야 함<br /><span className="text-[10px] font-medium text-[#697586]">ALLOW</span></th><td><MatrixCell outcome="TRUE_NEGATIVE" count={metricCount(visibleEvaluatorMetrics, 'TRUE_NEGATIVE')} /></td><td><MatrixCell outcome="FALSE_POSITIVE" count={metricCount(visibleEvaluatorMetrics, 'FALSE_POSITIVE')} rate={visibleEvaluatorMetrics?.falsePositiveRate} /></td></tr>
-              <tr><th scope="row" className="rounded-xl bg-[#f8f9fa] px-3 py-4 text-xs font-black text-[#43515d]">차단해야 함<br /><span className="text-[10px] font-medium text-[#697586]">BLOCK</span></th><td><MatrixCell outcome="FALSE_NEGATIVE" count={metricCount(visibleEvaluatorMetrics, 'FALSE_NEGATIVE')} rate={visibleEvaluatorMetrics?.falseNegativeRate} /></td><td><MatrixCell outcome="TRUE_POSITIVE" count={metricCount(visibleEvaluatorMetrics, 'TRUE_POSITIVE')} /></td></tr>
-            </tbody>
-          </table>
-        </div>}
-      <p className="mt-3 text-[11px] text-[#697586]">실행 실패나 관측된 동작이 없는 결과는 매트릭스에 포함되지 않습니다. 현재 테스트 케이스의 기대 동작을 기준으로 한 분류입니다.</p>
     </article>
 
     <article className="rounded-2xl border border-[#e5e9ee] bg-white p-6">
