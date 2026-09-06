@@ -33,6 +33,25 @@ npm run dev
 npm run build
 ```
 
+## ✅ 테스트
+
+```bash
+# Node 기반 순수 로직·계약 테스트
+npm test
+
+# 최초 1회: 컴포넌트 테스트용 Chromium 설치
+npx playwright install chromium
+
+# 실제 Chromium 기반 컴포넌트 테스트
+npm run test:component
+
+# 컴포넌트 테스트 watch 모드
+npm run test:component:watch
+```
+
+테스트 수준별 역할, API stub과 컴포넌트 테스트 작성 방법은
+[`docs/testing.md`](docs/testing.md)를 따릅니다.
+
 ## 🌐 배포 아키텍처 (CI/CD)
 
 - GitHub Actions (`.github/workflows/deploy.yml`): `main` 브랜치 push 시 자동 빌드 후 S3 버킷(`guardbench-dev-frontend`) 동기화 및 CloudFront 캐시 무효화 수행.

@@ -63,6 +63,7 @@ OpenAPI
 | [사용자 흐름](product/user-flows.md) | `AS-IS` / `TO-BE` / `미결정` | Suite 준비부터 Run 접수·Polling·결과·Evaluator 분석·선택적 비교까지 연결한다. |
 | [API 연동 계약](contracts/api-integration.md) | `AS-IS` / `TO-BE` / `미결정` | 요청 구성, DTO mapping, 오류, Polling, metrics, comparison과 비공개 정책을 정의한다. |
 | [프론트엔드 아키텍처](architecture/frontend-architecture.md) | `AS-IS` / `TO-BE` / `미결정` | query identity, 상태 소유권, API 계층, Polling·동기화·오류와 테스트 경계를 정의한다. |
+| [테스트 가이드](testing.md) | `APPROVED` | Node 계약 테스트와 Chromium 컴포넌트 테스트의 역할, 실행·mock·작성 규칙을 정의한다. |
 | [UI 및 접근성 가이드](conventions/ui-guidelines.md) | `AS-IS` / `TO-BE` / `미결정` | 상태 축, form, 빈 결과·오류, Evaluator·Regression과 접근성 표현을 정의한다. |
 | [프론트엔드 빌드 및 dev 배포](operations/frontend-deployment.md) | `AS-IS` / `DRAFT` | PR build, 문서-only 제외, dev 배포 조건과 AWS 인증 전환 방향을 기록한다. |
 
