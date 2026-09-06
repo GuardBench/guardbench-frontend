@@ -89,6 +89,7 @@ TestSuite 목록을 확인하고 Run에서 사용할 TestCase를 관리한다.
 - Suite 선택 시 TestCase 관리 modal에서 `GET /api/v1/test-suites/{suiteId}/test-cases`를 사용한다.
 - TestCase 단건 생성은 POST, 수정은 PATCH, 삭제는 DELETE를 사용한다. mutation 실패를 성공으로 확정하지 않는다.
 - 기존 Suite의 일괄 등록은 `POST /api/v1/test-suites/{suiteId}/test-cases/bulk`를 사용하며 JSON·CSV 입력, 제출 전 미리보기와 행별 수정을 제공한다.
+- TestCase 단건 생성·삭제와 일괄 등록이 성공하면 Suite 카드 개수를 즉시 반영하고 Suite 목록을 재조회해 서버 수치로 재검증한다. 재조회 실패 시 반영된 데이터를 유지하며 오류와 재시도를 제공한다.
 - server pagination은 화면 control에 연결되어 있으며 filter 연결은 아직 제공하지 않는다.
 - TestCase 페이지네이션은 좁은 화면에서 첫 줄 전체 폭을 사용하며 `이전`과 `다음`을 가로쓰기로 유지한다. 페이지가 많아 가용 폭을 넘으면 페이지네이션 영역 안에서 가로로 탐색할 수 있다.
 

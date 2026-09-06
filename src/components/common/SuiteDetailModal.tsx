@@ -55,10 +55,17 @@ interface SuiteDetailModalProps {
   suite: TestSuite | null;
   onClose: () => void;
   onDeleted: () => void;
+  onCaseCountChanged: (change: { kind: 'delta' | 'total'; value: number }) => void;
   onNotify: (msg: string) => void;
 }
 
-export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClose, onDeleted, onNotify }) => {
+export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({
+  suite,
+  onClose,
+  onDeleted,
+  onCaseCountChanged,
+  onNotify,
+}) => {
   const [cases, setCases] = useState<TestCase[]>([]);
   const [casesOwnerSuiteId, setCasesOwnerSuiteId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -181,6 +188,24 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   const visiblePageMeta = isCurrentSuiteLoaded ? pageMeta : null;
   const totalCaseCount = visiblePageMeta?.totalElements;
 
+  const publishCaseCountChange = (change: { kind: 'delta' | 'total'; value: number }) => {
+    setPageMeta((current) => {
+      if (!current) return current;
+      const totalElements = Math.max(0, change.kind === 'total'
+        ? change.value
+        : current.totalElements + change.value);
+      const totalPages = totalElements === 0 ? 0 : Math.ceil(totalElements / current.size);
+      return {
+        ...current,
+        totalElements,
+        totalPages,
+        hasPrevious: current.number > 1,
+        hasNext: current.number < totalPages,
+      };
+    });
+    onCaseCountChanged(change);
+  };
+
   const failAddValidation = (field: CaseValidationField, message: string) => {
     setAddValidation({ field, message });
     requestAnimationFrame(() => {
@@ -243,6 +268,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
         createdAt: response.createdAt || '방금 전',
       };
 
+      publishCaseCountChange({ kind: 'delta', value: 1 });
       setReloadToken((token) => token + 1);
       setIsAdding(false);
       setAddValidation(null);
@@ -338,6 +364,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
     try {
       const cleanCaseId = testCaseApiId(id);
       await deleteTestCase(cleanCaseId);
+      publishCaseCountChange({ kind: 'delta', value: -1 });
       // 삭제 뒤 서버 메타데이터를 다시 읽어, 비어 버린 마지막 페이지는 자동으로 이전 페이지로 이동한다.
       setReloadToken((token) => token + 1);
       onNotify(`테스트 케이스 '${name}'가 삭제되었습니다.`);
@@ -564,6 +591,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
               onCreated={(response) => {
                 setIsBulkAdding(false);
                 setIsBulkDirty(false);
+                publishCaseCountChange({ kind: 'total', value: response.totalTestCaseCount });
                 setPage(1);
                 setReloadToken((token) => token + 1);
                 onNotify(`테스트 케이스 ${response.createdCount}개가 등록되었습니다. (전체 ${response.totalTestCaseCount}개)`);
