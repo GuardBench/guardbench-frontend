@@ -90,6 +90,7 @@ TestSuite 목록을 확인하고 Run에서 사용할 TestCase를 관리한다.
 - TestCase 생성은 POST, 삭제는 DELETE를 사용한다. 삭제 실패를 성공으로 확정하지 않는다.
 - TestCase 수정 action은 완전한 편집 UI로 연결되지 않았다.
 - server pagination/filter는 화면 control에 완전히 연결되지 않았다.
+- TestCase 페이지네이션은 좁은 화면에서 첫 줄 전체 폭을 사용하며 `이전`과 `다음`을 가로쓰기로 유지한다. 페이지가 많아 가용 폭을 넘으면 페이지네이션 영역 안에서 가로로 탐색할 수 있다.
 
 ### 목표 동작 (`TO-BE`)
 

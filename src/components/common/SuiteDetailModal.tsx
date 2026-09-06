@@ -730,21 +730,14 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
         </div>
 
         {/* Footer */}
-        <div className="grid grid-cols-3 items-center gap-3 border-t border-[#e5e9ee] bg-[#fafbfb] p-4">
-          <button
-            type="button"
-            onClick={openDeleteConfirmation}
-            disabled={isDeleting || editState.caseId !== null || editState.isSaving}
-            className="justify-self-start inline-flex items-center gap-1.5 rounded-xl border border-[#e7aaa5] bg-[#fff0ef] px-4 py-2 text-xs font-bold text-[#a82f2a] hover:bg-[#ffe0de] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Trash2 size={14} /> 스위트 삭제
-          </button>
-          <nav aria-label="테스트 케이스 페이지네이션" className="justify-self-center -translate-x-3 flex items-center gap-1">
+        <div className="grid grid-cols-2 items-center gap-3 border-t border-[#e5e9ee] bg-[#fafbfb] p-4 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+          {/* DOM order follows the mobile visual order; symmetric desktop tracks keep pagination centered. */}
+          <nav aria-label="테스트 케이스 페이지네이션" className="col-span-2 col-start-1 row-start-1 flex min-w-0 max-w-full items-center justify-start gap-1 justify-self-stretch overflow-x-auto pb-1 sm:col-span-1 sm:col-start-2 sm:justify-center sm:justify-self-center sm:pb-0">
             <button
               type="button"
               onClick={() => setPage(Math.max(1, (visiblePageMeta?.number ?? page) - 1))}
               disabled={!visiblePageMeta?.hasPrevious || isLoading || editState.caseId !== null}
-              className="rounded-lg border border-[#dce1e6] px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
+              className="shrink-0 whitespace-nowrap rounded-lg border border-[#dce1e6] px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
             >
               이전
             </button>
@@ -767,16 +760,24 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
               type="button"
               onClick={() => setPage((visiblePageMeta?.number ?? page) + 1)}
               disabled={!visiblePageMeta?.hasNext || isLoading || editState.caseId !== null}
-              className="rounded-lg border border-[#dce1e6] px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
+              className="shrink-0 whitespace-nowrap rounded-lg border border-[#dce1e6] px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
             >
               다음
             </button>
           </nav>
           <button
             type="button"
+            onClick={openDeleteConfirmation}
+            disabled={isDeleting || editState.caseId !== null || editState.isSaving}
+            className="col-start-1 row-start-2 inline-flex items-center gap-1.5 justify-self-start rounded-xl border border-[#e7aaa5] bg-[#fff0ef] px-4 py-2 text-xs font-bold text-[#a82f2a] hover:bg-[#ffe0de] disabled:cursor-not-allowed disabled:opacity-50 sm:row-start-1"
+          >
+            <Trash2 size={14} /> 스위트 삭제
+          </button>
+          <button
+            type="button"
             onClick={closeSuiteDetail}
             disabled={editState.isSaving}
-            className="justify-self-end px-4 py-2 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545] disabled:cursor-not-allowed disabled:opacity-50"
+            className="col-start-2 row-start-2 justify-self-end rounded-xl bg-[#17202a] px-4 py-2 text-xs font-bold text-white hover:bg-[#253545] disabled:cursor-not-allowed disabled:opacity-50 sm:col-start-3 sm:row-start-1"
           >
             닫기
           </button>
