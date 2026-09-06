@@ -6,7 +6,9 @@ export interface RegressionSummaryItem {
 }
 
 export interface RegressionDetailSummaryGroup {
+  id: 'overview' | 'changes';
   title: '비교 결과 요약' | '변경 상세';
+  description?: string;
   items: Array<{
     label: '전체' | '변경' | '변화 없음' | '악화' | '개선' | '비교 불가';
     value: number;
@@ -15,9 +17,17 @@ export interface RegressionDetailSummaryGroup {
 }
 
 export interface RegressionDistributionSegment {
-  label: RegressionSummaryItem['label'];
+  label: RegressionSummaryItem['label'] | '기타';
   value: number;
-  colorClassName: string;
+  tone: 'regressed' | 'improved' | 'unchanged' | 'notComparable' | 'other';
+  widthPercent: number;
+}
+
+export interface RegressionDistribution {
+  segments: RegressionDistributionSegment[];
+  categorizedCases: number;
+  unaccountedCases: number;
+  matchesTotal: boolean;
 }
 
 export function regressionSummaryItems(comparison: TestRunComparisonSummaryRes): RegressionSummaryItem[] {
@@ -34,6 +44,7 @@ export function regressionDetailSummaryGroups(
 ): RegressionDetailSummaryGroup[] {
   return [
     {
+      id: 'overview',
       title: '비교 결과 요약',
       items: [
         { label: '전체', value: comparison.totalCases, tone: 'neutral' },
@@ -42,7 +53,9 @@ export function regressionDetailSummaryGroups(
       ],
     },
     {
+      id: 'changes',
       title: '변경 상세',
+      description: '악화와 개선은 변경 건수의 구성이며, 비교 불가는 판정 결과가 없어 변화를 판단할 수 없는 별도 항목입니다.',
       items: [
         { label: '악화', value: comparison.regressedCount, tone: 'regressed' },
         { label: '개선', value: comparison.improvedCount, tone: 'improved' },
@@ -52,15 +65,35 @@ export function regressionDetailSummaryGroups(
   ];
 }
 
-export function regressionDistributionSegments(
+export function regressionDistribution(
   comparison: TestRunComparisonSummaryRes,
-): RegressionDistributionSegment[] {
-  return [
-    { label: '악화', value: comparison.regressedCount, colorClassName: 'bg-[#d55c55]' },
-    { label: '개선', value: comparison.improvedCount, colorClassName: 'bg-[#1a7f5a]' },
-    { label: '변화 없음', value: comparison.unchangedCount, colorClassName: 'bg-[#aeb7c2]' },
-    { label: '비교 불가', value: comparison.notComparableCount, colorClassName: 'bg-[#d99520]' },
+): RegressionDistribution {
+  const categorized = [
+    { label: '악화', value: comparison.regressedCount, tone: 'regressed' },
+    { label: '개선', value: comparison.improvedCount, tone: 'improved' },
+    { label: '변화 없음', value: comparison.unchangedCount, tone: 'unchanged' },
+    { label: '비교 불가', value: comparison.notComparableCount, tone: 'notComparable' },
+  ] as const;
+  const categorizedCases = categorized.reduce((sum, segment) => sum + segment.value, 0);
+  const unaccountedCases = Math.max(comparison.totalCases - categorizedCases, 0);
+  const widthPercent = (value: number) => comparison.totalCases > 0
+    ? Math.min((value / comparison.totalCases) * 100, 100)
+    : 0;
+  const segments: RegressionDistributionSegment[] = [
+    ...categorized.map((segment) => ({ ...segment, widthPercent: widthPercent(segment.value) })),
+    {
+      label: '기타',
+      value: unaccountedCases,
+      tone: 'other',
+      widthPercent: widthPercent(unaccountedCases),
+    },
   ];
+  return {
+    segments,
+    categorizedCases,
+    unaccountedCases,
+    matchesTotal: categorizedCases === comparison.totalCases,
+  };
 }
 
 export function regressionChangeTypeLabel(changeType: RegressionChangeType | null) {

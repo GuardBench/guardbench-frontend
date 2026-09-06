@@ -337,7 +337,7 @@ Regression Detail은 기존 `RegressionComparisonSection`과 `regressionService`
 2. backend가 반환한 후보만 page 단위로 표시한다.
 3. 과거 Run의 target과 completedAt을 비교 맥락으로 표시한다.
 4. 후보를 선택해 `GET /api/v1/test-runs/{currentRunId}/comparisons/{comparisonRunId}`를 조회한다.
-5. summary의 `totalCases`, `changedCount`, `unchangedCount`, `regressedCount`, `improvedCount`, `notComparableCount`를 서버 값 그대로 표시한다. Regression Detail은 `비교 결과 요약(전체·변경·변화 없음)`과 `변경 상세(악화·개선·비교 불가)`를 두 단계로 분리하고, 악화·개선·변화 없음·비교 불가의 전체 분포를 누적 막대로 표시한다. `changedCount = regressedCount + improvedCount`이며 `notComparableCount`는 변경에 포함되지 않는다.
+5. summary의 `totalCases`, `changedCount`, `unchangedCount`, `regressedCount`, `improvedCount`, `notComparableCount`를 서버 값 그대로 표시한다. Regression Detail은 `비교 결과 요약(전체·변경·변화 없음)`과 `변경 상세(악화·개선·비교 불가)`를 두 단계로 분리하고, 악화·개선·변화 없음·비교 불가의 전체 분포를 `totalCases`를 분모로 한 누적 막대로 표시한다. 분류 합계가 `totalCases`보다 작으면 잔차를 `기타`로 표시하고, 어떤 방향이든 합계가 다르면 불일치 안내를 표시한다. `changedCount = regressedCount + improvedCount`이며 `notComparableCount`는 변경에 포함되지 않는다.
 6. case-level에서 Expected, Previous/Current verdict, `comparabilityStatus`, `changeType`을 동일 컨텍스트에서 확인하며, Regression 유형은 사용자에게 `보안 악화 / 사용성 악화`로 표시한다.
 7. changed-only filter 등으로 변화 case를 우선 탐색할 수 있게 한다.
 8. Application이나 Evaluator를 다시 실행하지 않는다.
