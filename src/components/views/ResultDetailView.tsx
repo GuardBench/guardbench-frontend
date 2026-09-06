@@ -7,7 +7,6 @@ import {
   getTestRunResults,
   type EvaluationOutcome,
   type EvaluatorMetricsRes,
-  type QualityGateMetricRes,
   type TestRunResultAttentionType,
   type TestRunResultFacetsRes,
   type TestRunResultListItemRes,
@@ -22,12 +21,7 @@ import { StatusPill } from '../common/StatusPill';
 import { ActionCode, OptionalActionValue } from '../common/ActionValue';
 import { ApplicationResponseEvidence } from './ApplicationResponseEvidence';
 import { EVALUATION_OUTCOME_PRESENTATION, evaluationOutcomeLabel } from './evaluationOutcomePresentation';
-import {
-  failedQualityGateReasons,
-  QUALITY_GATE_METRIC_PRESENTATION,
-  qualityGatePercentageLabels,
-  qualityGateTitle,
-} from './qualityGatePresentation';
+import { QualityGateEvidence } from './QualityGateEvidence';
 import {
   deriveResultListPresentation,
   EMPTY_RESULT_FILTERS,
@@ -79,24 +73,6 @@ const OUTCOME_FILTERS: Array<{ value: OutcomeFilter; label: string }> = [
 const percentageLabel = (rate: number) => `${(Math.floor(rate * 10_000) / 100).toFixed(2)}%`;
 
 const rateLabel = (rate: number | null) => rate === null ? '분모 없음' : percentageLabel(rate);
-
-const QualityGateMetricEvidence = ({ metricKey, metric }: {
-  metricKey: keyof typeof QUALITY_GATE_METRIC_PRESENTATION;
-  metric: QualityGateMetricRes;
-}) => {
-  const presentation = QUALITY_GATE_METRIC_PRESENTATION[metricKey];
-  const { valueLabel, thresholdLabel } = qualityGatePercentageLabels(metric.value, metric.threshold);
-  return <div className="rounded-xl border border-black/10 bg-white/60 p-3">
-    <dt className="text-[#697586]">{presentation.label}</dt>
-    <dd className="mt-1">
-      <span className="block font-black text-[#17202a]">현재 {valueLabel}</span>
-      <span className="mt-0.5 block text-[11px] font-medium text-[#697586]">최소 기준 {thresholdLabel}</span>
-      <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-[10px] font-black ${metric.passed ? 'bg-[#d9f2e5] text-[#146c4c]' : 'bg-[#f9d9d6] text-[#a8322d]'}`}>
-        {metric.passed ? '기준 충족' : '기준 미달'}
-      </span>
-    </dd>
-  </div>;
-};
 
 const metricCount = (metrics: EvaluatorMetricsRes | null, outcome: EvaluationOutcome) => {
   if (!metrics) return null;
@@ -377,9 +353,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
   }
 
   const gateStatus = detail?.qualityGate?.status ?? 'NOT_EVALUATED_BEFORE_FINISH';
-  const gateTitle = qualityGateTitle(detail?.qualityGate?.status ?? null);
-  const metrics = detail?.qualityGate?.metrics;
-  const gateFailureReasons = gateStatus === 'FAIL' ? failedQualityGateReasons(metrics ?? null) : [];
+  const metrics = detail?.qualityGate?.metrics ?? null;
   const visibleEvaluatorMetrics = loadedMetricsRunId === selectedRunId ? evaluatorMetrics : null;
   const evaluatedCount = visibleEvaluatorMetrics
     ? visibleEvaluatorMetrics.truePositive + visibleEvaluatorMetrics.trueNegative + visibleEvaluatorMetrics.falsePositive + visibleEvaluatorMetrics.falseNegative
@@ -408,6 +382,14 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
         : attentionCount === 0
           ? `${detail?.testCaseCount ?? 0}건 모두 기대한 동작과 일치했습니다.`
           : `${detail?.testCaseCount ?? 0}건 중 ${attentionCount}건을 확인해야 합니다.`;
+  const attentionDescription = !notFinished && attentionCount !== null && attentionCount > 0
+    ? `판정 불일치 ${mismatchCount}건 · 판정 미완료 ${incompleteCount}건`
+    : null;
+  const missingGateMetricsDescription = !detail
+    ? 'Quality Gate 정보를 불러오는 중입니다.'
+    : detail.qualityGate?.status === 'NOT_EVALUATED'
+      ? '기대 일치 여부를 판정할 수 있는 결과가 없어 Quality Gate 지표를 계산하지 않았습니다.'
+      : detail.qualityGate ? 'Quality Gate 지표가 제공되지 않았습니다.' : '실행 종료 후 Quality Gate 지표가 결정됩니다.';
   const selectedInspectionGuide = selected ? resultInspectionGuide(selected) : null;
 
   return <section className="space-y-6 animate-rise">
@@ -436,37 +418,20 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
     {resultsError !== null && !resultsLoading && <RequestErrorBanner error={resultsError} fallbackMessage="Snapshot 결과를 불러오지 못했습니다." stale={hasLoadedResults} onRetry={refreshAll} />}
     {metricsError !== null && !metricsLoading && <RequestErrorBanner error={metricsError} fallbackMessage="판정 지표를 불러오지 못했습니다." stale={loadedMetricsRunId === selectedRunId && evaluatorMetrics !== null} onRetry={refreshAll} />}
 
-    <article className={`overflow-hidden rounded-2xl border ${gateStatus === 'PASS' ? 'border-[#cfe9dc] bg-[#f1faf6]' : gateStatus === 'FAIL' ? 'border-[#f4c7c3] bg-[#fff0ef]' : 'border-[#dfe5e9] bg-[#f6f8f9]'}`}>
-      <div className="grid gap-6 p-6 lg:grid-cols-[1fr_1.4fr] lg:p-7">
-        <div>
-          <div className={`inline-flex rounded-full px-3 py-1 text-[10px] font-black tracking-wide ${gateStatus === 'PASS' ? 'bg-[#d9f2e5] text-[#146c4c]' : gateStatus === 'FAIL' ? 'bg-[#f9d9d6] text-[#a8322d]' : 'bg-[#e7ebee] text-[#586473]'}`}>QUALITY GATE</div>
-          <h2 className={`mt-4 text-2xl font-black ${gateStatus === 'PASS' ? 'text-[#146c4c]' : gateStatus === 'FAIL' ? 'text-[#a8322d]' : 'text-[#43515d]'}`}>{gateTitle}</h2>
-          <p aria-live="polite" className="mt-2 text-base font-bold text-[#17202a]">{summaryDescription}</p>
-          {!notFinished && attentionCount !== null && attentionCount > 0 && <p className="mt-1 text-xs text-[#697586]">판정 불일치 {mismatchCount}건 · 판정 미완료 {incompleteCount}건</p>}
-          {metrics ? <>
-            <dl className="mt-5 grid grid-cols-1 gap-3 border-t border-black/10 pt-4 text-xs sm:grid-cols-2">
-              <QualityGateMetricEvidence metricKey="assertion" metric={metrics.assertion} />
-              <QualityGateMetricEvidence metricKey="execution" metric={metrics.execution} />
-            </dl>
-            {gateFailureReasons.length > 0 && <section aria-labelledby="quality-gate-failure-title" className="mt-3 rounded-xl border border-[#f4c7c3] bg-white/70 p-3 text-xs text-[#8f2f2a]">
-              <h3 id="quality-gate-failure-title" className="font-bold">실패 이유</h3>
-              <ul className="mt-1 list-disc space-y-1 pl-4">{gateFailureReasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
-            </section>}
-          </> : <p className="mt-5 border-t border-black/10 pt-4 text-xs text-[#697586]">{!detail
-            ? 'Quality Gate 정보를 불러오는 중입니다.'
-            : detail.qualityGate?.status === 'NOT_EVALUATED'
-              ? '기대 일치 여부를 판정할 수 있는 결과가 없어 Quality Gate 지표를 계산하지 않았습니다.'
-              : detail.qualityGate ? 'Quality Gate 지표가 제공되지 않았습니다.' : '실행 종료 후 Quality Gate 지표가 결정됩니다.'}</p>}
-        </div>
+    <QualityGateEvidence
+      status={detail?.qualityGate?.status ?? null}
+      metrics={metrics}
+      summaryDescription={summaryDescription}
+      attentionDescription={attentionDescription}
+      missingMetricsDescription={missingGateMetricsDescription}
+    >
         <div aria-label="판정 요약" className="grid grid-cols-2 items-stretch gap-3 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-4">
           <SummaryMetric label="정상 판정" value={normalCount} tone="success" />
           <SummaryMetric label={EVALUATION_OUTCOME_PRESENTATION.FALSE_NEGATIVE.label} value={attentionFacets?.attentionTypes.FALSE_NEGATIVE ?? visibleEvaluatorMetrics?.falseNegative ?? null} tone="danger" onClick={() => selectAttentionTypes(['FALSE_NEGATIVE'])} />
           <SummaryMetric label={EVALUATION_OUTCOME_PRESENTATION.FALSE_POSITIVE.label} value={attentionFacets?.attentionTypes.FALSE_POSITIVE ?? visibleEvaluatorMetrics?.falsePositive ?? null} tone="warning" onClick={() => selectAttentionTypes(['FALSE_POSITIVE'])} />
           <SummaryMetric label="판정 미완료" value={incompleteCount} onClick={() => selectAttentionTypes(['EXECUTION_FAILED', 'TIMED_OUT', 'NOT_STARTED'])} />
         </div>
-      </div>
-      <p className="border-t border-black/10 px-6 py-3 text-[11px] text-[#697586] lg:px-7">Quality Gate 상태와 지표는 서버 판정을 그대로 표시하며, 현재 결과 페이지에서 다시 계산하지 않습니다.</p>
-    </article>
+    </QualityGateEvidence>
 
     {detail?.status === 'FINISHED' && !notFinishedRace && !detailLoading && <RunProgressStepper status={detail.status} processedCount={detail.progress.processedTestCaseCount} totalCount={detail.testCaseCount} percent={detail.progress.percent} updatedAt={detail.updatedAt} compact />}
 

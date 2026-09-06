@@ -11,10 +11,44 @@ export const QUALITY_GATE_METRIC_PRESENTATION = {
   },
 } as const;
 
-export const qualityGateTitle = (status: QualityGateStatus | null) => (
-  status === 'PASS' ? 'Quality Gate 통과'
-    : status === 'FAIL' ? 'Quality Gate 실패'
-      : status === 'NOT_EVALUATED' ? 'Quality Gate 평가 불가' : 'Quality Gate 평가 전'
+export type QualityGatePresentationStatus = QualityGateStatus | 'NOT_EVALUATED_BEFORE_FINISH';
+
+interface QualityGateStatusPresentation {
+  title: string;
+  cardClassName: string;
+  badgeClassName: string;
+  titleClassName: string;
+}
+
+export const QUALITY_GATE_STATUS_PRESENTATION = {
+  PASS: {
+    title: 'Quality Gate 통과',
+    cardClassName: 'border-[#cfe9dc] bg-[#f1faf6]',
+    badgeClassName: 'bg-[#d9f2e5] text-[#146c4c]',
+    titleClassName: 'text-[#146c4c]',
+  },
+  FAIL: {
+    title: 'Quality Gate 실패',
+    cardClassName: 'border-[#f4c7c3] bg-[#fff0ef]',
+    badgeClassName: 'bg-[#f9d9d6] text-[#a8322d]',
+    titleClassName: 'text-[#a8322d]',
+  },
+  NOT_EVALUATED: {
+    title: 'Quality Gate 평가 불가',
+    cardClassName: 'border-[#dfe5e9] bg-[#f6f8f9]',
+    badgeClassName: 'bg-[#e7ebee] text-[#586473]',
+    titleClassName: 'text-[#43515d]',
+  },
+  NOT_EVALUATED_BEFORE_FINISH: {
+    title: 'Quality Gate 평가 전',
+    cardClassName: 'border-[#dfe5e9] bg-[#f6f8f9]',
+    badgeClassName: 'bg-[#e7ebee] text-[#586473]',
+    titleClassName: 'text-[#43515d]',
+  },
+} as const satisfies Record<QualityGatePresentationStatus, QualityGateStatusPresentation>;
+
+export const qualityGatePresentation = (status: QualityGateStatus | null) => (
+  QUALITY_GATE_STATUS_PRESENTATION[status ?? 'NOT_EVALUATED_BEFORE_FINISH']
 );
 
 export const qualityGatePercentageLabels = (value: number, threshold: number) => {

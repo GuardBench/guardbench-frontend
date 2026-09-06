@@ -3,7 +3,7 @@
 > Status: APPROVED
 > Owner: Frontend
 > Last reviewed: 2026-09-06
-> Scope: GitHub Issue #111
+> Scope: GitHub Issues #111, #113
 
 ## 1. 선택한 구성
 
@@ -89,3 +89,13 @@ stub handler는 예상하지 않은 요청을 명시적으로 실패시켜야 �
 - API 실패 후 편집 초안 유지와 재시도
 - 취소 및 저장 성공 뒤 수정 trigger로 focus 복귀
 - 360px viewport에서 이전·다음 가로쓰기와 페이지네이션 → 삭제 → 닫기 focus order
+
+## 7. Quality Gate evidence 사례
+
+`QualityGateEvidence.browser.test.tsx`는 status 표현과 서버 판정 근거가 실제 DOM에서 일관되게 연결되는지 검증한다.
+
+- PASS, FAIL, NOT_EVALUATED와 결정 전 상태의 accessible card name
+- 기대 일치율·실행 성공률의 현재값, 최소 기준과 `passed` 기반 충족 여부
+- FAIL 상태에서 `aria-labelledby`로 이름이 연결된 실패 이유 영역
+- `passed`를 value와 threshold로 다시 계산하지 않는 표시 계약
+- metrics가 없는 상태에서 수치를 발명하지 않고 상태별 안내 문구 표시

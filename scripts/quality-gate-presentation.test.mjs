@@ -16,11 +16,17 @@ const metrics = (assertionPassed, executionPassed) => ({
   execution: { value: 0.98, threshold: 0.99, passed: executionPassed },
 });
 
-test('Gate 제목은 backend status만 사용한다', () => {
-  assert.equal(presentation.qualityGateTitle(null), 'Quality Gate 평가 전');
-  assert.equal(presentation.qualityGateTitle('NOT_EVALUATED'), 'Quality Gate 평가 불가');
-  assert.equal(presentation.qualityGateTitle('PASS'), 'Quality Gate 통과');
-  assert.equal(presentation.qualityGateTitle('FAIL'), 'Quality Gate 실패');
+test('Gate 제목과 tone은 backend status 표현 map 한 곳에서 선택한다', () => {
+  assert.deepEqual(presentation.qualityGatePresentation(null), presentation.QUALITY_GATE_STATUS_PRESENTATION.NOT_EVALUATED_BEFORE_FINISH);
+  assert.deepEqual(presentation.qualityGatePresentation('NOT_EVALUATED'), presentation.QUALITY_GATE_STATUS_PRESENTATION.NOT_EVALUATED);
+  assert.deepEqual(presentation.qualityGatePresentation('PASS'), presentation.QUALITY_GATE_STATUS_PRESENTATION.PASS);
+  assert.deepEqual(presentation.qualityGatePresentation('FAIL'), presentation.QUALITY_GATE_STATUS_PRESENTATION.FAIL);
+  assert.deepEqual(Object.keys(presentation.QUALITY_GATE_STATUS_PRESENTATION), [
+    'PASS',
+    'FAIL',
+    'NOT_EVALUATED',
+    'NOT_EVALUATED_BEFORE_FINISH',
+  ]);
 });
 
 test('실패 이유는 value와 threshold를 재비교하지 않고 backend passed를 사용한다', () => {
