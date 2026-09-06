@@ -19,6 +19,24 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
   const [hasLoadedSuites, setHasLoadedSuites] = useState(false);
   const [loadError, setLoadError] = useState<unknown>(null);
 
+  const updateCaseCount = (
+    suite: TestSuite,
+    change: { kind: 'delta' | 'total'; value: number },
+  ): TestSuite => ({
+    ...suite,
+    caseCount: change.kind === 'total'
+      ? Math.max(0, change.value)
+      : Math.max(0, suite.caseCount + change.value),
+  });
+
+  const handleCaseCountChanged = (change: { kind: 'delta' | 'total'; value: number }) => {
+    setSuites((current) => current.map((suite) => (
+      suite.id === selectedSuite?.id ? updateCaseCount(suite, change) : suite
+    )));
+    setSelectedSuite((current) => current ? updateCaseCount(current, change) : current);
+    setReloadToken((token) => token + 1);
+  };
+
   useEffect(() => {
     let isMounted = true;
     const fetchSuites = async () => {
@@ -39,6 +57,10 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
             tintBg: ['#e9f7f1', '#eef5fc', '#f3eeed', '#f3effa', '#fff7e8'][idx % 5],
           }));
           setSuites(mappedSuites);
+          setSelectedSuite((current) => {
+            if (!current) return current;
+            return mappedSuites.find((suite) => suite.id === current.id) ?? current;
+          });
           setHasLoadedSuites(true);
         }
       } catch (error) {
@@ -117,7 +139,7 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
 
               <div className="pt-4 mt-4 border-t border-[#e5e9ee] text-[10px] text-[#697586]">
                 <div>
-                  <b className="block text-sm text-[#17202a]">{suite.caseCount}</b>
+                  <b aria-label={`${suite.name} 테스트 케이스 수`} className="block text-sm text-[#17202a]">{suite.caseCount}</b>
                   테스트 케이스
                 </div>
               </div>
@@ -150,6 +172,7 @@ export const SuitesView: React.FC<SuitesViewProps> = ({ onNotify }) => {
           setSelectedSuite(null);
           setReloadToken((token) => token + 1);
         }}
+        onCaseCountChanged={handleCaseCountChanged}
         onNotify={onNotify}
       />
       <CreateSuiteModal

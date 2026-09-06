@@ -60,6 +60,7 @@ const renderSuite = () => render(
     suite={suite}
     onClose={vi.fn()}
     onDeleted={vi.fn()}
+    onCaseCountChanged={vi.fn()}
     onNotify={vi.fn()}
   />,
 );
@@ -204,6 +205,7 @@ test('bulk creation previews editable rows, deduplicates retries and reloads the
   let postAttempt = 0;
   const firstPost = deferred<Response>();
   const notify = vi.fn();
+  const onCaseCountChanged = vi.fn();
   const validationFailure = new Response(JSON.stringify({
     httpStatus: 400,
     message: '입력값을 확인해 주세요.',
@@ -236,6 +238,7 @@ test('bulk creation previews editable rows, deduplicates retries and reloads the
       suite={suite}
       onClose={vi.fn()}
       onDeleted={vi.fn()}
+      onCaseCountChanged={onCaseCountChanged}
       onNotify={notify}
     />,
   );
@@ -274,5 +277,7 @@ test('bulk creation previews editable rows, deduplicates retries and reloads the
   expect(posts).toHaveLength(3);
   expect(posts[2].headers.get('Idempotency-Key')).not.toBe(posts[1].headers.get('Idempotency-Key'));
   expect(posts[2].body).toMatchObject({ items: [{ name: '첫 케이스' }, { name: '수정한 둘째 케이스' }] });
+  expect(onCaseCountChanged).toHaveBeenCalledOnce();
+  expect(onCaseCountChanged).toHaveBeenCalledWith({ kind: 'total', value: 3 });
   expect(notify).toHaveBeenCalledWith('테스트 케이스 2개가 등록되었습니다. (전체 3개)');
 });
