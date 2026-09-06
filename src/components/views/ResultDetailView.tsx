@@ -20,6 +20,7 @@ import { RequestErrorBanner } from '../common/RequestErrorBanner';
 import { RunProgressStepper } from '../common/RunProgressStepper';
 import { StatusPill } from '../common/StatusPill';
 import { ActionCode, OptionalActionValue } from '../common/ActionValue';
+import { ApplicationResponseEvidence } from './ApplicationResponseEvidence';
 import { EVALUATION_OUTCOME_PRESENTATION, evaluationOutcomeLabel } from './evaluationOutcomePresentation';
 import {
   failedQualityGateReasons,
@@ -553,7 +554,8 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
 
     {selected && createPortal(<div className={`fixed inset-0 ${LAYER_CLASS.dialog} flex items-center justify-center bg-black/40 p-4`}><button type="button" className="absolute inset-0 cursor-default" tabIndex={-1} aria-hidden="true" onClick={closeResultDialog} /><section ref={resultDialogRef} role="dialog" aria-modal="true" aria-labelledby="result-dialog-title" tabIndex={-1} className="relative z-10 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"><div className="flex justify-between gap-4"><div><h2 id="result-dialog-title" className="text-lg font-bold">{selected.name}</h2><p className="text-xs text-[#697586]">Snapshot #{selected.testCaseSnapshotId}</p></div><button type="button" aria-label="Snapshot 결과 상세 창 닫기" onClick={closeResultDialog}><X size={20} /></button></div>
       <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2"><div className="sm:col-span-2"><dt className="text-xs font-bold text-[#697586]">입력</dt><dd className="mt-1 rounded-xl bg-[#f6f8f9] p-3 whitespace-pre-wrap">{selected.input}</dd></div><div><dt className="text-xs font-bold text-[#697586]">대상 애플리케이션 실행</dt><dd className="mt-1">{executionLabel(selected.executionStatus)}</dd></div><div><dt className="text-xs font-bold text-[#697586]">기대 동작</dt><dd className="mt-1"><ActionCode value={selected.expectedAction} /></dd></div><div><dt className="text-xs font-bold text-[#697586]">관측된 동작</dt><dd className="mt-1"><OptionalActionValue value={selected.evaluatorVerdict} /></dd></div><div><dt className="text-xs font-bold text-[#697586]">기대 일치 여부</dt><dd className="mt-1">{selected.assertionStatus === 'PASS' ? '일치 (PASS)' : selected.assertionStatus === 'FAIL' ? '불일치 (FAIL)' : '평가되지 않음'}</dd></div><div><dt className="text-xs font-bold text-[#697586]">판정 유형</dt><dd className="mt-1">{evaluationOutcomeLabel(selected.evaluationOutcome)}</dd></div>{selected.error && <div className="sm:col-span-2 rounded-xl border border-[#f4c7c3] bg-[#fff0ef] p-3"><dt className="text-xs font-bold">{errorStageLabel(selected.error.stage)} 오류 · {selected.error.code}</dt><dd className="mt-1 text-xs">{selected.error.message}</dd></div>}</dl>
+      {selectedRunId && <ApplicationResponseEvidence testRunId={selectedRunId} testCaseSnapshotId={selected.testCaseSnapshotId} />}
       {selectedInspectionGuide && <section className="mt-5 rounded-xl border border-[#dfe5e9] bg-[#f8f9fa] p-4 text-sm" aria-labelledby="result-inspection-title"><h3 id="result-inspection-title" className="font-bold text-[#17202a]">확인할 부분</h3><p className="mt-2 text-[#43515d]">{selectedInspectionGuide.summary}</p><p className="mt-2 font-semibold text-[#17202a]">{selectedInspectionGuide.action}</p></section>}
-      <p className="mt-6 text-xs text-[#697586]">Application 자연어 응답은 보안 정책에 따라 표시하지 않습니다.</p></section></div>, document.body)}
+    </section></div>, document.body)}
   </section>;
 };

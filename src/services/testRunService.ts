@@ -142,6 +142,10 @@ export interface TestRunResultListItemRes {
   error: ExecutionErrorDetailRes | null;
 }
 
+export interface TestRunResultDetailRes extends TestRunResultListItemRes {
+  applicationResponse: string | null;
+}
+
 export interface TestRunResultAttentionTypeCountsRes {
   FALSE_NEGATIVE: number;
   FALSE_POSITIVE: number;
@@ -243,6 +247,17 @@ export async function getTestRunResults(
   if (params?.includeFacets) query.append('includeFacets', params.includeFacets);
   const queryString = query.toString() ? `?${query.toString()}` : '';
   return apiRequest<TestRunResultListApiResponse>(`/test-runs/${testRunId}/results${queryString}`);
+}
+
+export async function getTestRunResultDetail(
+  testRunId: number | string,
+  testCaseSnapshotId: number | string,
+  signal?: AbortSignal,
+): Promise<TestRunResultDetailRes> {
+  return apiRequest<TestRunResultDetailRes>(
+    `/test-runs/${testRunId}/results/${testCaseSnapshotId}`,
+    { signal },
+  );
 }
 
 export async function getTestRunEvaluatorMetrics(
