@@ -172,7 +172,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
   const [loadedMetricsRunId, setLoadedMetricsRunId] = useState<string | null>(null);
   const [selected, setSelected] = useState<TestRunResultListItemRes | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
-  const [loadedResultsQueryKey, setLoadedResultsQueryKey] = useState<string | null>(null);
+  const [loadedResultsScopeKey, setLoadedResultsScopeKey] = useState<string | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [notFinishedRaceRunId, setNotFinishedRaceRunId] = useState<string | null>(null);
   const [raceRecoveryExhaustedRunId, setRaceRecoveryExhaustedRunId] = useState<string | null>(null);
@@ -206,8 +206,9 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
   const notFinishedRace = notFinishedRaceRunId === selectedRunId;
   const raceRecoveryExhausted = raceRecoveryExhaustedRunId === selectedRunId;
   const resultFilterKey = JSON.stringify({ filters, attentionTypes });
-  const resultQueryKey = `${selectedRunId ?? ''}:${resultPage}:${resultFilterKey}`;
-  const hasLoadedResults = loadedResultsQueryKey === resultQueryKey;
+  const resultScopeKey = `${selectedRunId ?? ''}:${resultFilterKey}`;
+  // 같은 Run과 필터 안의 페이지 이동에서는 이전 페이지를 유지해 목록 높이와 스크롤을 안정화한다.
+  const hasLoadedResults = loadedResultsScopeKey === resultScopeKey;
   const visibleResults = hasLoadedResults ? results : [];
   const visiblePageMeta = hasLoadedResults ? pageMeta : null;
   const resultListPresentation = deriveResultListPresentation({
@@ -304,7 +305,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
           }
           setResults(nextResults.items);
           setPageMeta(nextResults.page);
-          setLoadedResultsQueryKey(resultQueryKey);
+          setLoadedResultsScopeKey(resultScopeKey);
           if (nextResults.facets) {
             setAttentionFacets(nextResults.facets);
             loadedFacetFilterKeyRef.current = resultFilterKey;
@@ -323,7 +324,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
           recoverNotFinishedRace();
           setResults([]);
           setPageMeta(null);
-          setLoadedResultsQueryKey(null);
+          setLoadedResultsScopeKey(null);
         } else {
           setResultsError(error);
         }
@@ -336,7 +337,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
   }, [
     selectedRunId, reloadToken, detail?.status, resultPage, filters, attentionTypes,
     resultFilterKey,
-    recoverNotFinishedRace, resultQueryKey,
+    recoverNotFinishedRace, resultScopeKey,
   ]);
 
   useEffect(() => {
@@ -480,9 +481,9 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
       <p className="mt-3 text-[11px] text-[#697586]">실행 실패나 관측된 동작이 없는 결과는 매트릭스에 포함되지 않습니다. 현재 테스트 케이스의 기대 동작을 기준으로 한 분류입니다.</p>
     </article>
 
-    <article className="overflow-hidden rounded-2xl border border-[#e5e9ee] bg-white">
+    <article aria-busy={resultsLoading} className="overflow-hidden rounded-2xl border border-[#e5e9ee] bg-white">
       <div className="border-b border-[#e5e9ee] p-5">
-        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-sm font-bold">결과 목록</h2><p className="mt-1 text-xs text-[#697586]">판정의 의미를 먼저 보여주며 원본 기술 값은 상세에서 확인할 수 있습니다.</p></div><span className="text-xs font-bold">현재 {visibleResults.length} / 필터 결과 {visiblePageMeta?.totalElements ?? 0}건 {resultsLoading && '· 불러오는 중'}</span></div>
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div><h2 className="text-sm font-bold">결과 목록</h2><p className="mt-1 text-xs text-[#697586]">판정의 의미를 먼저 보여주며 원본 기술 값은 상세에서 확인할 수 있습니다.</p></div><span className="text-xs font-bold">현재 {visibleResults.length} / 필터 결과 {visiblePageMeta?.totalElements ?? 0}건 {resultsLoading && <span role="status" className="ml-1 text-[#697586]">· 불러오는 중</span>}</span></div>
         <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="결과 보기 전환">
           <button type="button" aria-pressed={attentionTypes.length > 0} onClick={() => selectAttentionTypes(ATTENTION_TYPES.map(({ type }) => type))} className={`rounded-full px-3 py-1.5 text-[11px] font-bold ${attentionTypes.length > 0 ? 'bg-[#17202a] text-white' : 'bg-[#eef1f4] text-[#586473]'}`}>문제만 보기 {attentionFacets ? `(${attentionFacets.attentionTotal})` : ''}</button>
           <button type="button" aria-pressed={attentionTypes.length === 0} onClick={() => selectAttentionTypes([])} className={`rounded-full px-3 py-1.5 text-[11px] font-bold ${attentionTypes.length === 0 ? 'bg-[#17202a] text-white' : 'bg-[#eef1f4] text-[#586473]'}`}>전체 보기 {attentionFacets ? `(${attentionFacets.allResults})` : ''}</button>
