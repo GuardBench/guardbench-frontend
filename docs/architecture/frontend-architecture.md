@@ -3,7 +3,7 @@
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
 > Last reviewed: 2026-09-06
-> Scope: GitHub Issues #34, #62, #86, #111
+> Scope: GitHub Issues #34, #62, #86, #111, #113
 > AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
 > #86 갱신: 단일 Target 생성 계약과 결과·회귀 화면의 평가 정책 metadata 제거를 반영한다.
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
@@ -323,6 +323,7 @@ fixture 위치, production demo 허용과 API/mock adapter interface는 `미결�
 - common 표시 component는 endpoint, DTO와 mock을 직접 import하지 않는다.
 - data-aware modal은 query/mutation identity와 외부 갱신 계약을 명시한다.
 - Status component는 lifecycle, outcome, Quality Gate, assertion과 execution status의 의미를 합치지 않는다.
+- `QualityGateEvidence`는 status별 제목·tone과 서버가 확정한 metric evidence·실패 이유의 표현을 소유하고, Result Detail은 결과 집계와 상태별 안내 문구를 제공한다.
 - Snapshot 상세는 public result DTO만 사용하며 Application 원문을 요구하지 않는다.
 
 prop drilling, context와 전역 store 선택은 실제 공유 범위를 확인한 뒤 결정한다.
