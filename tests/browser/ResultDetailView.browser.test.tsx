@@ -103,6 +103,14 @@ test('result pagination uses 20-item pages, supports page buttons and recovers a
     <ResultDetailView selectedRunId="901" onGoNewRun={vi.fn()} />,
   );
 
+  const matrixHeading = screen.getByRole('heading', { name: '기대·관측 동작 매트릭스' });
+  const resultListHeading = screen.getByRole('heading', { name: '결과 목록' });
+  await expect.element(matrixHeading).toBeVisible();
+  expect(
+    matrixHeading.element().compareDocumentPosition(resultListHeading.element())
+      & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
   const pageFour = screen.getByRole('button', { name: '4페이지' });
   const pagination = screen.getByRole('navigation', { name: '테스트 결과 페이지네이션' });
   await expect.element(pageFour).toBeVisible();
