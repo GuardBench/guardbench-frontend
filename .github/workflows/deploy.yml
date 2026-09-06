@@ -55,10 +55,33 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  component-test:
+    name: Component Test (Chromium)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: '.node-version'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Test Components
+        run: npm run test:component
+
   deploy:
     name: Deploy to Dev
     if: github.event_name != 'pull_request'
-    needs: build
+    needs: [build, component-test]
     runs-on: ubuntu-latest
     permissions:
       actions: read

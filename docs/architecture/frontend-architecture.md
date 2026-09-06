@@ -2,8 +2,8 @@
 
 > Status: AS-IS / TO-BE / 미결정
 > Owner: Frontend
-> Last reviewed: 2026-09-04
-> Scope: GitHub Issues #34, #62, #86
+> Last reviewed: 2026-09-06
+> Scope: GitHub Issues #34, #62, #86, #111
 > AS-IS baseline: `dev@554a2d9705c0cfd4bb25b03ae9dbe779e816a53e`
 > #86 갱신: 단일 Target 생성 계약과 결과·회귀 화면의 평가 정책 metadata 제거를 반영한다.
 > Canonical API: [`../api/openapi.yaml`](../api/openapi.yaml) (`APPROVED`)
@@ -363,11 +363,12 @@ feature-based 폴더, query library와 generated API package 도입은 이 문�
 
 ### 현재 (`AS-IS`)
 
-- package script는 `dev`, `build`, `lint`, `test`, `preview`를 제공하며 `npm test`는 Node test runner 기반 계약 테스트를 실행한다.
-- Playwright dependency와 `test_playwright.cjs`가 있지만 표준 E2E 실행 계약은 없다.
-- 현재 workflow는 `main` 대상 PR/push에서 lint → test → build를 실행하고 `docs/**` 변경은 제외한다. `dev` 대상 문서 PR에는 CI check가 생성되지 않는다.
+- `npm test`는 Node test runner 기반 순수 로직·계약 테스트를 실행한다.
+- `npm run test:component`는 Vitest Browser Mode와 Playwright provider로 React 컴포넌트를 실제 Chromium에 렌더링한다.
+- browser component test는 role·label 기반 상호작용, focus, portal과 실제 CSS layout을 검증하며 공통 fetch stub으로 API를 결정적으로 대체한다.
+- 현재 workflow는 `main` 대상 PR/push에서 Node test와 build 검증에 더해 독립된 `Component Test (Chromium)` job을 실행한다. dev 배포는 두 job이 모두 성공해야 시작한다.
 - `src/contracts/openapiNullability.contract.ts`는 `tsc -b`에서 OpenAPI의 대표 required + nullable DTO 조합을 compile-time contract로 검증한다.
-- 자동화된 component/E2E 기반과 OpenAPI fixture 기반 contract test는 없다.
+- 실제 backend를 포함하는 자동화 E2E와 OpenAPI fixture 기반 contract test는 아직 없다.
 
 ### 목표 검증 경계
 
@@ -389,7 +390,7 @@ feature-based 폴더, query library와 generated API package 도입은 이 문�
 - current Run 변경 시 metrics/comparison state 격리
 - Application 원문이 DTO·UI·log에 포함되지 않음
 
-test framework, 실제 backend 사용 범위와 CI required check는 `미결정`이다.
+테스트 작성·mock·실행 규칙은 [`../testing.md`](../testing.md)를 따른다. 실제 backend를 사용하는 E2E 범위와 별도 환경은 `미결정`이다.
 
 ## 17. 구현 순서와 Decision
 
@@ -409,7 +410,7 @@ test framework, 실제 backend 사용 범위와 CI required check는 `미결정`
 - Polling retry/backoff
 - global error boundary와 observability
 - explicit demo adapter
-- test framework와 CI
+- 실제 backend E2E 환경
 
 ## 18. 검증 근거
 

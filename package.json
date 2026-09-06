@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "test": "node --test scripts/*.test.mjs",
+    "test:component": "tsc --noEmit -p tsconfig.browser.json && vitest run --config vitest.config.ts",
+    "test:component:watch": "vitest --config vitest.config.ts",
     "openapi:sync": "node scripts/sync-openapi.mjs sync",
     "openapi:verify": "node scripts/sync-openapi.mjs verify",
     "openapi:check-latest": "node scripts/sync-openapi.mjs check-latest",
@@ -28,10 +30,13 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
+    "@vitest/browser-playwright": "^5.0.0",
     "oxlint": "^1.79.0",
     "playwright": "^1.62.1",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0",
+    "vitest-browser-react": "^2.3.0"
   }
 }
