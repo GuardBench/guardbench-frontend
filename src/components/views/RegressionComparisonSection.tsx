@@ -4,7 +4,11 @@ import type { RegressionDetailState } from '../../hooks/useRegressionComparison'
 import type { RegressionChangeType } from '../../services/regressionService';
 import { ActionCode, OptionalActionValue } from '../common/ActionValue';
 import { RequestErrorBanner } from '../common/RequestErrorBanner';
-import { regressionChangeTypeLabel } from './regressionSummary';
+import {
+  regressionChangeTypeLabel,
+  regressionDetailSummaryGroups,
+  regressionDistributionSegments,
+} from './regressionSummary';
 
 interface RegressionComparisonSectionProps {
   regression: RegressionDetailState;
@@ -23,6 +27,15 @@ const changeTypeClass = (changeType: RegressionChangeType | null) => {
   if (changeType === 'POLICY_BEHAVIOR_CHANGED') return 'bg-[#fff7e8] text-[#78501b]';
   return 'bg-[#eef1f4] text-[#697586]';
 };
+
+const summaryToneClass = {
+  neutral: 'border-[#e5e9ee] bg-white',
+  changed: 'border-[#cad8e6] bg-[#f5f8fb]',
+  unchanged: 'border-[#dce1e6] bg-[#f8f9fa]',
+  regressed: 'border-[#f0cfcc] bg-[#fff8f7]',
+  improved: 'border-[#cce4db] bg-[#f5fbf8]',
+  notComparable: 'border-[#f0ddb0] bg-[#fffaf0]',
+} as const;
 
 export function RegressionComparisonSection({ regression }: RegressionComparisonSectionProps) {
   const {
@@ -60,6 +73,8 @@ export function RegressionComparisonSection({ regression }: RegressionComparison
       return true;
     });
   }, [changedOnly, comparison, includeNotComparable]);
+  const summaryGroups = comparison ? regressionDetailSummaryGroups(comparison) : [];
+  const distributionSegments = comparison ? regressionDistributionSegments(comparison) : [];
 
   return (
     <section className="space-y-4 rounded-2xl border border-[#e5e9ee] bg-white p-6 shadow-[0_3px_15px_rgba(17,31,44,0.025)] sm:p-7">
@@ -190,20 +205,56 @@ export function RegressionComparisonSection({ regression }: RegressionComparison
 
       {comparison && !comparisonLoading && (
         <div className="space-y-4">
-          <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-            {[
-              ['전체', comparison.totalCases],
-              ['변경', comparison.changedCount],
-              ['변화 없음', comparison.unchangedCount],
-              ['악화', comparison.regressedCount],
-              ['개선', comparison.improvedCount],
-              ['비교 불가', comparison.notComparableCount],
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-xl border border-[#e5e9ee] p-3">
-                <div className="text-[10px] font-bold text-[#697586]">{label}</div>
-                <div className="mt-1 text-xl font-black text-[#17202a]">{value}</div>
-              </div>
+          <div className="space-y-4 rounded-2xl border border-[#e5e9ee] bg-[#fbfcfd] p-4 sm:p-5">
+            {summaryGroups.map((group) => (
+              <section key={group.title} aria-labelledby={`regression-${group.title === '비교 결과 요약' ? 'summary' : 'detail'}-title`}>
+                <h3
+                  id={`regression-${group.title === '비교 결과 요약' ? 'summary' : 'detail'}-title`}
+                  className="mb-2 text-xs font-extrabold text-[#17202a]"
+                >
+                  {group.title}
+                </h3>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {group.items.map((item) => (
+                    <div key={item.label} className={`rounded-xl border p-3 ${summaryToneClass[item.tone]}`}>
+                      <div className="text-[10px] font-bold text-[#697586]">{item.label}</div>
+                      <div className="mt-1 text-xl font-black text-[#17202a]">{item.value}</div>
+                    </div>
+                  ))}
+                </div>
+                {group.title === '변경 상세' && (
+                  <p className="mt-2 text-[10px] leading-relaxed text-[#697586]">
+                    악화와 개선은 변경 건수의 구성이며, 비교 불가는 판정 결과가 없어 변화를 판단할 수 없는 별도 항목입니다.
+                  </p>
+                )}
+              </section>
             ))}
+
+            <figure>
+              <figcaption className="mb-2 text-xs font-extrabold text-[#17202a]">전체 결과 분포</figcaption>
+              <div
+                role="img"
+                aria-label={`전체 ${comparison.totalCases}건 중 악화 ${comparison.regressedCount}건, 개선 ${comparison.improvedCount}건, 변화 없음 ${comparison.unchangedCount}건, 비교 불가 ${comparison.notComparableCount}건`}
+                className="flex h-3 w-full overflow-hidden rounded-full bg-[#e9edf1]"
+              >
+                {distributionSegments.filter((segment) => segment.value > 0).map((segment) => (
+                  <span
+                    key={segment.label}
+                    className={segment.colorClassName}
+                    style={{ flexGrow: segment.value }}
+                    title={`${segment.label} ${segment.value}건`}
+                  />
+                ))}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                {distributionSegments.map((segment) => (
+                  <div key={segment.label} className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-[#4e5a68]">
+                    <span aria-hidden="true" className={`h-2 w-2 rounded-full ${segment.colorClassName}`} />
+                    <span>{segment.label} {segment.value}</span>
+                  </div>
+                ))}
+              </div>
+            </figure>
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

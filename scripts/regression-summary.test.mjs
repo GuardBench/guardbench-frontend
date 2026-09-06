@@ -13,15 +13,52 @@ const compile = (path) => {
 
 const {
   regressionChangeTypeLabel,
+  regressionDetailSummaryGroups,
+  regressionDistributionSegments,
   regressionSummaryItems,
 } = await import(compile('../src/components/views/regressionSummary.ts'));
 
 const comparison = {
+  totalCases: 78,
+  changedCount: 3,
   regressedCount: 2,
   improvedCount: 1,
   unchangedCount: 74,
   notComparableCount: 1,
 };
+
+test('Regression Detail separates overview counts from change details', () => {
+  assert.deepEqual(regressionDetailSummaryGroups(comparison), [
+    {
+      title: '비교 결과 요약',
+      items: [
+        { label: '전체', value: 78, tone: 'neutral' },
+        { label: '변경', value: 3, tone: 'changed' },
+        { label: '변화 없음', value: 74, tone: 'unchanged' },
+      ],
+    },
+    {
+      title: '변경 상세',
+      items: [
+        { label: '악화', value: 2, tone: 'regressed' },
+        { label: '개선', value: 1, tone: 'improved' },
+        { label: '비교 불가', value: 1, tone: 'notComparable' },
+      ],
+    },
+  ]);
+});
+
+test('distribution segments preserve the four mutually exclusive backend counts', () => {
+  assert.deepEqual(
+    regressionDistributionSegments(comparison).map(({ label, value }) => ({ label, value })),
+    [
+      { label: '악화', value: 2 },
+      { label: '개선', value: 1 },
+      { label: '변화 없음', value: 74 },
+      { label: '비교 불가', value: 1 },
+    ],
+  );
+});
 
 test('regression summary preserves backend counts including non-comparable cases', () => {
   assert.deepEqual(regressionSummaryItems(comparison), [
