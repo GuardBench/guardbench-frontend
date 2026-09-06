@@ -33,9 +33,20 @@ export type BulkImportIssue = {
   message: string;
 };
 
+export type TestCaseBulkDraft = {
+  sourceRow: number;
+  name: string;
+  input: string;
+  expectedAction: string;
+  severity: string;
+  category: string;
+};
+
 export type BulkImportResult = {
   cases: TestCaseCreatePayload[];
   issues: BulkImportIssue[];
+  /** Parsed rows including locally invalid values, for editable error previews. */
+  drafts?: TestCaseBulkDraft[];
 };
 
 export type JsonFileImportResult = BulkImportResult & {
@@ -72,6 +83,7 @@ const validateRecord = (record: Record<string, unknown>, row: number): BulkImpor
     issues.push({ row, message: `${rowLabel(row)}severity는 CRITICAL, HIGH, MEDIUM, LOW 중 하나여야 합니다.` });
   }
 
+  const draft = { sourceRow: row, name, input, category, expectedAction, severity };
   return {
     cases: issues.length === 0 ? [{
       name,
@@ -81,17 +93,20 @@ const validateRecord = (record: Record<string, unknown>, row: number): BulkImpor
       severity: severity as TestCaseCreatePayload['severity'],
     }] : [],
     issues,
+    drafts: [draft],
   };
 };
 
 const validateRecords = (records: Array<Record<string, unknown>>, firstDataRow: number): BulkImportResult => {
   const cases: TestCaseCreatePayload[] = [];
   const issues: BulkImportIssue[] = [];
+  const drafts: TestCaseBulkDraft[] = [];
 
   records.forEach((record, index) => {
     const result = validateRecord(record, firstDataRow + index);
     cases.push(...result.cases);
     issues.push(...result.issues);
+    drafts.push(...(result.drafts ?? []));
   });
 
   if (records.length > MAX_INITIAL_TEST_CASES) {
@@ -101,7 +116,7 @@ const validateRecords = (records: Array<Record<string, unknown>>, firstDataRow: 
     });
   }
 
-  return { cases, issues };
+  return { cases: records.length > MAX_INITIAL_TEST_CASES ? [] : cases, issues, drafts };
 };
 
 const resolveCsvHeaders = (headers: string[]): { resolved: Record<TestCaseCsvHeader, string> | null; issues: BulkImportIssue[] } => {
@@ -160,18 +175,15 @@ export const parseInitialTestCasesJson = (source: string): BulkImportResult => {
     return { cases: [], issues: [{ row: null, message: 'TestCase JSON은 배열이어야 합니다.' }] };
   }
 
-  if (parsed.length > MAX_INITIAL_TEST_CASES) {
-    return {
-      cases: [],
-      issues: [{
-        row: null,
-        message: `초기 TestCase는 최대 ${MAX_INITIAL_TEST_CASES}개까지 등록할 수 있습니다. 현재 ${parsed.length}개입니다.`,
-      }],
-    };
-  }
-
   const cases: TestCaseCreatePayload[] = [];
   const issues: BulkImportIssue[] = [];
+  const drafts: TestCaseBulkDraft[] = [];
+  if (parsed.length > MAX_INITIAL_TEST_CASES) {
+    issues.push({
+      row: null,
+      message: `초기 TestCase는 최대 ${MAX_INITIAL_TEST_CASES}개까지 등록할 수 있습니다. 현재 ${parsed.length}개입니다.`,
+    });
+  }
   parsed.forEach((item, index) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) {
       issues.push({ row: index + 1, message: `${rowLabel(index + 1)}TestCase 객체가 아닙니다.` });
@@ -180,9 +192,10 @@ export const parseInitialTestCasesJson = (source: string): BulkImportResult => {
     const result = validateRecord(item as Record<string, unknown>, index + 1);
     cases.push(...result.cases);
     issues.push(...result.issues);
+    drafts.push(...(result.drafts ?? []));
   });
 
-  return { cases, issues };
+  return { cases: parsed.length > MAX_INITIAL_TEST_CASES ? [] : cases, issues, drafts };
 };
 
 export const importInitialTestCasesJsonFile = async (

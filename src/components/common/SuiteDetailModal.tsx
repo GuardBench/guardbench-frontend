@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Severity, TestCase, TestSuite } from '../../types';
-import { X, Plus, Trash2, Edit2, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Plus, Trash2, Edit2, AlertCircle, Loader2, FileUp } from 'lucide-react';
 import {
   getTestCases,
   createTestCase,
@@ -15,6 +15,7 @@ import { ActionCode } from './ActionValue';
 import { RequestErrorBanner } from './RequestErrorBanner';
 import { useDialogFocus } from '../../hooks/useDialogFocus';
 import { LAYER_CLASS } from '../../config/layers';
+import { BulkTestCaseCreatePanel } from './BulkTestCaseCreatePanel';
 import {
   EMPTY_TEST_CASE_EDIT,
   beginTestCaseEdit,
@@ -66,6 +67,9 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   const [loadError, setLoadError] = useState<unknown>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [isAdding, setIsAdding] = useState(false);
+  const [isBulkAdding, setIsBulkAdding] = useState(false);
+  const [isBulkDirty, setIsBulkDirty] = useState(false);
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<unknown>(null);
@@ -92,10 +96,13 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
   const cancelDeleteRef = useRef<HTMLButtonElement>(null);
   const deleteInFlightRef = useRef(false);
   const closeSuiteDetail = () => {
-    if (editInFlightRef.current) return;
+    if (editInFlightRef.current || isBulkSaving) return;
     if (isTestCaseEditDirty(editState) && !window.confirm('저장하지 않은 수정사항이 있습니다. 상세창을 닫을까요?')) return;
+    if (isBulkDirty && !window.confirm('등록하지 않은 일괄 등록 항목이 있습니다. 상세창을 닫을까요?')) return;
     setEditState(EMPTY_TEST_CASE_EDIT);
     setIsAdding(false);
+    setIsBulkAdding(false);
+    setIsBulkDirty(false);
     setAddValidation(null);
     onClose();
   };
@@ -254,9 +261,18 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
 
   const openEditCase = (testCase: TestCase) => {
     setIsAdding(false);
+    setIsBulkAdding(false);
+    setIsBulkDirty(false);
     setAddValidation(null);
     setEditState(beginTestCaseEdit(testCase));
     requestAnimationFrame(() => editCaseNameRef.current?.focus());
+  };
+
+  const closeBulkCreate = () => {
+    if (isBulkSaving) return;
+    if (isBulkDirty && !window.confirm('등록하지 않은 일괄 등록 항목을 취소할까요?')) return;
+    setIsBulkAdding(false);
+    setIsBulkDirty(false);
   };
 
   const cancelEditCase = () => {
@@ -381,7 +397,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
           <button
             type="button"
             onClick={closeSuiteDetail}
-            disabled={editState.isSaving}
+            disabled={editState.isSaving || isBulkSaving}
             aria-label="테스트 스위트 상세 창 닫기"
             className="p-2 rounded-xl text-[#697586] hover:bg-gray-200 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -417,17 +433,38 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                 <p role="status" className="mt-1 text-[11px] text-[#697586]">현재 페이지를 갱신하는 중입니다.</p>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setIsAdding(!isAdding);
-                setAddValidation(null);
-              }}
-              disabled={!isCurrentSuiteLoaded || isLoading || editState.caseId !== null || editState.isSaving}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#17202a] text-white text-xs font-bold hover:bg-[#253545] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Plus size={14} /> {isAdding ? '취소' : '케이스 추가'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAdding(!isAdding);
+                  setIsBulkAdding(false);
+                  setIsBulkDirty(false);
+                  setAddValidation(null);
+                }}
+                disabled={!isCurrentSuiteLoaded || isLoading || isBulkAdding || editState.caseId !== null || editState.isSaving}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#17202a] px-3 py-1.5 text-xs font-bold text-white hover:bg-[#253545] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Plus size={14} /> {isAdding ? '취소' : '케이스 추가'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isBulkAdding) {
+                    closeBulkCreate();
+                    return;
+                  }
+                  setIsAdding(false);
+                  setAddValidation(null);
+                  setIsBulkAdding(true);
+                }}
+                aria-expanded={isBulkAdding}
+                disabled={!isCurrentSuiteLoaded || isLoading || isAdding || editState.caseId !== null || editState.isSaving}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-[#17202a] bg-white px-3 py-1.5 text-xs font-bold text-[#17202a] hover:bg-[#eef1f4] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <FileUp size={14} /> {isBulkAdding ? '일괄 등록 닫기' : '일괄 등록'}
+              </button>
+            </div>
           </div>
 
           {/* Add Form (If active) */}
@@ -518,6 +555,22 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             </div>
           )}
 
+          {isBulkAdding && (
+            <BulkTestCaseCreatePanel
+              suiteId={suite.id.replace('suite-', '')}
+              onCancel={closeBulkCreate}
+              onDirtyChange={setIsBulkDirty}
+              onSavingChange={setIsBulkSaving}
+              onCreated={(response) => {
+                setIsBulkAdding(false);
+                setIsBulkDirty(false);
+                setPage(1);
+                setReloadToken((token) => token + 1);
+                onNotify(`테스트 케이스 ${response.createdCount}개가 등록되었습니다. (전체 ${response.totalTestCaseCount}개)`);
+              }}
+            />
+          )}
+
           {/* TestCase Table */}
           <div className="border border-[#e5e9ee] rounded-xl overflow-hidden">
             <div className="max-h-[38vh] overflow-auto">
@@ -558,7 +611,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                           }}
                           type="button"
                           onClick={() => openEditCase(c)}
-                          disabled={isLoading || editState.caseId !== null || editState.isSaving}
+                          disabled={isLoading || isBulkAdding || editState.caseId !== null || editState.isSaving}
                           className="p-1.5 rounded text-[#697586] hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40"
                           title="수정"
                           aria-label={`${c.name} 수정`}
@@ -568,7 +621,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                         <button
                           type="button"
                           onClick={() => handleDeleteCase(c.id, c.name)}
-                          disabled={editState.caseId !== null || editState.isSaving}
+                          disabled={isBulkAdding || editState.caseId !== null || editState.isSaving}
                           className="p-1.5 rounded text-[#bd3b35] hover:bg-[#fff0ef] disabled:cursor-not-allowed disabled:opacity-40"
                           title="삭제"
                           aria-label={`${c.name} 삭제`}
@@ -736,7 +789,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             <button
               type="button"
               onClick={() => setPage(Math.max(1, (visiblePageMeta?.number ?? page) - 1))}
-              disabled={!visiblePageMeta?.hasPrevious || isLoading || editState.caseId !== null}
+              disabled={!visiblePageMeta?.hasPrevious || isLoading || isBulkSaving || editState.caseId !== null}
               className="shrink-0 whitespace-nowrap rounded-lg border border-[#dce1e6] px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
             >
               이전
@@ -748,7 +801,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                 key={item}
                 type="button"
                 onClick={() => setPage(item)}
-                disabled={isLoading || editState.caseId !== null}
+                disabled={isLoading || isBulkSaving || editState.caseId !== null}
                 aria-current={item === visiblePageMeta.number ? 'page' : undefined}
                 aria-label={`${item}페이지`}
                 className={`min-w-8 rounded-lg px-2 py-2 text-xs font-bold disabled:cursor-not-allowed ${item === visiblePageMeta.number ? 'bg-[#17202a] text-white' : 'text-[#4e5a68] hover:bg-[#eef1f4]'}`}
@@ -759,7 +812,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
             <button
               type="button"
               onClick={() => setPage((visiblePageMeta?.number ?? page) + 1)}
-              disabled={!visiblePageMeta?.hasNext || isLoading || editState.caseId !== null}
+              disabled={!visiblePageMeta?.hasNext || isLoading || isBulkSaving || editState.caseId !== null}
               className="shrink-0 whitespace-nowrap rounded-lg border border-[#dce1e6] px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-40"
             >
               다음
@@ -768,7 +821,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
           <button
             type="button"
             onClick={openDeleteConfirmation}
-            disabled={isDeleting || editState.caseId !== null || editState.isSaving}
+            disabled={isDeleting || isBulkAdding || isBulkSaving || editState.caseId !== null || editState.isSaving}
             className="col-start-1 row-start-2 inline-flex items-center gap-1.5 justify-self-start rounded-xl border border-[#e7aaa5] bg-[#fff0ef] px-4 py-2 text-xs font-bold text-[#a82f2a] hover:bg-[#ffe0de] disabled:cursor-not-allowed disabled:opacity-50 sm:row-start-1"
           >
             <Trash2 size={14} /> 스위트 삭제
@@ -776,7 +829,7 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
           <button
             type="button"
             onClick={closeSuiteDetail}
-            disabled={editState.isSaving}
+            disabled={editState.isSaving || isBulkSaving}
             className="col-start-2 row-start-2 justify-self-end rounded-xl bg-[#17202a] px-4 py-2 text-xs font-bold text-white hover:bg-[#253545] disabled:cursor-not-allowed disabled:opacity-50 sm:col-start-3 sm:row-start-1"
           >
             닫기
