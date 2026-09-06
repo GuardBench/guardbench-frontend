@@ -11,6 +11,7 @@ import {
 } from '../../services/testCaseService';
 import { deleteTestSuite } from '../../services/testSuiteService';
 import { ApiError, presentApiError } from '../../services/apiClient';
+import { ActionCode } from './ActionValue';
 import { RequestErrorBanner } from './RequestErrorBanner';
 import { useDialogFocus } from '../../hooks/useDialogFocus';
 import { LAYER_CLASS } from '../../config/layers';
@@ -538,10 +539,10 @@ export const SuiteDetailModal: React.FC<SuiteDetailModalProps> = ({ suite, onClo
                         <b className="block text-[#17202a]">{c.name}</b>
                         <small className="text-[#697586]">{c.category}</small>
                       </td>
-                      <td className="p-3 font-mono text-[#697586] max-w-xs truncate">{c.input}</td>
-                      <td className="p-3 font-mono font-bold">
+                      <td className="p-3 text-[#697586] max-w-xs truncate">{c.input}</td>
+                      <td className="p-3 font-bold">
                         <span className={c.expectedAction === 'BLOCK' ? 'text-[#1a7f5a]' : 'text-[#246fa8]'}>
-                          {c.expectedAction}
+                          <ActionCode value={c.expectedAction} />
                         </span>
                       </td>
                       <td className="p-3">

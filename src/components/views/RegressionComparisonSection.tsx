@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { GitCompareArrows, Loader2, RefreshCw } from 'lucide-react';
 import type { RegressionDetailState } from '../../hooks/useRegressionComparison';
 import type { RegressionChangeType } from '../../services/regressionService';
+import { ActionCode, OptionalActionValue } from '../common/ActionValue';
 import { RequestErrorBanner } from '../common/RequestErrorBanner';
 import { regressionChangeTypeLabel } from './regressionSummary';
 
@@ -22,8 +23,6 @@ const changeTypeClass = (changeType: RegressionChangeType | null) => {
   if (changeType === 'POLICY_BEHAVIOR_CHANGED') return 'bg-[#fff7e8] text-[#78501b]';
   return 'bg-[#eef1f4] text-[#697586]';
 };
-
-const verdictLabel = (value: 'ALLOW' | 'BLOCK' | null) => value ?? '—';
 
 export function RegressionComparisonSection({ regression }: RegressionComparisonSectionProps) {
   const {
@@ -250,9 +249,9 @@ export function RegressionComparisonSection({ regression }: RegressionComparison
                       <div className="font-bold text-[#17202a]">{item.name}</div>
                       <div className="mt-1 max-w-[360px] truncate text-[10px] text-[#697586]" title={item.input}>{item.input}</div>
                     </td>
-                    <td className="px-3 py-3 font-bold">{item.expectedAction}</td>
-                    <td className="px-3 py-3 font-bold">{verdictLabel(item.comparisonVerdict)}</td>
-                    <td className="px-3 py-3 font-bold">{verdictLabel(item.currentVerdict)}</td>
+                    <td className="px-3 py-3 font-bold"><ActionCode value={item.expectedAction} /></td>
+                    <td className="px-3 py-3 font-bold"><OptionalActionValue value={item.comparisonVerdict} /></td>
+                    <td className="px-3 py-3 font-bold"><OptionalActionValue value={item.currentVerdict} /></td>
                     <td className="px-3 py-3">
                       <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-extrabold ${changeTypeClass(item.changeType)}`}>
                         {regressionChangeTypeLabel(item.changeType)}
