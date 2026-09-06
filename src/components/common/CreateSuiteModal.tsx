@@ -5,6 +5,7 @@ import { ApiError } from '../../services/apiClient';
 import { createTestSuite, type TestCaseCreatePayload } from '../../services/testSuiteService';
 import { useDialogFocus } from '../../hooks/useDialogFocus';
 import { LAYER_CLASS } from '../../config/layers';
+import { ActionCode } from './ActionValue';
 import {
   MAX_INITIAL_TEST_CASES,
   importInitialTestCasesJsonFile,
@@ -532,7 +533,7 @@ export const CreateSuiteModal: React.FC<CreateSuiteModalProps> = ({ isOpen, onCl
                     {bulkIssues.map((issue, index) => <li key={`${issue.row}-${issue.message}-${index}`}>{issue.message}</li>)}
                   </ul>}
                   {bulkCases.length > 0 && <div className="max-h-48 overflow-y-auto"><table className="w-full text-left text-[11px]"><thead className="sticky top-0 bg-[#fafbfb] text-[#697586]"><tr><th className="px-3 py-2">이름</th><th className="px-3 py-2">기대 동작</th><th className="px-3 py-2">위험도</th><th className="px-3 py-2">상태</th><th className="px-3 py-2" /></tr></thead><tbody className="divide-y divide-[#e5e9ee]">
-                    {bulkCases.map((testCase, index) => <tr key={`${testCase.name}-${index}`}><td className="max-w-48 truncate px-3 py-2 font-bold text-[#17202a]">{testCase.name}</td><td className="px-3 py-2 font-mono">{testCase.expectedAction}</td><td className="px-3 py-2 font-mono">{testCase.severity}</td><td className="px-3 py-2">{bulkServerErrors[index] ? <span className="font-bold text-[#bd3b35]">{bulkServerErrors[index]}</span> : <span className="text-[#1a7f5a]">준비됨</span>}</td><td className="px-3 py-2 text-right"><button type="button" aria-label={`${testCase.name} 제거`} onClick={() => { setBulkCases((current) => current.filter((_, itemIndex) => itemIndex !== index)); setBulkServerErrors({}); }} className="rounded p-1 text-[#697586] hover:bg-[#fff0ef] hover:text-[#bd3b35]"><Trash2 size={13} /></button></td></tr>)}
+                    {bulkCases.map((testCase, index) => <tr key={`${testCase.name}-${index}`}><td className="max-w-48 truncate px-3 py-2 font-bold text-[#17202a]">{testCase.name}</td><td className="px-3 py-2"><ActionCode value={testCase.expectedAction} /></td><td className="px-3 py-2 font-mono">{testCase.severity}</td><td className="px-3 py-2">{bulkServerErrors[index] ? <span className="font-bold text-[#bd3b35]">{bulkServerErrors[index]}</span> : <span className="text-[#1a7f5a]">준비됨</span>}</td><td className="px-3 py-2 text-right"><button type="button" aria-label={`${testCase.name} 제거`} onClick={() => { setBulkCases((current) => current.filter((_, itemIndex) => itemIndex !== index)); setBulkServerErrors({}); }} className="rounded p-1 text-[#697586] hover:bg-[#fff0ef] hover:text-[#bd3b35]"><Trash2 size={13} /></button></td></tr>)}
                   </tbody></table></div>}
                 </div>}
               </div>
