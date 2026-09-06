@@ -302,8 +302,8 @@ Evaluator metrics API 값은 현재 Result Detail에서 Quality Gate와 구분�
 - Result Detail은 case-level `items`가 없는 summary endpoint만 선조회하고 전체 comparison은 Regression Detail 진입 시 조회한다.
 - 선택된 baseline Run ID와 `regressedCount`, `improvedCount`, `unchangedCount`, `notComparableCount`를 backend 응답 그대로 사용하되, 화면에는 `악화 / 개선 / 변화 없음 / 비교 불가`로 표시한다.
 - 첫 후보 자동 선택은 UI에 명시하며 Regression Detail에서 baseline을 바꿀 수 있다.
-- 현재 Run이 아직 종료되지 않았으면 제한된 간격 재시도 후 대기하며, Result Detail이 `FINISHED` 전환을 확인하는 즉시 다시 조회한다.
-- 자동 재확인 5회 후에는 사용자가 직접 다시 시도할 수 있다.
+- 현재 Run이 아직 종료되지 않았으면 Result Detail 요약은 내부 재시도 횟수를 오류처럼 노출하지 않고 중립적인 준비 상태로 대기하며, Result Detail이 `FINISHED` 전환을 확인하는 즉시 다시 조회한다.
+- Regression Detail에 직접 진입한 경우에는 자동 재확인 5회 후 상단 `비교 새로고침`으로 다시 시도할 수 있다.
 - Result Detail의 새로고침은 Run 상세, 결과 목록과 집계, Evaluator 지표, Regression 요약을 함께 갱신하며 진행 중임을 버튼에 표시한다.
 - 비교 가능한 Run이 없으면 상세 진입 action을 비활성화한다.
 - 비교 가능한 Run이 있으면 `회귀 상세 보기`로 `RegressionDetailView`에 진입한다.

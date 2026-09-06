@@ -53,7 +53,6 @@ export interface RegressionSummaryState {
   loading: boolean;
   error: unknown;
   notFinished: boolean;
-  autoRetryExhausted: boolean;
   hasLoadedCandidates: boolean;
   hasComparableRun: boolean;
   retry: () => void;
@@ -302,7 +301,6 @@ export function useRegressionComparison(runId: string, loadDetails: boolean): Re
       loading: candidatesLoading || summaryNeedsLoad,
       error: summaryError,
       notFinished: current.notFinished,
-      autoRetryExhausted: current.notFinished && current.autoRetryCount >= AUTO_RETRY_LIMIT,
       hasLoadedCandidates: current.hasLoadedCandidates,
       hasComparableRun: current.candidates.length > 0,
       retry: shouldRefreshRegressionCandidates(

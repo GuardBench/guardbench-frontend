@@ -17,7 +17,6 @@ export function RegressionSummaryEntry({ regression, onOpenDetail }: RegressionS
     hasLoadedCandidates,
     hasComparableRun,
     notFinished,
-    autoRetryExhausted,
     selectedCandidate,
     selectedAutomatically,
     retry,
@@ -44,20 +43,9 @@ export function RegressionSummaryEntry({ regression, onOpenDetail }: RegressionS
               </p>
             )}
             {!loading && notFinished && (
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[#78501b]">
-                <p>{autoRetryExhausted
-                  ? '자동 확인을 5회 마쳤습니다. Run 상태를 확인한 뒤 다시 시도해 주세요.'
-                  : '현재 Run이 종료되면 비교 가능한 과거 Run을 자동으로 확인합니다.'}</p>
-                {autoRetryExhausted && (
-                  <button
-                    type="button"
-                    onClick={retry}
-                    className="rounded-lg border border-[#d8bd78] bg-white px-2.5 py-1 font-bold hover:bg-[#fffaf0]"
-                  >
-                    다시 시도
-                  </button>
-                )}
-              </div>
+              <p className="mt-2 flex items-center gap-2 text-xs text-[#697586]">
+                <Loader2 size={13} className="animate-spin" /> 현재 Run이 종료되면 비교 가능한 과거 Run을 자동으로 확인합니다.
+              </p>
             )}
             {!loading && !notFinished && hasLoadedCandidates && !hasComparableRun && (
               <p className="mt-2 text-xs text-[#697586]">현재 비교 가능한 과거 Run이 없습니다.</p>
