@@ -198,3 +198,81 @@ test('mobile pagination stays horizontal and follows the visual focus order', as
   await userEvent.tab();
   expect(document.activeElement).toBe(closeButton.element());
 });
+
+test('bulk creation previews editable rows, deduplicates retries and reloads the list after success', async () => {
+  let getAttempt = 0;
+  let postAttempt = 0;
+  const firstPost = deferred<Response>();
+  const notify = vi.fn();
+  const validationFailure = new Response(JSON.stringify({
+    httpStatus: 400,
+    message: '입력값을 확인해 주세요.',
+    data: {
+      code: 'VALIDATION_ERROR',
+      errors: [{ field: 'items[1].name', message: '이름은 100자 이하여야 합니다.' }],
+    },
+  }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+
+  const { requests } = installApiStub((request) => {
+    if (request.method === 'GET' && request.url.pathname.endsWith('/test-suites/7/test-cases')) {
+      getAttempt += 1;
+      if (getAttempt === 1) return apiSuccess(listResponse());
+      return apiSuccess({
+        ...listResponse(),
+        page: { ...listResponse().page, totalElements: 3 },
+      });
+    }
+    if (request.method === 'POST' && request.url.pathname.endsWith('/test-suites/7/test-cases/bulk')) {
+      postAttempt += 1;
+      if (postAttempt === 1) return firstPost.promise;
+      if (postAttempt === 2) return validationFailure;
+      return apiSuccess({ createdTestCaseIds: [42, 43], createdCount: 2, totalTestCaseCount: 3 }, 201);
+    }
+    throw new Error(`Unexpected API request: ${request.method} ${request.url.pathname}`);
+  });
+
+  const screen = await render(
+    <SuiteDetailModal
+      suite={suite}
+      onClose={vi.fn()}
+      onDeleted={vi.fn()}
+      onNotify={notify}
+    />,
+  );
+  await expect.element(screen.getByRole('button', { name: '일괄 등록' })).toBeEnabled();
+  await screen.getByRole('button', { name: '일괄 등록' }).click();
+  await screen.getByLabelText('TestCase JSON 배열').fill(JSON.stringify([
+    { name: '첫 케이스', input: '첫 입력', expectedAction: 'BLOCK', severity: 'HIGH', category: 'PII' },
+    { name: '', input: '둘째 입력', expectedAction: 'ALLOW', severity: 'LOW', category: 'SAFE' },
+  ]));
+  await screen.getByRole('button', { name: '검증 및 미리보기' }).click();
+  await expect.element(screen.getByText('등록 미리보기 · 2개')).toBeVisible();
+  await expect.element(screen.getByText('2번 항목: 이름을 입력해 주세요.')).toBeVisible();
+  await screen.getByLabelText('2번 이름').fill('둘째 케이스');
+
+  await screen.getByRole('button', { name: '2개 등록하기' }).click();
+  await expect.element(screen.getByRole('status')).toHaveTextContent('일괄 등록 중...');
+  (screen.getByRole('button', { name: '등록 중...' }).element() as HTMLButtonElement).click();
+  expect(requests.filter(({ method }) => method === 'POST')).toHaveLength(1);
+  firstPost.reject(new Error('connection interrupted'));
+  await expect.element(screen.getByRole('alert')).toHaveTextContent('[NETWORK_ERROR] connection interrupted');
+
+  await screen.getByRole('button', { name: '2개 등록하기' }).click();
+  await expect.element(screen.getByText('2번 항목: 이름은 100자 이하여야 합니다.')).toBeVisible();
+  const firstTwoPosts = requests.filter(({ method }) => method === 'POST');
+  expect(firstTwoPosts[0].headers.get('Idempotency-Key')).toBeTruthy();
+  expect(firstTwoPosts[1].headers.get('Idempotency-Key')).toBe(firstTwoPosts[0].headers.get('Idempotency-Key'));
+  expect(firstTwoPosts[1].body).toEqual({ items: [
+    { name: '첫 케이스', input: '첫 입력', expectedAction: 'BLOCK', severity: 'HIGH', category: 'PII' },
+    { name: '둘째 케이스', input: '둘째 입력', expectedAction: 'ALLOW', severity: 'LOW', category: 'SAFE' },
+  ] });
+
+  await screen.getByLabelText('2번 이름').fill('수정한 둘째 케이스');
+  await screen.getByRole('button', { name: '2개 등록하기' }).click();
+  await expect.element(screen.getByText('소속 테스트 케이스 목록 (3개)')).toBeVisible();
+  const posts = requests.filter(({ method }) => method === 'POST');
+  expect(posts).toHaveLength(3);
+  expect(posts[2].headers.get('Idempotency-Key')).not.toBe(posts[1].headers.get('Idempotency-Key'));
+  expect(posts[2].body).toMatchObject({ items: [{ name: '첫 케이스' }, { name: '수정한 둘째 케이스' }] });
+  expect(notify).toHaveBeenCalledWith('테스트 케이스 2개가 등록되었습니다. (전체 3개)');
+});

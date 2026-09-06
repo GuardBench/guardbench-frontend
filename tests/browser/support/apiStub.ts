@@ -4,6 +4,7 @@ export interface StubbedApiRequest {
   url: URL;
   method: string;
   body: unknown;
+  headers: Headers;
 }
 
 type ApiStubHandler = (request: StubbedApiRequest) => Response | Promise<Response>;
@@ -46,6 +47,7 @@ export const installApiStub = (handler: ApiStubHandler) => {
       url: new URL(rawUrl, window.location.origin),
       method,
       body: bodyText ? JSON.parse(bodyText) as unknown : null,
+      headers: new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined)),
     };
     requests.push(request);
     return handler(request);

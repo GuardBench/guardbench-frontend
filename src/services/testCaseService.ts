@@ -9,6 +9,12 @@ export interface CreateTestCasePayload {
   category: string;
 }
 
+export interface BulkCreateTestCasesResponse {
+  createdTestCaseIds: Array<number | string>;
+  createdCount: number;
+  totalTestCaseCount: number;
+}
+
 // TestCase 목록 Response
 export interface TestCaseListApiResponse {
   items: Array<{
@@ -61,6 +67,23 @@ export async function createTestCase(
   return apiRequest<any>(`/test-suites/${suiteId}/test-cases`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * TestCase 일괄 생성 (POST /test-suites/{suiteId}/test-cases/bulk)
+ *
+ * 같은 논리 요청을 재시도할 때는 동일한 idempotencyKey를 전달해야 한다.
+ */
+export async function createTestCasesBulk(
+  suiteId: string | number,
+  items: CreateTestCasePayload[],
+  idempotencyKey: string,
+): Promise<BulkCreateTestCasesResponse> {
+  return apiRequest<BulkCreateTestCasesResponse>(`/test-suites/${suiteId}/test-cases/bulk`, {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify({ items }),
   });
 }
 

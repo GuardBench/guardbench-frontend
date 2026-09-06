@@ -87,9 +87,9 @@ TestSuite 목록을 확인하고 Run에서 사용할 TestCase를 관리한다.
 - API 성공의 실제 빈 결과와 오류를 구분하며 silent mock fallback을 사용하지 않는다.
 - Suite 생성 modal은 `POST /api/v1/test-suites`를 사용하고 서버가 반환한 ID를 반영한다.
 - Suite 선택 시 TestCase 관리 modal에서 `GET /api/v1/test-suites/{suiteId}/test-cases`를 사용한다.
-- TestCase 생성은 POST, 삭제는 DELETE를 사용한다. 삭제 실패를 성공으로 확정하지 않는다.
-- TestCase 수정 action은 완전한 편집 UI로 연결되지 않았다.
-- server pagination/filter는 화면 control에 완전히 연결되지 않았다.
+- TestCase 단건 생성은 POST, 수정은 PATCH, 삭제는 DELETE를 사용한다. mutation 실패를 성공으로 확정하지 않는다.
+- 기존 Suite의 일괄 등록은 `POST /api/v1/test-suites/{suiteId}/test-cases/bulk`를 사용하며 JSON·CSV 입력, 제출 전 미리보기와 행별 수정을 제공한다.
+- server pagination은 화면 control에 연결되어 있으며 filter 연결은 아직 제공하지 않는다.
 - TestCase 페이지네이션은 좁은 화면에서 첫 줄 전체 폭을 사용하며 `이전`과 `다음`을 가로쓰기로 유지한다. 페이지가 많아 가용 폭을 넘으면 페이지네이션 영역 안에서 가로로 탐색할 수 있다.
 
 ### 목표 동작 (`TO-BE`)
@@ -100,6 +100,7 @@ TestSuite 목록을 확인하고 Run에서 사용할 TestCase를 관리한다.
 | Suite 생성 | `POST /api/v1/test-suites` | validation detail을 관련 field에 표시한다. |
 | Suite 상세·수정 | `GET/PATCH /api/v1/test-suites/{suiteId}` | API에 없는 상태·pass rate를 만들지 않는다. |
 | TestCase 목록·생성 | `GET/POST /api/v1/test-suites/{suiteId}/test-cases` | `404 TEST_SUITE_NOT_FOUND`와, 존재하는 Suite가 `200`으로 반환한 빈 `items`를 구분한다. |
+| 기존 Suite TestCase 일괄 등록 | `POST /api/v1/test-suites/{suiteId}/test-cases/bulk` | 최대 1,000개를 미리 검증·수정하고 필수 `Idempotency-Key`로 원자적 요청을 재시도한다. 성공 후 목록과 전체 개수를 다시 조회한다. |
 | TestCase 상세·수정·삭제 | `GET/PATCH/DELETE /api/v1/test-cases/{testCaseId}` | `204` 성공 후 삭제를 확정하고 과거 Snapshot은 영향받지 않음을 안내한다. |
 
 Suite 생성은 두 형태를 모두 허용한다.
@@ -108,6 +109,8 @@ Suite 생성은 두 형태를 모두 허용한다.
 - 최대 1,000개의 초기 TestCase를 함께 보내 Suite와 하나의 트랜잭션에서 원자적으로 생성한다. 초기 TestCase 하나라도 유효하지 않으면 Suite를 포함한 전체 요청이 실패한다.
 
 현재 MVP 화면은 이름만 입력하면 빈 Suite를 생성하고, 사용자가 초기 TestCase 추가를 선택하면 단건 입력 또는 JSON 배열 직접 입력·UTF-8 JSON 파일·UTF-8 CSV 파일 업로드로 최대 1,000건을 같은 생성 요청에 포함한다. JSON 파일은 선택 즉시 기존 JSON 입력과 같은 검증·미리보기를 적용한다. 어떤 입력 방식을 사용해도 생성 후에는 동일한 TestCase 관리 화면을 사용한다.
+
+기존 Suite의 일괄 등록도 JSON 배열 직접 입력·UTF-8 JSON 파일·UTF-8 CSV 파일을 지원한다. 가져온 정상 항목은 미리보기에서 각 필드를 수정할 수 있고, client 및 server validation 오류를 항목별로 표시한다. 전체 요청은 부분 성공 없이 원자적으로 처리하며, 결과를 알 수 없는 동일 payload 재시도에는 같은 `Idempotency-Key`를 유지하고 항목이 바뀌면 새 key를 사용한다.
 
 pagination/filter UX, 삭제 확인 방식과 mutation 후 재조회 정책은 `미결정`이다.
 
