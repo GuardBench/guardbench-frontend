@@ -39,6 +39,27 @@ interface ResultDetailViewProps {
   regressionSummary?: React.ReactNode;
 }
 
+const RESULT_PAGE_SIZE = 20;
+
+const pageItems = (currentPage: number, totalPages: number): Array<number | 'ellipsis'> => {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+
+  const pages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+  if (currentPage <= 3) {
+    pages.add(2);
+    pages.add(3);
+    pages.add(4);
+  }
+  if (currentPage >= totalPages - 2) {
+    pages.add(totalPages - 3);
+    pages.add(totalPages - 2);
+    pages.add(totalPages - 1);
+  }
+
+  const sorted = [...pages].filter((page) => page >= 1 && page <= totalPages).sort((a, b) => a - b);
+  return sorted.flatMap((page, index) => index > 0 && page - sorted[index - 1] > 1 ? ['ellipsis', page] : [page]);
+};
+
 const executionLabel = (status: TestRunResultListItemRes['executionStatus']) => ({
   SUCCEEDED: '정상 처리', FAILED: '처리 실패', TIMED_OUT: '시간 초과', NOT_STARTED: '미실행',
 }[status]);
@@ -259,7 +280,7 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
       try {
         const nextResults = await getTestRunResults(selectedRunId, {
           page: resultPage,
-          size: 100,
+          size: RESULT_PAGE_SIZE,
           ...(filters.name ? { name: filters.name } : {}),
           ...(filters.input ? { input: filters.input } : {}),
           ...(filters.category ? { category: filters.category } : {}),
@@ -273,6 +294,14 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
           ...(includeFacets ? { includeFacets } : {}),
         });
         if (active) {
+          // 필터 결과가 줄어 현재 페이지가 범위를 벗어나면 마지막 유효 페이지를 다시 조회한다.
+          if (nextResults.items.length === 0
+            && nextResults.page.totalElements > 0
+            && nextResults.page.totalPages > 0
+            && nextResults.page.number > nextResults.page.totalPages) {
+            setResultPage(nextResults.page.totalPages);
+            return;
+          }
           setResults(nextResults.items);
           setPageMeta(nextResults.page);
           setLoadedResultsQueryKey(resultQueryKey);
@@ -485,7 +514,44 @@ export const ResultDetailView: React.FC<ResultDetailViewProps> = ({
                   </tr>)}</tbody>
               </table></div>
             </>}
-      {visiblePageMeta && visiblePageMeta.totalPages > 1 && <div className="flex items-center justify-between border-t border-[#e5e9ee] p-4 text-xs"><button type="button" disabled={!visiblePageMeta.hasPrevious || resultsLoading} onClick={() => setResultPage((page) => Math.max(1, page - 1))} className="rounded-lg border px-3 py-2 font-bold disabled:opacity-40">이전</button><span>{visiblePageMeta.number} / {visiblePageMeta.totalPages} 페이지</span><button type="button" disabled={!visiblePageMeta.hasNext || resultsLoading} onClick={() => setResultPage((page) => page + 1)} className="rounded-lg border px-3 py-2 font-bold disabled:opacity-40">다음</button></div>}
+      {visiblePageMeta && visiblePageMeta.totalPages > 1 && (
+        <nav
+          aria-label="테스트 결과 페이지네이션"
+          className="flex max-w-full items-center justify-center gap-1 overflow-x-auto border-t border-[#e5e9ee] p-4 text-xs"
+        >
+          <button
+            type="button"
+            disabled={!visiblePageMeta.hasPrevious || resultsLoading}
+            onClick={() => setResultPage(Math.max(1, visiblePageMeta.number - 1))}
+            className="shrink-0 whitespace-nowrap rounded-lg border border-[#dce1e6] px-3 py-2 font-bold disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            이전
+          </button>
+          {pageItems(visiblePageMeta.number, visiblePageMeta.totalPages).map((item, index) => item === 'ellipsis' ? (
+            <span key={`ellipsis-${index}`} aria-hidden="true" className="px-1 text-[#697586]">…</span>
+          ) : (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setResultPage(item)}
+              disabled={resultsLoading}
+              aria-current={item === visiblePageMeta.number ? 'page' : undefined}
+              aria-label={`${item}페이지`}
+              className={`min-w-8 rounded-lg px-2 py-2 font-bold disabled:cursor-not-allowed ${item === visiblePageMeta.number ? 'bg-[#17202a] text-white' : 'text-[#4e5a68] hover:bg-[#eef1f4]'}`}
+            >
+              {item}
+            </button>
+          ))}
+          <button
+            type="button"
+            disabled={!visiblePageMeta.hasNext || resultsLoading}
+            onClick={() => setResultPage(visiblePageMeta.number + 1)}
+            className="shrink-0 whitespace-nowrap rounded-lg border border-[#dce1e6] px-3 py-2 font-bold disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            다음
+          </button>
+        </nav>
+      )}
     </article>
 
     <article className="rounded-2xl border border-[#e5e9ee] bg-white p-5">
