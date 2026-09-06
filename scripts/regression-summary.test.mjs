@@ -69,6 +69,17 @@ test('summary and detail components only use type imports from regression servic
   }
 });
 
+test('Result Detail keeps an unfinished Regression summary neutral after internal retries', () => {
+  const summarySource = readFileSync(new URL('../src/components/views/RegressionSummaryEntry.tsx', import.meta.url), 'utf8');
+  const detailSource = readFileSync(new URL('../src/components/views/RegressionComparisonSection.tsx', import.meta.url), 'utf8');
+
+  assert.match(summarySource, /현재 Run이 종료되면 비교 가능한 과거 Run을 자동으로 확인합니다\./);
+  assert.doesNotMatch(summarySource, /자동 확인을 5회 마쳤습니다/);
+  assert.doesNotMatch(summarySource, /autoRetryExhausted/);
+  assert.match(detailSource, /자동 확인을 5회 마쳤습니다/);
+  assert.match(detailSource, /비교 새로고침/);
+});
+
 const stateHelpers = await import(compile('../src/hooks/regressionComparisonState.ts'));
 
 test('a loaded detail comparison is reused after a Result Detail round trip', () => {
